@@ -7,6 +7,7 @@ import { GameEngine } from "./gameEngine";
 import { EventManager } from "./gameEvent/eventManager";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
 import { GamePlayerManager } from "./gamePlayer/playerManager";
+import { RunnerManager } from "./Runner/RunnerManager";
 import { GameStateError } from "./utils/GameError";
 import { Logger } from "./utils/logger";
 
@@ -25,6 +26,7 @@ export abstract class GameState<
     private componets: Map<GameComponentType<any>, GameComponent<any>> =
         new Map();
     public eventManager = new EventManager();
+    public runner = new RunnerManager();
     protected engine: E;
 
     constructor(engine: E) {
@@ -43,7 +45,7 @@ export abstract class GameState<
 
     /**获取子状态 */
     get childState() {
-        return this.engine.getChild(this);
+        return this.engine.getNextState(this);
     }
 
     /**进入 */
@@ -88,9 +90,10 @@ export abstract class GameState<
     deleteComponent(component: GameComponentType<any>) {
         this.logger.debug(`删除组件:${component.name}`);
         const instance = this.componets.get(component);
-        if (!instance) return;
+        if (!instance) return this;
         instance.onDetach();
         this.componets.delete(component);
+        return this;
     }
 
     /**删除所有组件 */
@@ -119,7 +122,8 @@ export abstract class GameState<
 
     onExit() {
         this.logger.debug(`onExit`);
-        this.deleteAllComponents();
         this.eventManager.dispose();
+        this.deleteAllComponents();
+        this.runner.dispose();
     }
 }

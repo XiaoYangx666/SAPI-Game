@@ -1,20 +1,14 @@
-import {
-    PlayerRegionEvent,
-    RegionEventType,
-} from "@sapi-game/gameEvent/events/regionEvents";
+import { PlayerRegionEvent, RegionEventType } from "@sapi-game/gameEvent/events/regionEvents";
+import { Game } from "@sapi-game/main";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
 import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { GameState } from "../../gameState";
 import { GameRegion } from "../../utils/gameRegion";
-import { DimensionIds } from "../../utils/types";
 import { GameComponent } from "../gameComponent";
-import { Game } from "@sapi-game/main";
 
 export interface RegionTeamChooserData<P extends GamePlayer> {
     /**指定范围 */
     region: GameRegion;
-    /**维度ID */
-    dimension: DimensionIds;
     /**玩家进入区域时执行 */
     onEnter?: (player: P) => void;
     /**玩家首次加入本队时执行 */
@@ -40,15 +34,12 @@ export class RegionTeamChooser<
             this.subscribe(
                 Game.events.region,
                 (event) => this.handleRegionEvent(event, data),
-                { region: data.region, dimension: data.dimension }
+                data.region
             );
         });
     }
 
-    private handleRegionEvent(
-        event: PlayerRegionEvent,
-        data: RegionTeamChooserData<P>
-    ) {
+    private handleRegionEvent(event: PlayerRegionEvent, data: RegionTeamChooserData<P>) {
         const gamePlayer = this.state.playerManager.get(event.player);
         if (!gamePlayer) return;
 
@@ -62,12 +53,12 @@ export class RegionTeamChooser<
         }
     }
 
-    private handlePlayerEnter(
-        gamePlayer: P,
-        configData: RegionTeamChooserData<P>
-    ) {
+    private handlePlayerEnter(gamePlayer: P, configData: RegionTeamChooserData<P>) {
         const newTeam = configData.team;
         const alreadyInTeam = newTeam.has(gamePlayer);
+        if (configData.onEnter) {
+            configData.onEnter(gamePlayer);
+        }
         //从所有队伍清除目标玩家
         this.options?.config.forEach((d) => {
             if (d.team !== newTeam) {
@@ -77,18 +68,12 @@ export class RegionTeamChooser<
         //添加到新队伍
         newTeam.add(gamePlayer);
         //执行回调
-        if (configData.onEnter) {
-            configData.onEnter(gamePlayer);
-        }
         if (configData.onJoin && !alreadyInTeam) {
             configData.onJoin(gamePlayer);
         }
     }
 
-    private handlePlayerLeave(
-        gamePlayer: P,
-        configData: RegionTeamChooserData<P>
-    ) {
+    private handlePlayerLeave(gamePlayer: P, configData: RegionTeamChooserData<P>) {
         const shouldRemoveOnLeave = this.options?.removeOnLeave ?? false;
         if (shouldRemoveOnLeave) {
             configData.team.delete(gamePlayer);

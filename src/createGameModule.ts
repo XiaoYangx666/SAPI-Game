@@ -2,28 +2,21 @@ import { GameComponent } from "./gameComponent/gameComponent";
 import { GameContext } from "./gameContext";
 import { GameEngine } from "./gameEngine";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
-import { GamePlayerManager } from "./gamePlayer/playerManager";
 import { GameState } from "./gameState";
 import { classConstructor } from "./utils/interfaces";
 
 export function createGameModule<
     P extends GamePlayer = GamePlayer,
     C extends GameContext = GameContext
->(config: {
+>(options: {
     playerClass?: classConstructor<P>;
     contextClass?: classConstructor<C>;
 }) {
-    abstract class Engine extends GameEngine<P, C> {
-        constructor(context?: C) {
-            const playerManager = new GamePlayerManager(
-                config.playerClass ?? (GamePlayer as classConstructor<P>)
-            );
-            super(
-                context ??
-                    new (config.contextClass ??
-                        (GameContext as classConstructor<C>))(),
-                playerManager
-            );
+    const playerClass =
+        options.playerClass ?? (GamePlayer as classConstructor<P>);
+    abstract class Engine<O = unknown> extends GameEngine<P, C, O> {
+        constructor(config?: O) {
+            super(playerClass, config);
         }
     }
 
@@ -38,5 +31,5 @@ export function createGameModule<
         Engine,
         State,
         Component,
-    };
+    } as const;
 }

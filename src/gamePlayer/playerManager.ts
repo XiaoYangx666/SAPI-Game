@@ -23,4 +23,13 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         }
         return gamePlayer;
     }
+
+    get size() {
+        return this.players.size;
+    }
+
+    get validSize() {
+        return Array.from(this.players.values()).filter((p) => p.player.isValid)
+            .length;
+    }
 }

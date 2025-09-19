@@ -1,10 +1,18 @@
+import { EventSubscription } from "@sapi-game/gameEvent/eventManager";
 import { EventSignal } from "../gameEvent/eventSignal";
 import { GameState } from "../gameState";
 
-export abstract class GameComponent<
-    S extends GameState<any, any>,
-    O = unknown
-> {
+type InferContext<S> = S extends GameState<any, infer C, any> ? C : never;
+
+export abstract class GameComponent<S extends GameState<any, any>, O = unknown> {
+    get context(): InferContext<S> {
+        return this.state.context;
+    }
+
+    get runner() {
+        return this.state.runner;
+    }
+
     constructor(protected state: S, protected options?: O) {}
 
     abstract onAttach(): void;
@@ -14,11 +22,13 @@ export abstract class GameComponent<
     }
 
     /**订阅事件 */
-    subscribe<T extends EventSignal<any>>(
-        event: T,
-        ...args: Parameters<T["subscribe"]>
-    ) {
-        this.state.eventManager.subscribe(this.constructor, event, ...args);
+    subscribe<T extends EventSignal<any>>(event: T, ...args: Parameters<T["subscribe"]>) {
+        return this.state.eventManager.subscribe(this.constructor, event, ...args);
+    }
+
+    /**取消订阅 */
+    unsubscribe(sub: EventSubscription) {
+        this.state.eventManager.unsubscribe(sub);
     }
 }
 

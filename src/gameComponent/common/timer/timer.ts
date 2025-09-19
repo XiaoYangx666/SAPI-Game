@@ -1,6 +1,5 @@
 import { GameState } from "@sapi-game/gameState";
 import { Game } from "@sapi-game/main";
-import { Logger } from "@sapi-game/utils/logger";
 import { GameComponent } from "../../gameComponent";
 import { TimerOnTimeEventSignal } from "./onTimeEvent";
 import { TimerTickEventSignal } from "./tickEvent";

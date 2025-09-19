@@ -1,12 +1,7 @@
-import {
-    ButtonPushAfterEvent,
-    Player,
-    Vector3,
-    world,
-} from "@minecraft/server";
+import { ButtonPushAfterEvent, Player, Vector3, world } from "@minecraft/server";
 import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { Logger } from "../../utils/logger";
-import { DimensionIds } from "../../utils/types";
+import { DimensionIds } from "../../utils/vanila-data";
 import { VectorHelper } from "../../utils/vector";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
@@ -14,11 +9,10 @@ import { Subscription } from "../subscription";
 interface ButtonData {
     callback: (event: ButtonPushAfterEvent) => void;
     players?: PlayerGroup<any>;
+    sourceType?: string;
 }
 
-export class ButtonPushEventSignal
-    implements CustomEventSignal<ButtonPushAfterEvent>
-{
+export class ButtonPushEventSignal implements CustomEventSignal<ButtonPushAfterEvent> {
     private logger = new Logger(this.constructor.name);
     private buttonMap: Map<string, Set<ButtonData>> = new Map();
 
@@ -33,6 +27,7 @@ export class ButtonPushEventSignal
         options: {
             dimensionId: DimensionIds;
             loc: [number, number, number];
+            sourceType?: string;
             players?: PlayerGroup<any>;
         }
     ): Subscription {
@@ -49,7 +44,11 @@ export class ButtonPushEventSignal
             set = new Set();
             this.buttonMap.set(key, set);
         }
-        const data = { callback: callback, players: options.players };
+        const data = {
+            callback: callback,
+            players: options.players,
+            sourceType: options.sourceType,
+        };
         set.add(data);
         this.totalCount++;
         let removed = false;
@@ -75,9 +74,7 @@ export class ButtonPushEventSignal
 
     private init() {
         this.inited = true;
-        this.nativeUnsub = world.afterEvents.buttonPush.subscribe(
-            this.publish.bind(this)
-        );
+        this.nativeUnsub = world.afterEvents.buttonPush.subscribe(this.publish.bind(this));
     }
 
     cleanup() {
@@ -101,6 +98,10 @@ export class ButtonPushEventSignal
         const callbacks = this.buttonMap.get(key);
         if (callbacks) {
             for (const data of Array.from(callbacks)) {
+                //如果不满足指定类型
+                if (data.sourceType && event.source.typeId != data.sourceType) {
+                    continue;
+                }
                 //如果不在playerGroup中，则跳过
                 if (
                     event.source instanceof Player &&

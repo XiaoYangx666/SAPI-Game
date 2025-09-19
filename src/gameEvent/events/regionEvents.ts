@@ -1,7 +1,8 @@
 import { Player, world } from "@minecraft/server";
+import { difference } from "@sapi-game/utils/func";
 import { GameRegion } from "@sapi-game/utils/gameRegion";
 import { Logger } from "@sapi-game/utils/logger";
-import { DimensionIds } from "@sapi-game/utils/types";
+import { DimensionIds } from "@sapi-game/utils/vanila-data";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
 import { IntervalEventSignal } from "./tick";
@@ -11,26 +12,15 @@ export enum RegionEventType {
     Leave = "leave",
 }
 
-/** 包含与玩家区域相关的信息 */
 export interface PlayerRegionEvent {
     readonly player: Player;
     readonly type: RegionEventType;
     readonly region: GameRegion;
-    readonly dimension: DimensionIds;
 }
 
-/** 玩家区域事件的相关参数 */
-export interface RegionSubscriptionOptions {
-    region: GameRegion;
-    dimension: DimensionIds;
-}
-
-/**
- * @internal 内部用于存储每个订阅详细信息的数据结构
- */
 interface RegionSubscription {
     callback: (event: PlayerRegionEvent) => void;
-    options: RegionSubscriptionOptions;
+    region: GameRegion;
 }
 
 export class PlayerRegionEventSignal
@@ -40,22 +30,23 @@ export class PlayerRegionEventSignal
     private logger = new Logger(this.constructor.name);
     private subscription: Subscription | null = null;
 
-    // 存储所有独立的订阅
     private allSubscriptions: Set<RegionSubscription> = new Set();
 
-    // 核心状态：维护每个玩家当前所在的区域订阅。
-    // Key: player.id, Value: 该玩家所在的 RegionSubscription
-    private playerStates: Map<string, RegionSubscription> = new Map();
+    // 每个 region 当前的玩家状态
+    private regionStates: Map<GameRegion, Set<string>> = new Map();
 
-    /** 订阅玩家进出指定区域的事件。*/
     subscribe(
         callback: (event: PlayerRegionEvent) => void,
-        options: RegionSubscriptionOptions
+        region: GameRegion
     ): Subscription {
-        const subscription: RegionSubscription = { callback, options };
+        const subscription: RegionSubscription = { callback, region };
         this.allSubscriptions.add(subscription);
 
-        // 如果这是第一个订阅，启动全局计时器
+        // 初始化状态
+        if (!this.regionStates.has(region)) {
+            this.regionStates.set(region, new Set());
+        }
+
         if (this.subscription === null) {
             this.startMonitoring();
         }
@@ -63,8 +54,15 @@ export class PlayerRegionEventSignal
         return {
             unsubscribe: () => {
                 this.allSubscriptions.delete(subscription);
+                // 如果 region 没有订阅者了，清理它的状态
+                if (
+                    ![...this.allSubscriptions].some(
+                        (sub) => sub.region === region
+                    )
+                ) {
+                    this.regionStates.delete(region);
+                }
 
-                // 如果所有订阅都取消了，停止全局计时器
                 if (this.allSubscriptions.size === 0) {
                     this.stopMonitoring();
                 }
@@ -75,7 +73,7 @@ export class PlayerRegionEventSignal
     private startMonitoring(): void {
         this.logger.debug("启动玩家区域观测");
         this.subscription = this.tickEvent.subscribe(
-            this.checkAllPlayers.bind(this)
+            this.checkAllRegions.bind(this)
         );
     }
 
@@ -84,66 +82,57 @@ export class PlayerRegionEventSignal
             this.logger.debug("停止玩家区域观测");
             this.subscription.unsubscribe();
             this.subscription = null;
-            // 清理状态以防万一
-            this.playerStates.clear();
+            this.regionStates.clear();
         }
     }
 
-    /** 遍历所有在线玩家，检查他们的区域状态。*/
-    private checkAllPlayers(): void {
-        const onlinePlayerIds = new Set<string>();
+    private checkAllRegions(): void {
+        // 1. 按维度收集所有玩家
+        const players = world.getAllPlayers();
+        const playersByDimension: Record<string, Player[]> = {};
+        const dimensions = [
+            DimensionIds.Overworld,
+            DimensionIds.Nether,
+            DimensionIds.End,
+        ];
 
-        // 1. 遍历所有在线玩家，处理状态变化
-        for (const player of world.getAllPlayers()) {
-            if (player == undefined) continue;
-            onlinePlayerIds.add(player.id);
-            const previousState = this.playerStates.get(player.id) ?? null;
-            const currentState = this.findRegionForPlayer(player);
-
-            // 状态机：检查是否发生变化
-            if (previousState !== currentState) {
-                // 触发离开事件 (如果之前在某个区域)
-                if (previousState) {
-                    this.publish(player, RegionEventType.Leave, previousState);
-                }
-                // 触发进入事件 (如果现在进入了某个区域)
-                if (currentState) {
-                    this.publish(player, RegionEventType.Enter, currentState);
-                }
-
-                // 更新玩家状态
-                if (currentState) {
-                    this.playerStates.set(player.id, currentState);
-                } else {
-                    this.playerStates.delete(player.id);
-                }
-            }
+        for (const dim of dimensions) {
+            playersByDimension[dim] = players.filter(
+                (p) => p.dimension.id === dim
+            );
         }
 
-        // 2. 处理离线玩家
-        for (const playerId of this.playerStates.keys()) {
-            if (!onlinePlayerIds.has(playerId)) {
-                this.playerStates.delete(playerId);
-                this.logger.debug(
-                    `区域中的玩家: ${playerId} 离开了游戏. 状态已清理.`
-                );
-            }
-        }
-    }
-
-    /** 为指定玩家查找其当前所在的区域。*/
-    private findRegionForPlayer(player: Player): RegionSubscription | null {
+        // 2. 遍历所有订阅区域
         for (const sub of this.allSubscriptions) {
-            if (player.dimension.id == sub.options.dimension) {
-                if (sub.options.region.isInRegion(player.location)) {
-                    return sub;
-                }
+            const region = sub.region;
+            const prevPlayers =
+                this.regionStates.get(region) ?? new Set<string>();
+
+            const dimensionPlayers =
+                playersByDimension[region.dimensionId] ?? [];
+            const currPlayers = new Set(
+                dimensionPlayers
+                    .filter((p) => region.contains(p.location))
+                    .map((p) => p.id)
+            );
+
+            // 进入事件
+            for (const playerId of difference(currPlayers, prevPlayers)) {
+                const player = dimensionPlayers.find((p) => p.id === playerId)!;
+                this.publish(player, RegionEventType.Enter, sub);
             }
+
+            //离开事件
+            for (const playerId of difference(prevPlayers, currPlayers)) {
+                const player = dimensionPlayers.find((p) => p.id === playerId);
+                if (player) this.publish(player, RegionEventType.Leave, sub);
+            }
+
+            // 更新状态
+            this.regionStates.set(region, currPlayers);
         }
-        return null;
     }
 
-    /** 发布事件 */
     private publish(
         player: Player,
         type: RegionEventType,
@@ -153,8 +142,7 @@ export class PlayerRegionEventSignal
             subscription.callback({
                 player,
                 type,
-                region: subscription.options.region,
-                dimension: subscription.options.dimension,
+                region: subscription.region,
             });
         } catch (e) {
             this.logger.error("Region event callback error:", e);
