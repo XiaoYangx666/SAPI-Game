@@ -1,7 +1,4 @@
-import {
-    GameComponent,
-    GameComponentType,
-} from "./gameComponent/gameComponent";
+import { GameComponent, GameComponentType } from "./gameComponent/gameComponent";
 import { GameContext } from "./gameContext";
 import { GameEngine } from "./gameEngine";
 import { EventManager } from "./gameEvent/eventManager";
@@ -11,26 +8,31 @@ import { RunnerManager } from "./Runner/RunnerManager";
 import { GameStateError } from "./utils/GameError";
 import { Logger } from "./utils/logger";
 
+type ExtractConfig<S> = S extends gameStateConstructor<any, any, infer T> ? T : never;
+
 export type gameStateConstructor<
     P extends GamePlayer = any,
-    C extends GameContext = any
-> = new (engine: GameEngine<P, C>) => GameState<P, C>;
+    C extends GameContext = any,
+    TConfig = unknown
+> = new (engine: GameEngine<P, C, any>, config?: TConfig) => GameState<P, C, TConfig>;
 
 /**游戏状态 */
 export abstract class GameState<
     P extends GamePlayer = any,
     C extends GameContext = any,
+    TConfig = unknown,
     E extends GameEngine<P, C> = GameEngine<P, C>
 > {
     protected logger: Logger = new Logger(this.constructor.name);
-    private componets: Map<GameComponentType<any>, GameComponent<any>> =
-        new Map();
-    public eventManager = new EventManager();
-    public runner = new RunnerManager();
     protected engine: E;
+    private componets: Map<GameComponentType<any>, GameComponent<any>> = new Map();
+    public eventManager = new EventManager();
+    public runner = new RunnerManager(this.constructor.name);
+    public config?: TConfig;
 
-    constructor(engine: E) {
+    constructor(engine: E, config?: TConfig) {
         this.engine = engine;
+        this.config = config;
     }
 
     /**全局上下文 */
@@ -44,7 +46,7 @@ export abstract class GameState<
     }
 
     /**获取子状态 */
-    get childState() {
+    get nextState() {
         return this.engine.getNextState(this);
     }
 
@@ -60,9 +62,7 @@ export abstract class GameState<
     ) {
         this.logger.debug(`添加组件:${component.name}`);
         if (this.componets.has(component)) {
-            throw new GameStateError(
-                `组件 ${component.name} 已经存在于当前状态中`
-            );
+            throw new GameStateError(`组件 ${component.name} 已经存在于当前状态中`);
         }
         const componentInstance = new component(this, options);
         this.componets.set(component, componentInstance);
@@ -74,14 +74,10 @@ export abstract class GameState<
     /**获取当前状态中的组件
      * @throws GameStateError 若状态不存在，则抛出
      */
-    getComponent<C extends GameComponentType<any, any>>(
-        type: C
-    ): InstanceType<C> {
+    getComponent<C extends GameComponentType<any, any>>(type: C): InstanceType<C> {
         const component = this.componets.get(type);
         if (!component) {
-            throw new GameStateError(
-                `获取失败:组件 ${type.name} 不存在于当前状态中`
-            );
+            throw new GameStateError(`获取失败:组件 ${type.name} 不存在于当前状态中`);
         }
         return component as InstanceType<C>;
     }
@@ -106,8 +102,8 @@ export abstract class GameState<
     }
 
     /** 进入一个新的子状态 */
-    pushState(stateType: gameStateConstructor<P, C>) {
-        this.engine.pushState(stateType);
+    pushState<S extends gameStateConstructor<P, C, any>>(stateType: S, config?: ExtractConfig<S>) {
+        this.engine.pushState(stateType, config);
     }
 
     /** 返回到父状态 */
@@ -116,8 +112,8 @@ export abstract class GameState<
     }
 
     /**将当前状态及其所有子状态，替换为一个新状态。*/
-    transitionTo(stateType: gameStateConstructor<P, C>) {
-        this.engine.replaceFrom(this, stateType);
+    transitionTo<T>(stateType: gameStateConstructor<P, C, T>, config?: T) {
+        this.engine.replaceFrom(this, stateType, config);
     }
 
     onExit() {
@@ -125,5 +121,20 @@ export abstract class GameState<
         this.eventManager.dispose();
         this.deleteAllComponents();
         this.runner.dispose();
+    }
+
+    debug() {
+        const stateName = this.constructor.name;
+        const componentNames = [...this.componets.values()].map((c) => c.constructor.name);
+
+        this.logger.log(
+            [
+                "=== State Debug ===",
+                `State: ${stateName}`,
+                `Components(${componentNames.length}): ${
+                    componentNames.length ? componentNames.join(", ") : "<none>"
+                }`,
+            ].join("\n  ")
+        );
     }
 }

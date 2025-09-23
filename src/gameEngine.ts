@@ -35,9 +35,9 @@ export abstract class GameEngine<
     abstract onStop(): void;
 
     /** 在栈顶添加一个新的子状态 */
-    pushState(stateType: gameStateConstructor<P, C>) {
+    pushState<T>(stateType: gameStateConstructor<P, C, T>, config?: T) {
         this.logger.debug(`Pushing state: ${stateType.name}`);
-        const stateInstance = new stateType(this);
+        const stateInstance = new stateType(this, config);
         this.stateStack.push(stateInstance);
         stateInstance.onEnter();
         return this;
@@ -47,24 +47,23 @@ export abstract class GameEngine<
     popState() {
         const currentState = this.stateStack.pop();
         if (currentState) {
-            this.logger.debug(
-                `Popping state: ${currentState.constructor.name}`
-            );
+            this.logger.debug(`Popping state: ${currentState.constructor.name}`);
             currentState.onExit();
         }
     }
 
     /** 清空所有状态，并设置一个新的根状态 */
-    resetState(stateType: gameStateConstructor<P, C>) {
+    resetState<T>(stateType: gameStateConstructor<P, C, T>, config?: T) {
         this.logger.debug(`Setting root state to: ${stateType.name}`);
         this.clearStateStack();
-        this.pushState(stateType);
+        this.pushState(stateType, config);
     }
 
     /** 从指定的状态实例开始替换状态分支。*/
-    replaceFrom(
+    replaceFrom<T>(
         stateToReplace: GameState<P, C>,
-        newStateType: gameStateConstructor<P, C>
+        newStateType: gameStateConstructor<P, C, T>,
+        config?: T
     ) {
         this.logger.debug(
             `Replacing from ${stateToReplace.constructor.name} with ${newStateType.name}`
@@ -72,9 +71,7 @@ export abstract class GameEngine<
 
         const index = this.stateStack.indexOf(stateToReplace);
         if (index === -1) {
-            this.logger.error(
-                `无法找到要替换的状态实例:${stateToReplace.constructor.name}`
-            );
+            this.logger.error(`无法找到要替换的状态实例:${stateToReplace.constructor.name}`);
             throw new Error("State to replace not found in stack.");
         }
 
@@ -85,7 +82,7 @@ export abstract class GameEngine<
         }
 
         // 在现在的位置上推入新状态
-        this.pushState(newStateType);
+        this.pushState(newStateType, config);
     }
 
     private clearStateStack() {
@@ -107,9 +104,7 @@ export abstract class GameEngine<
         const playersLine = `§ePlayers§r: §a${this.playerManager.validSize}§r / §7${this.playerManager.size}`;
         const statesLine =
             stateNames.length > 0
-                ? `§eStates§r(${stateNames.length}): §b${stateNames.join(
-                      " §7→ §b"
-                  )}`
+                ? `§eStates§r(${stateNames.length}): §b${stateNames.join(" §7| §b")}`
                 : `§eStates§r: §7<empty>`;
 
         return ["", playersLine, statesLine].join("\n   ");

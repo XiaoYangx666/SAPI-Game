@@ -10,6 +10,9 @@ export class StateDebugComponent extends GameComponent<GameState<any, any>> {
             if (t.message == "event") {
                 this.state.eventManager.debug();
             }
+            if (t.message == "state") {
+                this.state.debug();
+            }
         });
     }
 }

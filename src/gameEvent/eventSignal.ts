@@ -35,6 +35,7 @@ export abstract class BasicCustomEventSignal<T, U> {
     // 发布事件，执行所有回调
     publish(data: U): void {
         const callbacksCopy = [...this.set];
+
         for (const cb of callbacksCopy) {
             try {
                 this.runCallback(cb, data);

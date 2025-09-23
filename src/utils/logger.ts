@@ -21,7 +21,7 @@ export class Logger {
     debug(message: string, ...optionalParams: any[]) {
         if (this.logLevel <= logLevel.debug)
             console.log(
-                `[SAPI-Game][${this.name}] ${message}`,
+                `<Game-debug>[${this.name}] ${message}`,
                 ...optionalParams
             );
     }
@@ -29,7 +29,7 @@ export class Logger {
     log(message: string, ...optionalParams: any[]) {
         if (this.logLevel <= logLevel.log)
             console.log(
-                `[SAPI-Game][${this.name}] ${message}`,
+                `<Game-log>[${this.name}] ${message}`,
                 ...optionalParams
             );
     }
@@ -37,7 +37,7 @@ export class Logger {
     warn(message: string, ...optionalParams: any[]) {
         if (this.logLevel <= logLevel.warn)
             console.warn(
-                `[SAPI-Game][${this.name}] ${message}`,
+                `<Game-warn>[${this.name}] ${message}`,
                 ...optionalParams
             );
     }
@@ -49,9 +49,9 @@ export class Logger {
     error(message: string, e?: unknown) {
         if (this.logLevel > logLevel.error) return;
         if (e instanceof Error) {
-            console.error(`[SAPI-Game][${this.name}] ${message}`, e, e.stack);
+            console.error(`<Game-error>[${this.name}] ${message}`, e, e.stack);
         } else {
-            console.error(`[SAPI-Game][${this.name}] ${message}`, e);
+            console.error(`<Game-error>[${this.name}] ${message}`, e);
         }
     }
 }

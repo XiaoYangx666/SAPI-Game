@@ -25,3 +25,5 @@ export * as GameUtils from "@sapi-game/utils";
 export { GameComponent } from "./gameComponent/gameComponent";
 export { GameEngine } from "./gameEngine";
 export { GameState } from "./gameState";
+export * as Region from "@sapi-game/gameRegion/gameRegion";
+export { regionHelper } from "@sapi-game/gameRegion/regionHelper";

@@ -5,11 +5,11 @@ import { GameState } from "../gameState";
 type InferContext<S> = S extends GameState<any, infer C, any> ? C : never;
 
 export abstract class GameComponent<S extends GameState<any, any>, O = unknown> {
-    get context(): InferContext<S> {
+    protected get context(): InferContext<S> {
         return this.state.context;
     }
 
-    get runner() {
+    protected get runner() {
         return this.state.runner;
     }
 

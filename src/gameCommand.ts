@@ -32,11 +32,17 @@ export function regGameCommand(customCommandRegistry: CustomCommandRegistry) {
                 },
             ],
             optionalParameters: [
-                { name: "gameKey", type: CustomCommandParamType.String },
+                { name: "gameName", type: CustomCommandParamType.String },
+                { name: "gameTag", type: CustomCommandParamType.String },
             ],
         },
-        (origin: CustomCommandOrigin, ope: string, key: string) => {
-            return handleCommand(origin, ope, key);
+        (
+            origin: CustomCommandOrigin,
+            ope: string,
+            name: string,
+            tag: string | undefined
+        ) => {
+            return handleCommand(origin, ope, `${name}:${tag ?? 0}`);
         }
     );
 }

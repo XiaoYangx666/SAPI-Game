@@ -1,9 +1,5 @@
 import { system } from "@minecraft/server";
 
-/**
- * A custom error thrown when a ScriptRunner's execution is cancelled.
- * This allows cancellation to be handled as a specific control flow event, not a generic error.
- */
 export class ScriptCancelledError extends Error {
     constructor(id: string) {
         super(`ScriptRunner with ID '${id}' was cancelled.`);
@@ -14,10 +10,7 @@ export class ScriptCancelledError extends Error {
 export class ScriptRunner {
     private cancelled = false;
 
-    constructor(
-        public readonly id: string,
-        private readonly onFinish: (id: string) => void
-    ) {}
+    constructor(public readonly id: string, private readonly onFinish: (id: string) => void) {}
 
     private checkCancelled() {
         if (this.cancelled) {
@@ -30,26 +23,29 @@ export class ScriptRunner {
         return system.waitTicks(ticks);
     }
 
-    async do(fn: () => void | Promise<void>): Promise<void> {
+    async do<T>(fn: () => T | Promise<T>): Promise<T> {
         this.checkCancelled();
-        await fn();
+        return await fn();
     }
 
-    async step(
-        fn: () => void | Promise<void>,
-        delayTicks: number
-    ): Promise<void> {
-        await this.do(fn);
-        await this.wait(delayTicks);
+    async runSteps(steps: Array<() => unknown | Promise<unknown>>): Promise<void> {
+        for (const step of steps) {
+            this.checkCancelled();
+
+            await this.do(step);
+        }
+    }
+
+    async doDelay<T>(fn: () => T | Promise<T>, ticks: number): Promise<T> {
+        await this.wait(ticks);
+        return await this.do(fn);
     }
 
     cancel() {
         this.cancelled = true;
     }
 
-    async run(
-        script: (r: ScriptRunner) => Promise<void> | void
-    ): Promise<void> {
+    async run(script: (r: ScriptRunner) => Promise<void> | void): Promise<void> {
         try {
             await script(this);
         } catch (e) {

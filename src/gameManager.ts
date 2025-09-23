@@ -1,16 +1,9 @@
-import {
-    CommandPermissionLevel,
-    CustomCommandOrigin,
-    CustomCommandParamType,
-    Player,
-    system,
-} from "@minecraft/server";
+import { Player } from "@minecraft/server";
+import { SAPIGameConfig } from "./config";
 import { GameEngine } from "./gameEngine";
 import { GameManagerError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
-import { regGameCommand } from "./gameCommand";
-import { SAPIGameConfig } from "./config";
 
 export class GameManager {
     private games: Map<string, GameEngine<any, any>> = new Map();
@@ -30,11 +23,10 @@ export class GameManager {
         map.set(key, gameInstance);
     }
 
-    startGame<O, T extends classConstructor<GameEngine<any, any, O>>>(
-        game: T,
-        config?: O,
-        tag?: string
-    ) {
+    startGame<
+        T extends GameEngine<any, any, any>,
+        C = T extends GameEngine<any, any, infer P> ? P : unknown
+    >(game: classConstructor<T>, config?: C, tag?: string) {
         const key = this.buildKey(game, tag);
         const gameInstance = new game(config);
         this.addGame(this.games, key, gameInstance);
@@ -46,10 +38,7 @@ export class GameManager {
     }
 
     /**获取指定tag游戏是否已存在 */
-    hasGame<T extends GameEngine<any, any>>(
-        game: classConstructor<T>,
-        tag?: string
-    ) {
+    hasGame<T extends GameEngine<any, any>>(game: classConstructor<T>, tag?: string) {
         const key = this.buildKey(game, tag);
         const gameInstance = this.games.get(key);
         return gameInstance != undefined;
@@ -68,10 +57,7 @@ export class GameManager {
         return game;
     }
 
-    stopGame<T extends GameEngine<any, any>>(
-        game: classConstructor<T>,
-        tag?: string
-    ) {
+    stopGame<T extends GameEngine<any, any>>(game: classConstructor<T>, tag?: string) {
         const key = this.buildKey(game, tag);
         const gameInstance = this.games.get(key);
         if (gameInstance) {

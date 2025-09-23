@@ -16,10 +16,7 @@ export class IntervalEventSignal
 {
     intervalId: number | null = null;
 
-    subscribe(
-        callback: () => void,
-        options?: { interval?: Duration }
-    ): Subscription {
+    subscribe(callback: () => void, interval?: Duration): Subscription {
         //启动interval
         if (this.intervalId === null) {
             this.intervalId = system.runInterval(this.publish.bind(this));
@@ -28,8 +25,8 @@ export class IntervalEventSignal
         //添加到set
         const data: intervalEventData = {
             callback: callback,
-            interval: options?.interval?.ticks ?? 0,
-            tickcount: 1,
+            interval: interval?.ticks ?? 0,
+            tickcount: interval?.ticks ?? 1,
         };
         this.set.add(data);
         //返回取消订阅方法
@@ -48,17 +45,14 @@ export class IntervalEventSignal
             }
             item.tickcount = 1;
         }
-        try {
-            item.callback();
-        } catch (e) {
-            this.logger.error("Callback error:", e);
-        }
+        item.callback();
     }
 
     dispose() {
         if (this.intervalId !== null) {
             this.set.clear();
             system.clearRun(this.intervalId);
+            this.logger.debug("已停止interval");
         }
     }
 }

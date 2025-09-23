@@ -1,3 +1,4 @@
+import { RawMessage } from "@minecraft/server";
 import { GamePlayer } from "./gamePlayer";
 import { PlayerGroup } from "./playerGroup";
 
@@ -38,6 +39,15 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer> {
     runCommand(command: string) {
         this.forEach((p) => p.player.runCommand(command));
         return this;
+    }
+
+    sendMessage(mes: string | RawMessage | (string | RawMessage)[]) {
+        this.forEach((p) => p.player.sendMessage(mes));
+        return this;
+    }
+
+    runCommands(commands: string[]) {
+        commands.forEach((c) => this.runCommand(c));
     }
 
     filter(predicate: (p: T) => boolean): PlayerGroupSet<T> {

@@ -1,7 +1,6 @@
-import { Player } from "@minecraft/server";
+import { Player, RawMessage } from "@minecraft/server";
 import { GameError } from "../utils/GameError";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
-import { DimensionIds } from "@sapi-game/utils/vanila-data";
 
 class PlayerGroupError extends GameError {
     constructor(mes: string, options?: ErrorOptions) {
@@ -39,7 +38,7 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
     }
 
     /** 是否包含玩家 */
-    has(player: T) {
+    has(player: T | Player) {
         return this.players.findIndex((p) => p.id == player.id) != -1;
     }
 
@@ -76,18 +75,34 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
         this.players.forEach(func);
     }
 
+    /**组内所有玩家执行命令 */
     runCommand(commandString: string) {
         this.forEach((p) => p.player.runCommand(commandString));
+    }
+
+    /**向组内所有玩家发送消息 */
+    sendMessage(mes: string | RawMessage | (string | RawMessage)[]) {
+        this.forEach((p) => p.player.sendMessage(mes));
     }
 
     map<U>(func: (p: T) => U): U[] {
         return this.players.map(func);
     }
 
+    /**获取随机在线玩家 */
+    random() {
+        const validPlayers = this.players.filter((p) => p.isValid);
+        if (validPlayers.length === 0) return undefined;
+
+        const index = Math.floor(Math.random() * validPlayers.length);
+        return validPlayers[index];
+    }
+
     filter(func: (p: T) => boolean): PlayerGroup<T> {
         const filtered = this.players.filter(func);
         return new PlayerGroup(this.playerConstructor, filtered);
     }
+
     /** 清空组 */
     clear() {
         this.players = [];
@@ -108,5 +123,9 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
     /** 查找符合条件的玩家 */
     find(predicate: (p: T) => boolean): T | undefined {
         return this.players.find(predicate);
+    }
+
+    findIndex(predicate: (p: T) => boolean): number {
+        return this.players.findIndex(predicate);
     }
 }

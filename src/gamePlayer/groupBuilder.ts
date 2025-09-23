@@ -1,5 +1,5 @@
 import { Player, world } from "@minecraft/server";
-import { GameRegion } from "../utils/gameRegion";
+import { GameRegion } from "../gameRegion/gameRegion";
 import { DimensionIds } from "../utils/vanila-data";
 import { GamePlayer } from "./gamePlayer";
 import { PlayerGroup } from "./playerGroup";
@@ -36,7 +36,7 @@ export class PlayerGroupBuilder<T extends GamePlayer = GamePlayer> {
     fromRegion(dim: DimensionIds, region: GameRegion) {
         const players = world
             .getDimension(dim)
-            .getPlayers(region.getQueryOption())
+            .getPlayers(region.getEntityQueryOption())
             .filter((p) => p != undefined);
         return new PlayerGroup(
             this.playerManager.playerConstructor,

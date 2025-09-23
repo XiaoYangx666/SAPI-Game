@@ -13,6 +13,10 @@ export class Duration {
         return this._ticks;
     }
 
+    toSeconds() {
+        return this.ticks / Duration.ticksPerSecond;
+    }
+
     static fromSeconds(seconds: number): Duration {
         return new Duration(this.ticksPerSecond * seconds);
     }

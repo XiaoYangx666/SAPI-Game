@@ -13,7 +13,6 @@ export class GameEventSubscription<T> implements Subscription {
 
     /**取消订阅事件 */
     unsubscribe() {
-        console.log("Unsubscribing from event:", this.event.constructor.name);
         this.event.unsubscribe(this.callback);
     }
 }

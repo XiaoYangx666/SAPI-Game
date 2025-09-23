@@ -16,9 +16,7 @@ export class EventManager {
 
         // 订阅事件
         const result =
-            options !== undefined
-                ? event.subscribe(callback, options)
-                : event.subscribe(callback);
+            options !== undefined ? event.subscribe(callback, options) : event.subscribe(callback);
         const subscription =
             typeof result === "function"
                 ? new GameEventSubscription(
@@ -58,9 +56,7 @@ export class EventManager {
                     sub.subscription.unsubscribe();
                 }
             }
-            const filtered = list.filter(
-                (sub) => asInternal(sub).event !== event
-            );
+            const filtered = list.filter((sub) => asInternal(sub).event !== event);
             if (filtered.length > 0) {
                 this.subscriptionMap.set(subscriber, filtered);
             } else {

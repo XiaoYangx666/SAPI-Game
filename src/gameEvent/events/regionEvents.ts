@@ -1,11 +1,11 @@
 import { Player, world } from "@minecraft/server";
 import { difference } from "@sapi-game/utils/func";
-import { GameRegion } from "@sapi-game/utils/gameRegion";
+import { GameRegion } from "@sapi-game/gameRegion/gameRegion";
 import { Logger } from "@sapi-game/utils/logger";
 import { DimensionIds } from "@sapi-game/utils/vanila-data";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
-import { IntervalEventSignal } from "./tick";
+import { IntervalEventSignal } from "./interval";
 
 export enum RegionEventType {
     Enter = "enter",
@@ -112,7 +112,7 @@ export class PlayerRegionEventSignal
                 playersByDimension[region.dimensionId] ?? [];
             const currPlayers = new Set(
                 dimensionPlayers
-                    .filter((p) => region.contains(p.location))
+                    .filter((p) => region.isInside(p.location))
                     .map((p) => p.id)
             );
 
