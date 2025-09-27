@@ -2,6 +2,7 @@ import { GameContext } from "./gameContext";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
 import { GamePlayerManager } from "./gamePlayer/playerManager";
 import { GameState, gameStateConstructor } from "./gameState";
+import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
 
@@ -45,10 +46,9 @@ export abstract class GameEngine<
 
     /** 移除栈顶的状态，返回到父状态 */
     popState() {
-        const currentState = this.stateStack.pop();
-        if (currentState) {
-            this.logger.debug(`Popping state: ${currentState.constructor.name}`);
-            currentState.onExit();
+        const topState = this.stateStack.pop();
+        if (topState) {
+            this.removeState(topState);
         }
     }
 
@@ -72,16 +72,14 @@ export abstract class GameEngine<
         const index = this.stateStack.indexOf(stateToReplace);
         if (index === -1) {
             this.logger.error(`无法找到要替换的状态实例:${stateToReplace.constructor.name}`);
-            throw new Error("State to replace not found in stack.");
+            throw new GameEngineError("State to replace not found in stack.");
+        }
+        // 清理后续所有状态
+        while (this.stateStack.length > index) {
+            const removed = this.stateStack.pop()!;
+            this.removeState(removed);
         }
 
-        // 弹出并销毁从 stateToReplace 开始的所有状态
-        const statesToPop = this.stateStack.length - index;
-        for (let i = 0; i < statesToPop; i++) {
-            this.popState();
-        }
-
-        // 在现在的位置上推入新状态
         this.pushState(newStateType, config);
     }
 
@@ -91,6 +89,12 @@ export abstract class GameEngine<
         }
     }
 
+    private removeState(state: GameState<P, C>) {
+        this.logger.debug(`Removing state: ${state.constructor.name}`);
+        state._onExit();
+    }
+
+    /**获取下一个state */
     getNextState(state: GameState<P, C>): GameState<P, C> | undefined {
         const index = this.stateStack.findIndex((s) => s === state);
         if (index != -1 && this.stateStack.length > index + 1) {
@@ -98,16 +102,47 @@ export abstract class GameEngine<
         }
     }
 
-    stats(): string {
+    /**获取上一个state */
+    getLastState(state: GameState<P, C>): GameState<P, C> | undefined {
+        const index = this.stateStack.findIndex((s) => s === state);
+        if (index > 0) {
+            return this.stateStack[index - 1];
+        }
+    }
+
+    /**获取指定state */
+    getState(stateType: gameStateConstructor<P, C, any>) {
+        return this.stateStack.find((s) => s.constructor == stateType);
+    }
+
+    /**删除指定state */
+    deleteState(stateType: gameStateConstructor<P, C, any>) {
+        const idx = this.stateStack.findIndex((s) => s.constructor == stateType);
+        if (idx != -1) {
+            const [removed] = this.stateStack.splice(idx, 1);
+            this.removeState(removed);
+        }
+    }
+
+    /**显示engine信息 */
+    stats(detail: boolean = false): string {
+        let stateLine: string;
         const stateNames = this.stateStack.map((s) => s.constructor.name);
-
         const playersLine = `§ePlayers§r: §a${this.playerManager.validSize}§r / §7${this.playerManager.size}`;
-        const statesLine =
-            stateNames.length > 0
-                ? `§eStates§r(${stateNames.length}): §b${stateNames.join(" §7| §b")}`
-                : `§eStates§r: §7<empty>`;
+        if (detail) {
+            const stateStats = this.stateStack.map((s) => s.stats());
+            stateLine =
+                stateNames.length > 0
+                    ? `§eStates§r(${stateNames.length}): \n    ${stateStats.join("\n    ")}`
+                    : `§eStates§r: §7<empty>`;
+        } else {
+            stateLine =
+                stateNames.length > 0
+                    ? `§eStates§r(${stateNames.length}): §b${stateNames.join(" §7| §b")}`
+                    : `§eStates§r: §7<empty>`;
+        }
 
-        return ["", playersLine, statesLine].join("\n   ");
+        return ["", playersLine, stateLine].join("\n  ");
     }
 
     onDispose() {

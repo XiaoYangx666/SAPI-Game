@@ -38,7 +38,10 @@ export class GameManager {
     }
 
     /**获取指定tag游戏是否已存在 */
-    hasGame<T extends GameEngine<any, any>>(game: classConstructor<T>, tag?: string) {
+    hasGame<T extends GameEngine<any, any>>(
+        game: classConstructor<T>,
+        tag?: string
+    ) {
         const key = this.buildKey(game, tag);
         const gameInstance = this.games.get(key);
         return gameInstance != undefined;
@@ -57,7 +60,10 @@ export class GameManager {
         return game;
     }
 
-    stopGame<T extends GameEngine<any, any>>(game: classConstructor<T>, tag?: string) {
+    stopGame<T extends GameEngine<any, any>>(
+        game: classConstructor<T>,
+        tag?: string
+    ) {
         const key = this.buildKey(game, tag);
         const gameInstance = this.games.get(key);
         if (gameInstance) {
@@ -90,7 +96,7 @@ export class GameManager {
         this.games.clear();
     }
 
-    status(player?: Player) {
+    status(player?: Player, detail?: boolean) {
         const lines: string[] = [];
 
         // 顶部标题
@@ -104,7 +110,7 @@ export class GameManager {
         if (this.backGames.size) {
             lines.push("§b—— 常驻游戏 ——");
             for (const [key, g] of this.backGames) {
-                lines.push(`§a● ${key} §7| §f${g.stats()}`);
+                lines.push(`§a● ${key} §7| §f${g.stats(detail)}`);
             }
             lines.push("");
         }
@@ -113,7 +119,7 @@ export class GameManager {
         if (this.games.size) {
             lines.push("§d—— 普通游戏 ——");
             for (const [key, g] of this.games) {
-                lines.push(`§a● ${key} §7|\ §f${g.stats()}`);
+                lines.push(`§a● ${key} §7|\ §f${g.stats(detail)}`);
             }
             lines.push("");
         }

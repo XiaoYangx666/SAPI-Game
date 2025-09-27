@@ -1,10 +1,7 @@
-import {
-    CustomEventSignal,
-    EventCallBack,
-} from "@sapi-game/gameEvent/eventSignal";
+import { CustomEventSignal, EventCallBack } from "@sapi-game/gameEvent/eventSignal";
 import { Subscription } from "@sapi-game/gameEvent/subscription";
 
-interface TimerTickEvent {
+export interface TimerTickEvent {
     remainingTime: number;
 }
 
@@ -24,8 +21,6 @@ export class TimerTickEventSignal implements CustomEventSignal<TimerTickEvent> {
     }
 
     publish(remainingTime: number) {
-        this.tickCallbacks.forEach((cb) =>
-            cb({ remainingTime: remainingTime })
-        );
+        this.tickCallbacks.forEach((cb) => cb({ remainingTime: remainingTime }));
     }
 }

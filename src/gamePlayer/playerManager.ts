@@ -6,8 +6,9 @@ import { PlayerGroupBuilder } from "./groupBuilder";
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
     public readonly playerConstructor: GamePlayerConstructor<T>;
+
     /**玩家组构建器 */
-    public readonly groupBuilder: PlayerGroupBuilder;
+    public readonly groupBuilder: PlayerGroupBuilder<T>;
 
     constructor(playerConstructor: GamePlayerConstructor<T>) {
         this.playerConstructor = playerConstructor;
@@ -29,7 +30,6 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     get validSize() {
-        return Array.from(this.players.values()).filter((p) => p.player.isValid)
-            .length;
+        return Array.from(this.players.values()).filter((p) => p.isValid).length;
     }
 }

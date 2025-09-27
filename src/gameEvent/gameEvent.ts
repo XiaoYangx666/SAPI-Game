@@ -1,4 +1,5 @@
 import { ButtonPushEventSignal } from "./events/buttonPush";
+import { PlayerItemInSlotEventSignal } from "./events/inSlot";
 import { IntervalEventSignal } from "./events/interval";
 import { ItemUseEventSignal } from "./events/itemUse";
 import { PlayerOnBlockEventSignal } from "./events/onBlock";
@@ -14,11 +15,13 @@ export class gameEvents {
     itemUse = new ItemUseEventSignal();
     region: PlayerRegionEventSignal;
     onBlock: PlayerOnBlockEventSignal;
+    inSlot: PlayerItemInSlotEventSignal;
 
     constructor() {
         this.interval = new IntervalEventSignal();
         this.region = new PlayerRegionEventSignal(this.interval);
         this.onBlock = new PlayerOnBlockEventSignal(this.interval);
+        this.inSlot = new PlayerItemInSlotEventSignal(this.interval);
     }
 
     dispose() {

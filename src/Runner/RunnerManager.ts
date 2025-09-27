@@ -21,8 +21,9 @@ export class RunnerManager {
         });
 
         this.runners.set(id, runner);
+
         runner.run(script).catch((e) => {
-            this.logger.error("Unhandled error in runner ${id}:", e);
+            this.logger.error(`runner ${id} 出错了:`, e);
         });
         return id;
     }
@@ -42,7 +43,7 @@ export class RunnerManager {
                 await script(r);
             })
             .catch((e) => {
-                this.logger.error(`Unhandled error in delayed runner ${id}:`, e);
+                this.logger.error(`runner ${id} 出错了:`, e);
             });
 
         return id;

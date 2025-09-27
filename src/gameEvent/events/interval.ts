@@ -20,7 +20,6 @@ export class IntervalEventSignal
         //启动interval
         if (this.intervalId === null) {
             this.intervalId = system.runInterval(this.publish.bind(this));
-            this.logger.debug("已启动interval");
         }
         //添加到set
         const data: intervalEventData = {

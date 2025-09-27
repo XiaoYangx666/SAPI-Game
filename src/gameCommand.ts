@@ -42,7 +42,7 @@ export function regGameCommand(customCommandRegistry: CustomCommandRegistry) {
             name: string,
             tag: string | undefined
         ) => {
-            return handleCommand(origin, ope, `${name}:${tag ?? 0}`);
+            return handleCommand(origin, ope, name, tag);
         }
     );
 }
@@ -50,7 +50,8 @@ export function regGameCommand(customCommandRegistry: CustomCommandRegistry) {
 function handleCommand(
     origin: CustomCommandOrigin,
     ope: string,
-    key: string
+    name: string | undefined,
+    tag: string | undefined
 ): CustomCommandResult | undefined {
     const player =
         origin.sourceEntity instanceof Player ? origin.sourceEntity : undefined;
@@ -64,10 +65,11 @@ function handleCommand(
                 status: CustomCommandStatus.Success,
             };
         case "status":
-            Game.manager.status(player);
+            Game.manager.status(player, name === "detail");
             break;
         case "stop":
-            if (key) {
+            if (name) {
+                const key = `${name}:${tag ?? 0}`;
                 const engine = Game.manager.getGameByKey(key);
                 if (!engine)
                     return {

@@ -17,9 +17,7 @@ export abstract class GameComponent<S extends GameState<any, any>, O = unknown> 
 
     abstract onAttach(): void;
 
-    onDetach() {
-        this.state.eventManager.unsubscribeBySubscriber(this.constructor);
-    }
+    onDetach() {}
 
     /**订阅事件 */
     subscribe<T extends EventSignal<any>>(event: T, ...args: Parameters<T["subscribe"]>) {

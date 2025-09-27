@@ -21,7 +21,9 @@ interface PlayerOnBlockEventOption {
     typeIds?: string[]; // 单个或多个
 }
 
-export class PlayerOnBlockEventSignal implements CustomEventSignal<PlayerOnBlockEvent> {
+export class PlayerOnBlockEventSignal
+    implements CustomEventSignal<PlayerOnBlockEvent>
+{
     private readonly blockMap: Map<string, Set<PlayerOnBlockData>> = new Map();
     private readonly globalSubs = new Set<PlayerOnBlockData>();
     private readonly logger = new Logger(this.constructor.name);
@@ -40,7 +42,11 @@ export class PlayerOnBlockEventSignal implements CustomEventSignal<PlayerOnBlock
         }
 
         const typeIds = options?.typeIds;
-        const data: PlayerOnBlockData = { group: options?.group, callback, typeIds };
+        const data: PlayerOnBlockData = {
+            group: options?.group,
+            callback,
+            typeIds,
+        };
 
         // 1) 没传 typeIds → 全局订阅
         if (!typeIds || typeIds.length === 0) {
@@ -51,7 +57,8 @@ export class PlayerOnBlockEventSignal implements CustomEventSignal<PlayerOnBlock
         // 2) 传了 1 个 typeId → 用 map 存储
         if (typeIds.length === 1) {
             const typeId = typeIds[0];
-            const set = this.blockMap.get(typeId) ?? new Set<PlayerOnBlockData>();
+            const set =
+                this.blockMap.get(typeId) ?? new Set<PlayerOnBlockData>();
             set.add(data);
             this.blockMap.set(typeId, set);
 
@@ -89,15 +96,20 @@ export class PlayerOnBlockEventSignal implements CustomEventSignal<PlayerOnBlock
 
     private tick() {
         for (const p of world.getAllPlayers()) {
+            if (p == undefined || !p.isValid) continue;
             const block = p.dimension.getBlock(
-                VectorUtils.subtract(p.location, PlayerOnBlockEventSignal.BELOW_OFFSET)
+                VectorUtils.subtract(
+                    p.location,
+                    PlayerOnBlockEventSignal.BELOW_OFFSET
+                )
             );
             if (!block) continue;
 
             // 1) 全局订阅（含多 typeId 的订阅）
             for (const data of this.globalSubs) {
                 if (data.group && !data.group.getById(p.id)) continue;
-                if (data.typeIds && !data.typeIds.includes(block.typeId)) continue;
+                if (data.typeIds && !data.typeIds.includes(block.typeId))
+                    continue;
 
                 try {
                     data.callback({ player: p, block });

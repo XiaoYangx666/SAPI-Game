@@ -2,6 +2,7 @@ import { GameComponent, GameComponentType } from "./gameComponent/gameComponent"
 import { GameContext } from "./gameContext";
 import { GameEngine } from "./gameEngine";
 import { EventManager } from "./gameEvent/eventManager";
+import { EventSignal } from "./gameEvent/eventSignal";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
 import { GamePlayerManager } from "./gamePlayer/playerManager";
 import { RunnerManager } from "./Runner/RunnerManager";
@@ -25,7 +26,7 @@ export abstract class GameState<
 > {
     protected logger: Logger = new Logger(this.constructor.name);
     protected engine: E;
-    private componets: Map<GameComponentType<any>, GameComponent<any>> = new Map();
+    private components: Map<GameComponentType<any>, GameComponent<any>> = new Map();
     public eventManager = new EventManager();
     public runner = new RunnerManager(this.constructor.name);
     public config?: TConfig;
@@ -50,6 +51,10 @@ export abstract class GameState<
         return this.engine.getNextState(this);
     }
 
+    get lastState() {
+        return this.engine.getLastState(this);
+    }
+
     /**进入 */
     abstract onEnter(): void;
 
@@ -61,12 +66,18 @@ export abstract class GameState<
         options?: ConstructorParameters<C>[1]
     ) {
         this.logger.debug(`添加组件:${component.name}`);
-        if (this.componets.has(component)) {
-            throw new GameStateError(`组件 ${component.name} 已经存在于当前状态中`);
+        if (this.components.has(component)) {
+            this.logger.error(`组件 ${component.name} 已经存在于当前状态中`);
+            return this;
         }
+
         const componentInstance = new component(this, options);
-        this.componets.set(component, componentInstance);
-        componentInstance.onAttach();
+        this.components.set(component, componentInstance);
+        try {
+            componentInstance.onAttach();
+        } catch (err) {
+            this.logger.error(`组件 ${component.name} 加载失败`, err);
+        }
 
         return this;
     }
@@ -75,7 +86,7 @@ export abstract class GameState<
      * @throws GameStateError 若状态不存在，则抛出
      */
     getComponent<C extends GameComponentType<any, any>>(type: C): InstanceType<C> {
-        const component = this.componets.get(type);
+        const component = this.components.get(type);
         if (!component) {
             throw new GameStateError(`获取失败:组件 ${type.name} 不存在于当前状态中`);
         }
@@ -85,20 +96,35 @@ export abstract class GameState<
     /**删除当前状态中的组件*/
     deleteComponent(component: GameComponentType<any>) {
         this.logger.debug(`删除组件:${component.name}`);
-        const instance = this.componets.get(component);
+        const instance = this.components.get(component);
         if (!instance) return this;
-        instance.onDetach();
-        this.componets.delete(component);
+        try {
+            //取消订阅
+            this.eventManager.unsubscribeBySubscriber(component);
+            instance.onDetach();
+            this.components.delete(component);
+        } catch (err) {
+            this.logger.error(`组件:${component.name}删除失败`, err);
+        }
         return this;
     }
 
     /**删除所有组件 */
     private deleteAllComponents() {
         this.logger.debug(`删除所有组件`);
-        for (let [type, component] of this.componets.entries()) {
-            component.onDetach();
-            this.componets.delete(type);
+        for (let [compType, component] of this.components.entries()) {
+            try {
+                this.eventManager.unsubscribeBySubscriber(compType);
+                component.onDetach();
+                this.components.delete(compType);
+            } catch (err) {
+                this.logger.error(`组件:${compType.name}删除失败`, err);
+            }
         }
+    }
+
+    subscribe<T extends EventSignal<any>>(event: T, ...args: Parameters<T["subscribe"]>) {
+        this.eventManager.subscribe(this, event, ...args);
     }
 
     /** 进入一个新的子状态 */
@@ -116,16 +142,20 @@ export abstract class GameState<
         this.engine.replaceFrom(this, stateType, config);
     }
 
-    onExit() {
+    /**系统调用，不要重写！ */
+    _onExit() {
         this.logger.debug(`onExit`);
+        this.onExit();
         this.eventManager.dispose();
         this.deleteAllComponents();
         this.runner.dispose();
     }
 
+    onExit() {}
+
     debug() {
         const stateName = this.constructor.name;
-        const componentNames = [...this.componets.values()].map((c) => c.constructor.name);
+        const componentNames = [...this.components.values()].map((c) => c.constructor.name);
 
         this.logger.log(
             [
@@ -136,5 +166,15 @@ export abstract class GameState<
                 }`,
             ].join("\n  ")
         );
+    }
+
+    /**返回基本信息 */
+    stats() {
+        const stateName = this.constructor.name;
+        const componentNames = [...this.components.values()].map((c) => c.constructor.name);
+
+        return `§b${stateName}§r(${componentNames.length}): §i${
+            componentNames.length ? componentNames.join(",") : "<none>"
+        }`;
     }
 }

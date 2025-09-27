@@ -3,7 +3,6 @@ import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { DimensionIds } from "../../utils/vanila-data";
 import { VectorUtils } from "../../utils/vector";
 import { BaseMapEventSignal, SubscriptionData } from "../mapEventSignal";
-import { Subscription } from "../subscription";
 
 interface ButtonData extends SubscriptionData<ButtonPushAfterEvent> {
     players?: PlayerGroup<any>;

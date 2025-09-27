@@ -1,6 +1,6 @@
-import { Player, RawMessage } from "@minecraft/server";
+import { Player, RawMessage, TitleDisplayOptions } from "@minecraft/server";
 import { GameError } from "../utils/GameError";
-import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
+import { GamePlayer, GamePlayerConstructor, ValidGamePlayer } from "./gamePlayer";
 
 class PlayerGroupError extends GameError {
     constructor(mes: string, options?: ErrorOptions) {
@@ -29,7 +29,7 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
 
     /** 组中玩家数量(不包含下线玩家) */
     get validSize() {
-        return this.players.filter((p) => p.player.isValid).length;
+        return this.players.filter((p) => p.isValid).length;
     }
 
     /** 根据 id 查找玩家 */
@@ -60,29 +60,55 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
         return this;
     }
 
+    removeWhere(func: (player: T) => boolean): T[] {
+        const removed: T[] = [];
+        this.players = this.players.filter((p) => {
+            if (func(p)) {
+                removed.push(p);
+                return false;
+            }
+            return true;
+        });
+        return removed;
+    }
+
     /**获取组中全部玩家的拷贝 */
     getAll(): readonly T[] {
         return this.players.slice();
     }
 
     /** 获取所有原生 Player 对象 */
-    getAllPlayers(): readonly Player[] {
-        return this.players.map((p) => p.player);
+    getAllPlayers(): Player[] {
+        return this.players.map((p) => p.player).filter((p) => p != undefined);
     }
 
-    /**对每个玩家执行操作 */
-    forEach(func: (p: T) => void) {
-        this.players.forEach(func);
+    /**对所有有效玩家执行操作 */
+    forEach(func: (p: ValidGamePlayer<T>) => void) {
+        try {
+            this.players.filter((p) => p.isValid).forEach(func as any);
+        } catch (err) {
+            console.error(err, err instanceof Error ? err.stack : "");
+        }
     }
 
     /**组内所有玩家执行命令 */
     runCommand(commandString: string) {
-        this.forEach((p) => p.player.runCommand(commandString));
+        this.forEach((p) => p.runCommand(commandString));
     }
 
     /**向组内所有玩家发送消息 */
     sendMessage(mes: string | RawMessage | (string | RawMessage)[]) {
-        this.forEach((p) => p.player.sendMessage(mes));
+        this.forEach((p) => p.sendMessage(mes));
+    }
+
+    /**向组内所有玩家显示标题 */
+    title(
+        title: string | RawMessage | (string | RawMessage)[],
+        subtitle?: string | RawMessage | (string | RawMessage)[],
+        options?: TitleDisplayOptions
+    ) {
+        this.forEach((p) => p.title(title, subtitle, options));
+        return this;
     }
 
     map<U>(func: (p: T) => U): U[] {
@@ -98,9 +124,8 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
         return validPlayers[index];
     }
 
-    filter(func: (p: T) => boolean): PlayerGroup<T> {
-        const filtered = this.players.filter(func);
-        return new PlayerGroup(this.playerConstructor, filtered);
+    filter(func: (p: T) => boolean): T[] {
+        return this.players.filter(func);
     }
 
     /** 清空组 */
@@ -111,7 +136,7 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
 
     /**清除无效玩家 */
     clearInvalid() {
-        this.players = this.players.filter((p) => p.player.isValid);
+        this.players = this.players.filter((p) => p.isValid);
         return this;
     }
 

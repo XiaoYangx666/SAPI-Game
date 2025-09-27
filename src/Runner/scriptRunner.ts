@@ -20,25 +20,34 @@ export class ScriptRunner {
 
     async wait(ticks: number): Promise<void> {
         this.checkCancelled();
-        return system.waitTicks(ticks);
+        return new Promise(async (resolve, reject) => {
+            await system.waitTicks(ticks);
+            if (this.cancelled) {
+                reject(new ScriptCancelledError(this.id));
+            } else {
+                resolve();
+            }
+        });
     }
 
-    async do<T>(fn: () => T | Promise<T>): Promise<T> {
+    do<T>(fn: () => T): T;
+
+    do<T>(fn: () => Promise<T>): Promise<T>;
+
+    do<T>(fn: () => T | Promise<T>): Promise<T> | T {
         this.checkCancelled();
-        return await fn();
+        return fn();
     }
 
-    async runSteps(steps: Array<() => unknown | Promise<unknown>>): Promise<void> {
+    async runSteps(steps: Array<() => void | Promise<void>>): Promise<void> {
         for (const step of steps) {
-            this.checkCancelled();
-
             await this.do(step);
         }
     }
 
     async doDelay<T>(fn: () => T | Promise<T>, ticks: number): Promise<T> {
         await this.wait(ticks);
-        return await this.do(fn);
+        return this.do(fn);
     }
 
     cancel() {
@@ -50,11 +59,7 @@ export class ScriptRunner {
             await script(this);
         } catch (e) {
             if (!(e instanceof ScriptCancelledError)) {
-                console.error(
-                    `Runner ${this.id} encountered an error:`,
-                    e,
-                    e instanceof Error ? e.stack : ""
-                );
+                throw e;
             }
         } finally {
             this.onFinish(this.id);

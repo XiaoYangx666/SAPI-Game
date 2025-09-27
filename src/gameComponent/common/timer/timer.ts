@@ -8,7 +8,11 @@ import { TimerTickEventSignal } from "./tickEvent";
 export interface TimerOptions {
     /** 初始时间(s) 默认0*/
     initialTime?: number;
-    /** 是否在附加到游戏时自动开始 默认否*/
+    /** 是否在附加到游戏时自动开始
+     *
+     * 这会导致第一秒的回调无法被执行
+     * @default false
+     */
     autoStart?: boolean;
     /**
      * 是否进行卡顿补偿，默认关闭 ;
@@ -105,6 +109,8 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
         if (this.remainingTime > 0 && !this._isRunning && this.isActive) {
             this._isRunning = true;
             this.lastTime = Date.now();
+            this.events.tick.publish(this.remainingTime);
+            this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
         }
     }
 }
