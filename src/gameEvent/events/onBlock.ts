@@ -97,6 +97,12 @@ export class PlayerOnBlockEventSignal
     private tick() {
         for (const p of world.getAllPlayers()) {
             if (p == undefined || !p.isValid) continue;
+            //如果超过高度范围，跳过
+            if (
+                p.location.y < p.dimension.heightRange.min ||
+                p.location.y > p.dimension.heightRange.max
+            )
+                continue;
             const block = p.dimension.getBlock(
                 VectorUtils.subtract(
                     p.location,

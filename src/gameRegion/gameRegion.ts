@@ -1,4 +1,11 @@
-import { BlockVolume, EntityQueryOptions, Vector2, Vector3, world } from "@minecraft/server";
+import {
+    BlockVolume,
+    EntityQueryOptions,
+    Player,
+    Vector2,
+    Vector3,
+    world,
+} from "@minecraft/server";
 import { DimensionIds } from "../utils/vanila-data";
 import { VectorUtils } from "../utils/vector";
 
@@ -32,6 +39,11 @@ export abstract class GameRegion {
     /** 在区域内的玩家执行命令 */
     runCommandOnPlayers(commandString: string) {
         this.getPlayersInRegion().forEach((p) => p.runCommand(commandString));
+    }
+
+    /**对每个玩家执行操作 */
+    forEachPlayer(callbackfn: (value: Player) => void) {
+        this.getPlayersInRegion().forEach(callbackfn);
     }
 }
 
@@ -94,7 +106,12 @@ export class CubeRegion extends GameRegion {
 
 /**球形区域 */
 export class SphereRegion extends GameRegion {
-    constructor(dimId: DimensionIds, public center: Vector3, public r: number, public rm?: number) {
+    constructor(
+        dimId: DimensionIds,
+        public center: Vector3,
+        public r: number,
+        public rm?: number
+    ) {
         super(dimId);
     }
 
@@ -114,7 +131,11 @@ export class SphereRegion extends GameRegion {
 
 /**平面区域 */
 export class PlaneRegion extends GameRegion {
-    constructor(dimId: DimensionIds, public pos1: Vector2, public pos2: Vector2) {
+    constructor(
+        dimId: DimensionIds,
+        public pos1: Vector2,
+        public pos2: Vector2
+    ) {
         super(dimId);
     }
 

@@ -8,7 +8,9 @@ import {
     Player,
     system,
 } from "@minecraft/server";
-import { Game } from "./main";
+import { Game } from "../main";
+import { EntityTypeIds } from "@sapi-game/utils/vanila-data";
+import { SAPIGameConfig } from "@sapi-game/config";
 
 export function regGameCommand(customCommandRegistry: CustomCommandRegistry) {
     //注册枚举
@@ -45,6 +47,44 @@ export function regGameCommand(customCommandRegistry: CustomCommandRegistry) {
             return handleCommand(origin, ope, name, tag);
         }
     );
+    customCommandRegistry.registerCommand(
+        {
+            name: "game:hub",
+            description: "SAPI-Game返回主城命令",
+            permissionLevel: CommandPermissionLevel.Any,
+        },
+        (origin: CustomCommandOrigin) => {
+            if (origin.sourceEntity?.typeId != EntityTypeIds.Player)
+                return {
+                    message: "必须是玩家执行",
+                    status: CustomCommandStatus.Failure,
+                };
+            Game.playerManager.forceReleaseFromGame(origin.sourceEntity.id);
+            system.run(() => {
+                SAPIGameConfig.config.hub(origin.sourceEntity as Player);
+            });
+            return { message: "", status: CustomCommandStatus.Success };
+        }
+    );
+    customCommandRegistry.registerCommand(
+        {
+            name: "game:l",
+            description: "SAPI-Game返回主城命令",
+            permissionLevel: CommandPermissionLevel.Any,
+        },
+        (origin: CustomCommandOrigin) => {
+            if (origin.sourceEntity?.typeId != EntityTypeIds.Player)
+                return {
+                    message: "必须是玩家执行",
+                    status: CustomCommandStatus.Failure,
+                };
+            Game.playerManager.forceReleaseFromGame(origin.sourceEntity.id);
+            system.run(() => {
+                SAPIGameConfig.config.hub(origin.sourceEntity as Player);
+            });
+            return { message: "", status: CustomCommandStatus.Success };
+        }
+    );
 }
 
 function handleCommand(
@@ -77,7 +117,7 @@ function handleCommand(
                         status: CustomCommandStatus.Failure,
                     };
                 system.run(() => {
-                    Game.manager.stopGame(engine.constructor as any);
+                    Game.manager.stopGameByKey(key);
                 });
                 return {
                     message: `已停止游戏: ${key}`,

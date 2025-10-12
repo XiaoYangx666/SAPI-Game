@@ -2,7 +2,9 @@ import { EventCallBack, EventSignal, VanillaEventSignal } from "./eventSignal";
 import { GameEventSubscription, Subscription } from "./subscription";
 
 export class EventManager {
-    subscriptionMap: Map<object, EventSubscription[]> = new Map();
+    private readonly subscriptionMap: Map<object, EventSubscription[]> =
+        new Map();
+    private isActive = true;
 
     /**订阅事件 */
     subscribe<T extends EventSignal<any>>(
@@ -10,13 +12,16 @@ export class EventManager {
         event: T,
         ...args: Parameters<T["subscribe"]>
     ) {
+        if (!this.isActive) return;
         const [callback, options] = args;
         const list = this.subscriptionMap.get(subscriber) ?? [];
         this.subscriptionMap.set(subscriber, list);
 
         // 订阅事件
         const result =
-            options !== undefined ? event.subscribe(callback, options) : event.subscribe(callback);
+            options !== undefined
+                ? event.subscribe(callback, options)
+                : event.subscribe(callback);
         const subscription =
             typeof result === "function"
                 ? new GameEventSubscription(
@@ -56,7 +61,9 @@ export class EventManager {
                     sub.subscription.unsubscribe();
                 }
             }
-            const filtered = list.filter((sub) => asInternal(sub).event !== event);
+            const filtered = list.filter(
+                (sub) => asInternal(sub).event !== event
+            );
             if (filtered.length > 0) {
                 this.subscriptionMap.set(subscriber, filtered);
             } else {
@@ -82,6 +89,7 @@ export class EventManager {
             }
         }
         this.subscriptionMap.clear();
+        this.isActive = false;
     }
 
     debug() {

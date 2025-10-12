@@ -1,14 +1,14 @@
 import { Player } from "@minecraft/server";
-import { SAPIGameConfig } from "./config";
-import { GameEngine } from "./gameEngine";
-import { GameManagerError } from "./utils/GameError";
-import { classConstructor } from "./utils/interfaces";
-import { Logger } from "./utils/logger";
+import { SAPIGameConfig } from "../config";
+import { GameEngine } from "../gameEngine";
+import { GameManagerError } from "../utils/GameError";
+import { classConstructor } from "../utils/interfaces";
+import { Logger } from "../utils/logger";
+import { Game } from "@sapi-game/main";
 
 export class GameManager {
     private games: Map<string, GameEngine<any, any>> = new Map();
-    private backGames: Map<string, GameEngine<any, any>> = new Map();
-    private logger = new Logger(this.constructor.name);
+    private readonly logger = new Logger(this.constructor.name);
 
     private addGame(
         map: Map<string, GameEngine<any, any>>,
@@ -23,18 +23,17 @@ export class GameManager {
         map.set(key, gameInstance);
     }
 
+    /**
+     * 启动指定游戏
+     * @throws GameManagerError 当游戏已存在时
+     */
     startGame<
         T extends GameEngine<any, any, any>,
         C = T extends GameEngine<any, any, infer P> ? P : unknown
     >(game: classConstructor<T>, config?: C, tag?: string) {
         const key = this.buildKey(game, tag);
-        const gameInstance = new game(config);
+        const gameInstance = new game(key, config);
         this.addGame(this.games, key, gameInstance);
-    }
-
-    startBackGame<T extends GameEngine<any, any>>(game: T, tag?: string) {
-        const key = this.buildKey(game.constructor, tag);
-        this.addGame(this.backGames, key, game);
     }
 
     /**获取指定tag游戏是否已存在 */
@@ -65,6 +64,10 @@ export class GameManager {
         tag?: string
     ) {
         const key = this.buildKey(game, tag);
+        this.stopGameByKey(key);
+    }
+
+    stopGameByKey(key: string) {
         const gameInstance = this.games.get(key);
         if (gameInstance) {
             gameInstance.onStop();
@@ -72,28 +75,30 @@ export class GameManager {
             this.games.delete(key);
             this.logger.log(`stopedGame: ${key}`);
         } else {
-            this.logger.error("StopGame失败，游戏不存在:" + game.name);
+            this.logger.error("StopGame失败，游戏不存在:" + key);
         }
     }
 
     /**停止所有普通游戏 */
     stopAll() {
         for (const [key, game] of this.games) {
+            if (game.isDaemon) continue;
             game.onStop();
             game.onDispose();
             this.logger.log(`stopedGame: ${key}`);
+            this.games.delete(key);
         }
-        this.games.clear();
     }
 
     /**静默停止所有普通游戏 */
     end() {
         for (const [key, game] of this.games) {
+            if (game.isDaemon) continue;
             game.onDispose();
             this.logger.log(`endedGame: ${key}`);
+            this.games.delete(key);
         }
         SAPIGameConfig.config.onEnd();
-        this.games.clear();
     }
 
     status(player?: Player, detail?: boolean) {
@@ -102,18 +107,13 @@ export class GameManager {
         // 顶部标题
         lines.push("§6========== 游戏状态 ==========");
         lines.push(`§e总游戏数: §a${this.games.size}`);
-        lines.push(`§e常驻游戏数: §a${this.backGames.size}`);
         lines.push("§6================================");
         lines.push("");
 
-        // 常驻游戏
-        if (this.backGames.size) {
-            lines.push("§b—— 常驻游戏 ——");
-            for (const [key, g] of this.backGames) {
-                lines.push(`§a● ${key} §7| §f${g.stats(detail)}`);
-            }
-            lines.push("");
-        }
+        lines.push("玩家状态");
+        lines.push(Game.playerManager.status());
+
+        lines.push("");
 
         // 普通游戏
         if (this.games.size) {

@@ -11,6 +11,8 @@ export class GamePlayer {
     private readonly _player: Player;
     public readonly id: string;
     public readonly name: string;
+    /**是否仍然在当前游戏（调用/hub等会为false） */
+    protected isActive: boolean = true;
 
     constructor(player: Player) {
         this._player = player;
@@ -19,10 +21,12 @@ export class GamePlayer {
     }
 
     get isValid(): Readonly<boolean> {
-        return this._player.isValid;
+        return this._player.isValid && this.isActive;
     }
 
-    /**获取player，当player下线时返回undefined */
+    /**获取player
+     * 若玩家下线或失效返回undefined
+     */
     get player(): Player | undefined {
         if (this.isValid) {
             return this._player;
@@ -31,20 +35,22 @@ export class GamePlayer {
 
     /**发送消息 */
     sendMessage(mes: (RawMessage | string)[] | RawMessage | string) {
-        if (!this._player.isValid) return;
+        if (!this.isValid) return;
         this._player.sendMessage(mes);
     }
 
     /**运行命令 */
     runCommand(cmd: string) {
-        if (!this._player.isValid) return;
+        if (!this.isValid) return;
         return this._player.runCommand(cmd);
     }
 
     /**给物品 */
     giveItem(item: ItemStack) {
-        if (!this._player.isValid) return;
-        const container = this._player.getComponent(EntityComponentTypes.Inventory)?.container;
+        if (!this.isValid) return;
+        const container = this._player.getComponent(
+            EntityComponentTypes.Inventory
+        )?.container;
         if (!container) return;
         container.addItem(item);
     }
@@ -60,7 +66,7 @@ export class GamePlayer {
         subtitle?: string | RawMessage | (string | RawMessage)[],
         options?: TitleDisplayOptions
     ) {
-        if (!this._player.isValid) return;
+        if (!this.isValid) return;
         this._player.onScreenDisplay.setTitle(title, {
             subtitle: subtitle,
             fadeInDuration: 10,
@@ -72,11 +78,33 @@ export class GamePlayer {
 
     /**设置actionbar文字 */
     actionbar(text: (RawMessage | string)[] | RawMessage | string) {
-        if (!this._player.isValid) return;
+        if (!this.isValid) return;
         this._player.onScreenDisplay.setActionBar(text);
+    }
+}
+
+/**带寿命的player */
+export class TTLPlayer extends GamePlayer {
+    /**初始TTL，可override */
+    readonly initialTTL: number = 30;
+    private _ttl: number = this.initialTTL;
+
+    /**剩余寿命(自动处理isActive) */
+    set ttl(value: number) {
+        this._ttl = this.isActive ? value : 0; //如果isActive已经为false，则ttl直接归零
+    }
+
+    get ttl() {
+        return this._ttl;
+    }
+
+    override get isValid(): Readonly<boolean> {
+        return super.isValid && this.ttl > 0;
     }
 }
 
 export type ValidGamePlayer<T extends GamePlayer> = T & { player: Player };
 
-export type GamePlayerConstructor<T extends GamePlayer = GamePlayer> = new (p: Player) => T;
+export type GamePlayerConstructor<T extends GamePlayer = GamePlayer> = new (
+    p: Player
+) => T;

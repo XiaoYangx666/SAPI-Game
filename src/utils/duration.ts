@@ -18,10 +18,10 @@ export class Duration {
     }
 
     static fromSeconds(seconds: number): Duration {
-        return new Duration(this.ticksPerSecond * seconds);
+        return new Duration(Math.floor(this.ticksPerSecond * seconds));
     }
 
     static fromMinutes(minutes: number): Duration {
-        return new Duration(this.ticksPerMinute * minutes);
+        return new Duration(Math.floor(this.ticksPerMinute * minutes));
     }
 }

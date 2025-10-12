@@ -21,6 +21,10 @@ export class TimerTickEventSignal implements CustomEventSignal<TimerTickEvent> {
     }
 
     publish(remainingTime: number) {
-        this.tickCallbacks.forEach((cb) => cb({ remainingTime: remainingTime }));
+        this.tickCallbacks.forEach((cb) => {
+            try {
+                cb({ remainingTime: remainingTime });
+            } catch (err) {}
+        });
     }
 }

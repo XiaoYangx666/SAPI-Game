@@ -1,7 +1,8 @@
 import { GameContext } from "./gameContext";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
 import { GamePlayerManager } from "./gamePlayer/playerManager";
-import { GameState, gameStateConstructor } from "./gameState";
+import { ExtractConfig, GameState, gameStateConstructor } from "./gameState";
+import { Game } from "./main";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
@@ -15,14 +16,30 @@ export abstract class GameEngine<
     protected readonly logger: Logger;
     public readonly context: C;
     public readonly playerManager: GamePlayerManager<P>;
+    public readonly key: string;
+    private _isActive = true;
+
+    /**是否是常驻游戏（常驻游戏不会被game end结束) */
+    get isDaemon() {
+        return false;
+    }
+
+    get isActive() {
+        return this._isActive;
+    }
 
     /**玩家组构建器 */
     get groupBuilder() {
         return this.playerManager.groupBuilder;
     }
 
-    constructor(playerClass: classConstructor<P>, config?: O) {
-        this.playerManager = new GamePlayerManager(playerClass);
+    constructor(playerClass: classConstructor<P>, key: string, config?: O) {
+        this.playerManager = new GamePlayerManager(
+            playerClass,
+            key,
+            this.isDaemon
+        );
+        this.key = key;
         this.context = this.buildContext(config ?? ({} as O));
         this.logger = new Logger(this.constructor.name);
     }
@@ -36,7 +53,11 @@ export abstract class GameEngine<
     abstract onStop(): void;
 
     /** 在栈顶添加一个新的子状态 */
-    pushState<T>(stateType: gameStateConstructor<P, C, T>, config?: T) {
+    pushState<S extends gameStateConstructor<P, C, any>>(
+        stateType: S,
+        config?: ExtractConfig<S>
+    ) {
+        if (!this.isActive) return this;
         this.logger.debug(`Pushing state: ${stateType.name}`);
         const stateInstance = new stateType(this, config);
         this.stateStack.push(stateInstance);
@@ -53,17 +74,20 @@ export abstract class GameEngine<
     }
 
     /** 清空所有状态，并设置一个新的根状态 */
-    resetState<T>(stateType: gameStateConstructor<P, C, T>, config?: T) {
+    resetState<S extends gameStateConstructor<P, C, any>>(
+        stateType: S,
+        config?: ExtractConfig<S>
+    ) {
         this.logger.debug(`Setting root state to: ${stateType.name}`);
         this.clearStateStack();
         this.pushState(stateType, config);
     }
 
     /** 从指定的状态实例开始替换状态分支。*/
-    replaceFrom<T>(
+    replaceFrom<S extends gameStateConstructor<P, C, any>>(
         stateToReplace: GameState<P, C>,
-        newStateType: gameStateConstructor<P, C, T>,
-        config?: T
+        newStateType: S,
+        config?: ExtractConfig<S>
     ) {
         this.logger.debug(
             `Replacing from ${stateToReplace.constructor.name} with ${newStateType.name}`
@@ -71,7 +95,9 @@ export abstract class GameEngine<
 
         const index = this.stateStack.indexOf(stateToReplace);
         if (index === -1) {
-            this.logger.error(`无法找到要替换的状态实例:${stateToReplace.constructor.name}`);
+            this.logger.error(
+                `无法找到要替换的状态实例:${stateToReplace.constructor.name}`
+            );
             throw new GameEngineError("State to replace not found in stack.");
         }
         // 清理后续所有状态
@@ -111,13 +137,18 @@ export abstract class GameEngine<
     }
 
     /**获取指定state */
-    getState(stateType: gameStateConstructor<P, C, any>) {
-        return this.stateStack.find((s) => s.constructor == stateType);
+    getState<T extends GameState<P, C, any>>(stateType: classConstructor<T>) {
+        const state = this.stateStack.find((s) => s.constructor == stateType);
+        if (state) {
+            return state as T;
+        }
     }
 
     /**删除指定state */
     deleteState(stateType: gameStateConstructor<P, C, any>) {
-        const idx = this.stateStack.findIndex((s) => s.constructor == stateType);
+        const idx = this.stateStack.findIndex(
+            (s) => s.constructor == stateType
+        );
         if (idx != -1) {
             const [removed] = this.stateStack.splice(idx, 1);
             this.removeState(removed);
@@ -133,20 +164,30 @@ export abstract class GameEngine<
             const stateStats = this.stateStack.map((s) => s.stats());
             stateLine =
                 stateNames.length > 0
-                    ? `§eStates§r(${stateNames.length}): \n    ${stateStats.join("\n    ")}`
+                    ? `§eStates§r(${
+                          stateNames.length
+                      }): \n    ${stateStats.join("\n    ")}`
                     : `§eStates§r: §7<empty>`;
         } else {
             stateLine =
                 stateNames.length > 0
-                    ? `§eStates§r(${stateNames.length}): §b${stateNames.join(" §7| §b")}`
+                    ? `§eStates§r(${stateNames.length}): §b${stateNames.join(
+                          " §7| §b"
+                      )}`
                     : `§eStates§r: §7<empty>`;
         }
 
         return ["", playersLine, stateLine].join("\n  ");
     }
 
+    stopGame() {
+        Game.manager.stopGameByKey(this.key);
+    }
+
     onDispose() {
         this.logger?.debug("dispose");
+        this.playerManager.dispose();
+        this._isActive = false;
         this.clearStateStack();
     }
 }

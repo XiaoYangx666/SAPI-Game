@@ -1,4 +1,7 @@
-import { GameComponent, GameComponentType } from "./gameComponent/gameComponent";
+import {
+    GameComponent,
+    GameComponentType,
+} from "./gameComponent/gameComponent";
 import { GameContext } from "./gameContext";
 import { GameEngine } from "./gameEngine";
 import { EventManager } from "./gameEvent/eventManager";
@@ -9,13 +12,19 @@ import { RunnerManager } from "./Runner/RunnerManager";
 import { GameStateError } from "./utils/GameError";
 import { Logger } from "./utils/logger";
 
-type ExtractConfig<S> = S extends gameStateConstructor<any, any, infer T> ? T : never;
+export type ExtractConfig<S> = S extends gameStateConstructor<any, any, infer T>
+    ? T
+    : never;
 
 export type gameStateConstructor<
     P extends GamePlayer = any,
     C extends GameContext = any,
     TConfig = unknown
-> = new (engine: GameEngine<P, C, any>, config?: TConfig) => GameState<P, C, TConfig>;
+> = new (engine: GameEngine<P, C, any>, config?: TConfig) => GameState<
+    P,
+    C,
+    TConfig
+>;
 
 /**游戏状态 */
 export abstract class GameState<
@@ -24,12 +33,15 @@ export abstract class GameState<
     TConfig = unknown,
     E extends GameEngine<P, C> = GameEngine<P, C>
 > {
-    protected logger: Logger = new Logger(this.constructor.name);
-    protected engine: E;
-    private components: Map<GameComponentType<any>, GameComponent<any>> = new Map();
-    public eventManager = new EventManager();
-    public runner = new RunnerManager(this.constructor.name);
-    public config?: TConfig;
+    protected readonly logger: Logger = new Logger(this.constructor.name);
+    protected readonly engine: E;
+    private readonly components: Map<
+        GameComponentType<any>,
+        GameComponent<any>
+    > = new Map();
+    public readonly eventManager = new EventManager();
+    public readonly runner = new RunnerManager(this.constructor.name);
+    public readonly config?: TConfig;
 
     constructor(engine: E, config?: TConfig) {
         this.engine = engine;
@@ -44,6 +56,10 @@ export abstract class GameState<
     /**玩家管理器 */
     get playerManager(): GamePlayerManager<P> {
         return this.engine.playerManager;
+    }
+
+    get gameKey() {
+        return this.engine.key;
     }
 
     /**获取子状态 */
@@ -65,6 +81,7 @@ export abstract class GameState<
         component: C,
         options?: ConstructorParameters<C>[1]
     ) {
+        if (!this.engine.isActive) return this;
         this.logger.debug(`添加组件:${component.name}`);
         if (this.components.has(component)) {
             this.logger.error(`组件 ${component.name} 已经存在于当前状态中`);
@@ -82,13 +99,24 @@ export abstract class GameState<
         return this;
     }
 
+    /**添加多个components(不能带参数) */
+    addComponents(components: GameComponentType<any>[]) {
+        for (const comp of components) {
+            this.addComponent(comp);
+        }
+    }
+
     /**获取当前状态中的组件
-     * @throws GameStateError 若状态不存在，则抛出
+     * @throws GameStateError 若组件不存在，则抛出
      */
-    getComponent<C extends GameComponentType<any, any>>(type: C): InstanceType<C> {
+    getComponent<C extends GameComponentType<any, any>>(
+        type: C
+    ): InstanceType<C> {
         const component = this.components.get(type);
         if (!component) {
-            throw new GameStateError(`获取失败:组件 ${type.name} 不存在于当前状态中`);
+            throw new GameStateError(
+                `获取失败:组件 ${type.name} 不存在于当前状态中`
+            );
         }
         return component as InstanceType<C>;
     }
@@ -123,12 +151,18 @@ export abstract class GameState<
         }
     }
 
-    subscribe<T extends EventSignal<any>>(event: T, ...args: Parameters<T["subscribe"]>) {
+    subscribe<T extends EventSignal<any>>(
+        event: T,
+        ...args: Parameters<T["subscribe"]>
+    ) {
         this.eventManager.subscribe(this, event, ...args);
     }
 
     /** 进入一个新的子状态 */
-    pushState<S extends gameStateConstructor<P, C, any>>(stateType: S, config?: ExtractConfig<S>) {
+    pushState<S extends gameStateConstructor<P, C, any>>(
+        stateType: S,
+        config?: ExtractConfig<S>
+    ) {
         this.engine.pushState(stateType, config);
     }
 
@@ -155,7 +189,9 @@ export abstract class GameState<
 
     debug() {
         const stateName = this.constructor.name;
-        const componentNames = [...this.components.values()].map((c) => c.constructor.name);
+        const componentNames = [...this.components.values()].map(
+            (c) => c.constructor.name
+        );
 
         this.logger.log(
             [
@@ -171,7 +207,9 @@ export abstract class GameState<
     /**返回基本信息 */
     stats() {
         const stateName = this.constructor.name;
-        const componentNames = [...this.components.values()].map((c) => c.constructor.name);
+        const componentNames = [...this.components.values()].map(
+            (c) => c.constructor.name
+        );
 
         return `§b${stateName}§r(${componentNames.length}): §i${
             componentNames.length ? componentNames.join(",") : "<none>"

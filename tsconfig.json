@@ -1,29 +1,28 @@
 {
-  "compilerOptions": {
-    "target": "esnext",
-    "moduleResolution": "bundler",
-    "module": "esnext",
-    "lib": ["ESNext", "DOM"],
-    "types": [],
-    "declaration": false,
-    "noLib": false,
-    "sourceMap": false,
-    "pretty": true,
-    "forceConsistentCasingInFileNames": true,
-    "preserveConstEnums": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "noImplicitOverride": true,
-    "outDir": "cache",
-    "rootDir": "src",
-    "baseUrl": "./src",
-    "allowJs": true,
-    "incremental": true,
-    "tsBuildInfoFile": "cache/tsbuildinfo.json",
-    "paths": {
-      "@sapi-game/*": ["*"]
-    }
-  },
-  "include": ["./src"],
-  "compileOnSave": false
+    "compilerOptions": {
+        "target": "esnext",
+        "moduleResolution": "bundler",
+        "module": "esnext",
+        "lib": ["ESNext", "DOM"],
+        "types": [],
+        "declaration": false,
+        "noLib": false,
+        "sourceMap": false,
+        "pretty": true,
+        "forceConsistentCasingInFileNames": true,
+        "preserveConstEnums": true,
+        "strict": true,
+        "noImplicitAny": true,
+        "noImplicitOverride": true,
+        "outDir": "cache",
+        "rootDir": "src",
+        "allowJs": true,
+        "incremental": true,
+        "tsBuildInfoFile": "cache/tsbuildinfo.json",
+        "paths": {
+            "@sapi-game/*": ["./src/*"]
+        }
+    },
+    "include": ["./src"],
+    "compileOnSave": false
 }

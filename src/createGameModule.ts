@@ -8,17 +8,24 @@ import { classConstructor } from "./utils/interfaces";
 export function createGameModule<
     P extends GamePlayer = GamePlayer,
     C extends GameContext = GameContext
->(options: { playerClass?: classConstructor<P>; contextClass?: classConstructor<C> }) {
-    const playerClass = options.playerClass ?? (GamePlayer as classConstructor<P>);
+>(options: {
+    playerClass?: classConstructor<P>;
+    contextClass?: classConstructor<C>;
+}) {
+    const playerClass =
+        options.playerClass ?? (GamePlayer as classConstructor<P>);
     abstract class Engine<O = unknown> extends GameEngine<P, C, O> {
-        constructor(config?: O) {
-            super(playerClass, config);
+        constructor(key: string, config?: O) {
+            super(playerClass, key, config);
         }
     }
 
     abstract class State<Tconfig = unknown> extends GameState<P, C, Tconfig> {}
 
-    abstract class Component<S extends State = State, O = unknown> extends GameComponent<S, O> {}
+    abstract class Component<
+        O = unknown,
+        S extends State = State
+    > extends GameComponent<S, O> {}
 
     return {
         Engine,

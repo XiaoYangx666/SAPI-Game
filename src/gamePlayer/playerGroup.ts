@@ -1,6 +1,15 @@
-import { Player, RawMessage, TitleDisplayOptions } from "@minecraft/server";
+import {
+    Player,
+    PlayerSoundOptions,
+    RawMessage,
+    TitleDisplayOptions,
+} from "@minecraft/server";
 import { GameError } from "../utils/GameError";
-import { GamePlayer, GamePlayerConstructor, ValidGamePlayer } from "./gamePlayer";
+import {
+    GamePlayer,
+    GamePlayerConstructor,
+    ValidGamePlayer,
+} from "./gamePlayer";
 
 class PlayerGroupError extends GameError {
     constructor(mes: string, options?: ErrorOptions) {
@@ -16,7 +25,10 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
 
     constructor(playerClass: GamePlayerConstructor<T>, players?: T[]) {
         this.playerConstructor = playerClass;
-        if (players != undefined && players.some((p) => !(p instanceof playerClass))) {
+        if (
+            players != undefined &&
+            players.some((p) => !(p instanceof playerClass))
+        ) {
             throw new PlayerGroupError(`players必须全为:${playerClass.name}`);
         }
         this.players = players ?? [];
@@ -44,7 +56,9 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
 
     add(player: T) {
         if (!(player instanceof this.playerConstructor)) {
-            throw new PlayerGroupError(`添加的player必须是${this.playerConstructor.name}`);
+            throw new PlayerGroupError(
+                `添加的player必须是${this.playerConstructor.name}`
+            );
         }
         if (!this.has(player)) {
             this.players.push(player);
@@ -73,7 +87,7 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
     }
 
     /**获取组中全部玩家的拷贝 */
-    getAll(): readonly T[] {
+    getAll(): T[] {
         return this.players.slice();
     }
 
@@ -94,11 +108,13 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
     /**组内所有玩家执行命令 */
     runCommand(commandString: string) {
         this.forEach((p) => p.runCommand(commandString));
+        return this;
     }
 
     /**向组内所有玩家发送消息 */
     sendMessage(mes: string | RawMessage | (string | RawMessage)[]) {
         this.forEach((p) => p.sendMessage(mes));
+        return this;
     }
 
     /**向组内所有玩家显示标题 */
@@ -108,6 +124,17 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
         options?: TitleDisplayOptions
     ) {
         this.forEach((p) => p.title(title, subtitle, options));
+        return this;
+    }
+
+    actionbar(text: (RawMessage | string)[] | RawMessage | string) {
+        this.forEach((p) => p.actionbar(text));
+        return this;
+    }
+
+    /**向组内所有玩家播放音效 */
+    playSound(soundId: string, soundOptions?: PlayerSoundOptions | undefined) {
+        this.forEach((p) => p.player?.playSound(soundId, soundOptions));
         return this;
     }
 

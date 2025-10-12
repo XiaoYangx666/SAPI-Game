@@ -1,14 +1,21 @@
+import { Player } from "@minecraft/server";
 import { logLevel } from "./utils";
 
 export interface SAPIGameConfigOptions {
     logLevel?: logLevel;
     /**game end指令调用 */
     onEnd?: () => void;
+    onJoin?: (player: Player) => void;
+    hub?: (player: Player) => void;
+    debugMode?: boolean;
 }
 
 const defaultConfig: Required<SAPIGameConfigOptions> = {
     logLevel: logLevel.debug,
     onEnd: () => {},
+    onJoin: () => {},
+    hub: () => {},
+    debugMode: false,
 };
 
 export class SAPIGameConfig {

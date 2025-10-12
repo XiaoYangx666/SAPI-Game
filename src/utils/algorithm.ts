@@ -14,7 +14,9 @@ export function bfsBlocks(
     maxBlocks: number = 64
 ): Block[] {
     const visited = new Set<string>();
-    const queue: { block: Block; distance: number }[] = [{ block: startBlock, distance: 0 }];
+    const queue: { block: Block; distance: number }[] = [
+        { block: startBlock, distance: 0 },
+    ];
     const result: Block[] = [];
 
     while (queue.length > 0) {
@@ -34,7 +36,9 @@ export function bfsBlocks(
             if (distance < maxDistance) {
                 for (const neighbor of getNeighborBlocks(block)) {
                     if (result.length >= maxBlocks) break; // 避免继续加入
-                    const neighborLocStr = VectorUtils.toString(neighbor.location);
+                    const neighborLocStr = VectorUtils.toString(
+                        neighbor.location
+                    );
                     if (!visited.has(neighborLocStr)) {
                         queue.push({ block: neighbor, distance: distance + 1 });
                     }
@@ -71,7 +75,8 @@ function getNeighborBlocks(block: Block, corner: boolean = false): Block[] {
             for (let dy of [-1, 0, 1]) {
                 for (let dz of [-1, 0, 1]) {
                     if (dx === 0 && dy === 0 && dz === 0) continue; // 自己
-                    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) === 1) continue;
+                    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) === 1)
+                        continue;
                     const nb = block.offset({ x: dx, y: dy, z: dz });
                     if (nb) neighbors.push(nb);
                 }

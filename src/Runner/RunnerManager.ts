@@ -11,16 +11,22 @@ export class RunnerManager {
         this.logger = new Logger(stateName + "-runner");
     }
 
-    /**
-     * 运行普通脚本
-     */
-    run(script: (runner: ScriptRunner) => Promise<void> | void): string {
+    /**返回一个新的scriptRunner(需手动捕获错误) */
+    new() {
         const id = `runner-${++this.idCounter}`;
         const runner = new ScriptRunner(id, (finishedId) => {
             this.runners.delete(finishedId);
         });
 
         this.runners.set(id, runner);
+        return { id: id, runner: runner };
+    }
+
+    /**
+     * 运行普通脚本
+     */
+    run(script: (runner: ScriptRunner) => Promise<void> | void): string {
+        const { id, runner } = this.new();
 
         runner.run(script).catch((e) => {
             this.logger.error(`runner ${id} 出错了:`, e);
@@ -28,13 +34,11 @@ export class RunnerManager {
         return id;
     }
 
-    runDelay(script: (runner: ScriptRunner) => Promise<void> | void, ticks: number): string {
-        const id = `runner-${++this.idCounter}`;
-        const runner = new ScriptRunner(id, (finishedId) => {
-            this.runners.delete(finishedId);
-        });
-
-        this.runners.set(id, runner);
+    runDelay(
+        script: (runner: ScriptRunner) => Promise<void> | void,
+        ticks: number
+    ): string {
+        const { id, runner } = this.new();
 
         // 先等待 ticks 再执行
         runner

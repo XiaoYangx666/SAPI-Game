@@ -1,55 +1,59 @@
 import { system } from "@minecraft/server";
+import { Logger } from "@sapi-game/utils";
 import { Duration } from "../../utils/duration";
-import { BasicCustomEventSignal, CustomEventSignal } from "../eventSignal";
+import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
 
 interface intervalEventData {
     callback: () => void;
     interval: number;
-    tickcount: number;
+    tickCount: number;
 }
 
 /** 间隔时间事件 */
-export class IntervalEventSignal
-    extends BasicCustomEventSignal<intervalEventData, void>
-    implements CustomEventSignal<void>
-{
-    intervalId: number | null = null;
+export class IntervalEventSignal implements CustomEventSignal<void> {
+    private intervalId: number | null = null;
+    private items = new Set<intervalEventData>();
+    private logger = new Logger(this.constructor.name);
 
     subscribe(callback: () => void, interval?: Duration): Subscription {
         //启动interval
-        if (this.intervalId === null) {
-            this.intervalId = system.runInterval(this.publish.bind(this));
-        }
+        if (!this.intervalId) this.start();
         //添加到set
         const data: intervalEventData = {
             callback: callback,
             interval: interval?.ticks ?? 0,
-            tickcount: interval?.ticks ?? 1,
+            tickCount: interval?.ticks ?? 1,
         };
-        this.set.add(data);
+        this.items.add(data);
         //返回取消订阅方法
         return {
-            unsubscribe: () => {
-                this.unsubscribe(data);
-            },
+            unsubscribe: () => this.items.delete(data),
         };
     }
 
-    protected runCallback(item: intervalEventData): void {
-        if (item.interval > 0) {
-            if (item.tickcount < item.interval) {
-                item.tickcount++;
-                return;
+    private start() {
+        this.intervalId = system.runInterval(() => this.tick());
+        this.logger.debug("已启动interval");
+    }
+
+    private tick() {
+        for (const item of this.items) {
+            item.tickCount--;
+            if (item.tickCount <= 0) {
+                try {
+                    item.callback();
+                } catch (e) {
+                    console.error("Interval callback error:", e);
+                }
+                item.tickCount = item.interval;
             }
-            item.tickcount = 1;
         }
-        item.callback();
     }
 
     dispose() {
         if (this.intervalId !== null) {
-            this.set.clear();
+            this.items.clear();
             system.clearRun(this.intervalId);
             this.logger.debug("已停止interval");
         }

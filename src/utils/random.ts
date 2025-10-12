@@ -30,6 +30,24 @@ export class RandomUtils {
         return copy.slice(0, count);
     }
 
+    /** 纯洗牌算法，返回一个新数组（Fisher–Yates Shuffle） */
+    static shuffle<T>(arr: T[]): T[] {
+        const copy = [...arr];
+        for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1)); // [0, i]
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+    }
+
+    /** 就地洗牌（直接修改原数组） */
+    static shuffleInPlace<T>(arr: T[]): void {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+    }
+
     /** 随机布尔值（true/false） */
     static bool(): boolean {
         return Math.random() < 0.5;
@@ -45,5 +63,21 @@ export class RandomUtils {
             r -= weights[i];
         }
         return arr[arr.length - 1]; // 理论上不会走到这里
+    }
+
+    /**在圆形区域内随机选点 */
+    static randomPointInCircle(
+        x: number,
+        y: number,
+        rMax: number
+    ): [number, number] {
+        // 随机半径，均匀分布在圆内需要用 sqrt
+        const r = Math.sqrt(Math.random()) * rMax;
+        // 随机角度
+        const theta = Math.random() * 2 * Math.PI;
+        // 计算坐标
+        const xRand = x + r * Math.cos(theta);
+        const yRand = y + r * Math.sin(theta);
+        return [xRand, yRand];
     }
 }

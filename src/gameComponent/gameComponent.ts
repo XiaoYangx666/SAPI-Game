@@ -4,7 +4,10 @@ import { GameState } from "../gameState";
 
 type InferContext<S> = S extends GameState<any, infer C, any> ? C : never;
 
-export abstract class GameComponent<S extends GameState<any, any>, O = unknown> {
+export abstract class GameComponent<
+    S extends GameState<any, any>,
+    O = unknown
+> {
     protected get context(): InferContext<S> {
         return this.state.context;
     }
@@ -17,15 +20,23 @@ export abstract class GameComponent<S extends GameState<any, any>, O = unknown> 
 
     abstract onAttach(): void;
 
+    /**随便重写 */
     onDetach() {}
 
     /**订阅事件 */
-    subscribe<T extends EventSignal<any>>(event: T, ...args: Parameters<T["subscribe"]>) {
-        return this.state.eventManager.subscribe(this.constructor, event, ...args);
+    protected subscribe<T extends EventSignal<any>>(
+        event: T,
+        ...args: Parameters<T["subscribe"]>
+    ) {
+        return this.state.eventManager.subscribe(
+            this.constructor,
+            event,
+            ...args
+        );
     }
 
     /**取消订阅 */
-    unsubscribe(sub: EventSubscription) {
+    protected unsubscribe(sub: EventSubscription) {
         this.state.eventManager.unsubscribe(sub);
     }
 }
