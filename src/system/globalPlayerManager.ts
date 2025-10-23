@@ -90,6 +90,7 @@ export class globalPlayerManager {
 
         // 添加新玩家
         for (const p of players) {
+            if (p == undefined) continue;
             onlineIds.add(p.id);
             if (!this.players.has(p.id)) {
                 Game.config.config.onJoin(p); //之前没有，说明是新加入的

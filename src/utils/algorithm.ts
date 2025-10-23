@@ -1,4 +1,4 @@
-import { Block } from "@minecraft/server";
+import { Block, Vector3 } from "@minecraft/server";
 import { VectorUtils } from "./vector";
 
 /**
@@ -7,7 +7,7 @@ import { VectorUtils } from "./vector";
  * @param condition 判断方块是否满足条件
  * @param maxDistance 可选，最大遍历距离
  */
-export function bfsBlocks(
+function bfsBlocks(
     startBlock: Block,
     condition: (block: Block, distance: number) => boolean,
     maxDistance: number = 20,
@@ -86,3 +86,26 @@ function getNeighborBlocks(block: Block, corner: boolean = false): Block[] {
 
     return neighbors;
 }
+
+/** 线性插值 */
+function linspace(start: Vector3, end: Vector3, num: number): Vector3[] {
+    if (num <= 0) return [];
+    if (num === 1) return [start];
+
+    const step = {
+        x: (end.x - start.x) / (num - 1),
+        y: (end.y - start.y) / (num - 1),
+        z: (end.z - start.z) / (num - 1),
+    };
+
+    return Array.from({ length: num }, (_, i) => ({
+        x: start.x + i * step.x,
+        y: start.y + i * step.y,
+        z: start.z + i * step.z,
+    }));
+}
+
+export const Algorithm = {
+    bfsBlocks,
+    linspace,
+};

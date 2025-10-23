@@ -11,9 +11,10 @@ export interface SubscriptionData<TEvent> {
 export abstract class BaseMapEventSignal<
     TKey,
     TEvent,
-    TData extends SubscriptionData<TEvent>,
-    TOptions
-> implements CustomEventSignal<TEvent>
+    TData extends SubscriptionData<TCustomEvent>,
+    TOptions,
+    TCustomEvent = TEvent
+> implements CustomEventSignal<TCustomEvent>
 {
     protected logger = new Logger(this.constructor.name);
     protected map: Map<TKey, Set<TData>> = new Map();
@@ -22,7 +23,10 @@ export abstract class BaseMapEventSignal<
     private inited = false;
     private nativeUnsub?: (e: TEvent) => void;
 
-    subscribe(callback: (event: TEvent) => void, options: TOptions): Subscription {
+    subscribe(
+        callback: (event: TCustomEvent) => void,
+        options: TOptions
+    ): Subscription {
         const key = this.buildKey(options);
         if (key == null) {
             throw new Error("必须提供有效的订阅 key");
@@ -42,24 +46,26 @@ export abstract class BaseMapEventSignal<
         set.add(data);
         this.totalCount++;
 
-        let removed = false;
+        return this.wrapUnsub(key, data);
+    }
+
+    private wrapUnsub(key: TKey, data: TData) {
+        let unsubscribed = false;
+
         return {
             unsubscribe: () => {
-                if (removed) return;
-                removed = true;
+                if (unsubscribed) return;
+                unsubscribed = true;
 
-                const s = this.map.get(key);
-                if (s && s.has(data)) {
-                    s.delete(data);
+                const set = this.map.get(key);
+                if (!set) return;
+
+                if (set.delete(data)) {
                     this.totalCount--;
-                    if (s.size === 0) {
-                        this.map.delete(key);
-                    }
+                    if (set.size === 0) this.map.delete(key);
                 }
 
-                if (this.totalCount <= 0) {
-                    this.cleanup();
-                }
+                if (this.totalCount === 0) this.cleanup();
             },
         };
     }
@@ -85,18 +91,22 @@ export abstract class BaseMapEventSignal<
     }
 
     private publish(event: TEvent) {
+        if (!this.isTargetEvent(event)) return;
         const key = this.extractKey(event);
         if (key == null) return;
 
         const callbacks = this.map.get(key);
-        if (callbacks) {
-            for (const data of Array.from(callbacks)) {
-                if (!this.filter(data, event)) continue;
-                try {
-                    data.callback(event);
-                } catch (e) {
-                    this.logger.error("callback failed:", e);
-                }
+        if (!callbacks || callbacks.size === 0) return;
+
+        //包装
+        const eventWrapped = this.eventWrapper(event);
+
+        for (const data of Array.from(callbacks)) {
+            if (!this.filter(data, event)) continue;
+            try {
+                data.callback(eventWrapped);
+            } catch (e) {
+                this.logger.error("callback failed:", e);
             }
         }
     }
@@ -105,16 +115,31 @@ export abstract class BaseMapEventSignal<
     protected abstract buildKey(options: TOptions): TKey | null;
 
     /** 子类实现：如何从订阅 options 构造 data */
-    protected abstract buildData(callback: (event: TEvent) => void, options: TOptions): TData;
+    protected abstract buildData(
+        callback: (event: TCustomEvent) => void,
+        options: TOptions
+    ): TData;
 
     /** 子类实现：如何从原生事件提取 key */
     protected abstract extractKey(event: TEvent): TKey | null;
+
+    /** 子类可重写：是否为需要的事件 */
+    protected isTargetEvent(event: TEvent): boolean {
+        return true;
+    }
+
+    /**自定义事件返回 */
+    protected eventWrapper(event: TEvent): TCustomEvent {
+        return event as unknown as TCustomEvent;
+    }
 
     /** 子类实现：是否触发回调 */
     protected abstract filter(data: TData, event: TEvent): boolean;
 
     /** 子类实现：订阅原生事件 */
-    protected abstract subscribeNative(cb: (event: TEvent) => void): (event: TEvent) => void;
+    protected abstract subscribeNative(
+        cb: (event: TEvent) => void
+    ): (event: TEvent) => void;
 
     /** 子类实现：取消原生事件 */
     protected abstract unsubscribeNative(cb: (event: TEvent) => void): void;

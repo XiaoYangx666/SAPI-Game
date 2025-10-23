@@ -56,14 +56,18 @@ export class RunnerManager {
     /**
      * 使用游戏 runJob 运行 generator
      */
-    runJob(generator: Generator<void, void, void>): string {
+    runJob(generator: Generator<void, void, void>): {
+        id: string;
+        promise: Promise<void>;
+    } {
         const id = `runner-${++this.idCounter}`;
-        const runId = system.runJob(generator);
+        const wrapped = wrapGeneratorWithPromise(generator);
+        const runId = system.runJob(wrapped.gen);
 
         // 用对象保存 runId，方便取消
         this.runners.set(id, { runId });
 
-        return id;
+        return { id, promise: wrapped.promise };
     }
 
     /**
@@ -100,4 +104,32 @@ export class RunnerManager {
     get size(): number {
         return this.runners.size;
     }
+}
+
+function wrapGeneratorWithPromise(gen: Generator<void, void, void>): {
+    gen: Generator<void, void, void>;
+    promise: Promise<void>;
+} {
+    let resolveFn!: () => void;
+    let rejectFn!: (err: any) => void;
+
+    const promise = new Promise<void>((resolve, reject) => {
+        resolveFn = resolve;
+        rejectFn = reject;
+    });
+
+    function* wrapper() {
+        try {
+            let next = gen.next();
+            while (!next.done) {
+                yield;
+                next = gen.next();
+            }
+            resolveFn();
+        } catch (err) {
+            rejectFn(err);
+        }
+    }
+
+    return { gen: wrapper(), promise };
 }

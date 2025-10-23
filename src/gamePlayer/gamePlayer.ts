@@ -1,5 +1,7 @@
 import {
+    EffectType,
     EntityComponentTypes,
+    EntityEffectOptions,
     ItemStack,
     Player,
     RawMessage,
@@ -81,6 +83,23 @@ export class GamePlayer {
         if (!this.isValid) return;
         this._player.onScreenDisplay.setActionBar(text);
     }
+
+    /**
+     * 为玩家添加效果
+     * @param showParticles 是否显示粒子，默认为false
+     */
+    addEffect(
+        effectType: string | EffectType,
+        duration: number,
+        amplifier?: number,
+        showParticles?: boolean
+    ) {
+        if (!this.isValid) return;
+        this._player.addEffect(effectType, duration, {
+            amplifier: amplifier ?? 1,
+            showParticles: showParticles ?? false,
+        });
+    }
 }
 
 /**带寿命的player */
@@ -94,6 +113,7 @@ export class TTLPlayer extends GamePlayer {
         this._ttl = this.isActive ? value : 0; //如果isActive已经为false，则ttl直接归零
     }
 
+    /**获取玩家剩余存活时间 */
     get ttl() {
         return this._ttl;
     }

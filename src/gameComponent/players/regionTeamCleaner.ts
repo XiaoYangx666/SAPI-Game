@@ -12,14 +12,20 @@ interface RegionTeamCleanUpOptions {
     onClean?: (p: Player) => void;
 }
 
-export class RegionTeamCleaner extends GameComponent<GameState, RegionTeamCleanUpOptions> {
+/**玩家离开指定区域时将他从team移除 */
+export class RegionTeamCleaner extends GameComponent<
+    GameState,
+    RegionTeamCleanUpOptions
+> {
     override onAttach(): void {
         if (!this.options) return;
         this.subscribe(
             Game.events.region,
             (t) => {
                 if (t.type == RegionEventType.Leave) {
-                    this.options?.teams.forEach((team) => team.delete(t.player));
+                    this.options?.teams.forEach((team) =>
+                        team.delete(t.player)
+                    );
                     this.options?.onClean?.(t.player);
                 }
             },

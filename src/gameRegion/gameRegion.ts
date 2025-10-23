@@ -22,10 +22,18 @@ export abstract class GameRegion {
 
     /**获取区域内的玩家 */
     getPlayersInRegion() {
-        return world
-            .getDimension(this.dimensionId)
-            .getPlayers(this.getEntityQueryOption())
-            .filter((p) => p != undefined);
+        const result = [];
+        const players = world.getAllPlayers();
+        for (const player of players) {
+            if (player == undefined) continue;
+            if (
+                player.dimension.id == this.dimensionId &&
+                this.isInside(player.location)
+            ) {
+                result.push(player);
+            }
+        }
+        return result;
     }
 
     /**获取区域内实体 */
@@ -49,8 +57,8 @@ export abstract class GameRegion {
 
 /**立方体区域 */
 export class CubeRegion extends GameRegion {
-    pos1: Vector3;
-    pos2: Vector3;
+    readonly pos1: Vector3;
+    readonly pos2: Vector3;
     constructor(dimId: DimensionIds, pos1: Vector3, pos2: Vector3) {
         super(dimId);
         this.pos1 = pos1;
@@ -64,6 +72,7 @@ export class CubeRegion extends GameRegion {
         };
     }
 
+    /**判断是否在区域内 */
     isInside(loc: Vector3): boolean {
         const EPSILON = 0.00001;
 
@@ -88,10 +97,14 @@ export class CubeRegion extends GameRegion {
 
     /**获取大小 */
     getCapacity() {
-        const dif = VectorUtils.subtract(this.pos2, this.pos1);
+        const dif = VectorUtils.add(
+            VectorUtils.subtract(this.getMax(), this.getMin()),
+            { x: 1, y: 1, z: 1 }
+        );
         return Math.abs(dif.x * dif.y * dif.z);
     }
 
+    /**获取范围 */
     getBounds() {
         return {
             x1: this.pos1.x,
@@ -100,6 +113,60 @@ export class CubeRegion extends GameRegion {
             y2: this.pos2.y,
             z1: this.pos1.z,
             z2: this.pos2.z,
+        };
+    }
+
+    /**向外扩张区域 */
+    outSet(distance: Vector3): CubeRegion {
+        const minX = Math.min(this.pos1.x, this.pos2.x) - distance.x;
+        const maxX = Math.max(this.pos1.x, this.pos2.x) + distance.x;
+        const minY = Math.min(this.pos1.y, this.pos2.y) - distance.y;
+        const maxY = Math.max(this.pos1.y, this.pos2.y) + distance.y;
+        const minZ = Math.min(this.pos1.z, this.pos2.z) - distance.z;
+        const maxZ = Math.max(this.pos1.z, this.pos2.z) + distance.z;
+
+        return new CubeRegion(
+            this.dimensionId,
+            { x: minX, y: minY, z: minZ },
+            { x: maxX, y: maxY, z: maxZ }
+        );
+    }
+
+    /**向内收缩区域（若收缩后无体积则返回 undefined） */
+    inSet(distance: Vector3): CubeRegion | undefined {
+        const minX = Math.min(this.pos1.x, this.pos2.x) + distance.x;
+        const maxX = Math.max(this.pos1.x, this.pos2.x) - distance.x;
+        const minY = Math.min(this.pos1.y, this.pos2.y) + distance.y;
+        const maxY = Math.max(this.pos1.y, this.pos2.y) - distance.y;
+        const minZ = Math.min(this.pos1.z, this.pos2.z) + distance.z;
+        const maxZ = Math.max(this.pos1.z, this.pos2.z) - distance.z;
+
+        // 若某个维度缩没了
+        if (minX >= maxX || minY >= maxY || minZ >= maxZ) {
+            return undefined;
+        }
+
+        return new CubeRegion(
+            this.dimensionId,
+            { x: minX, y: minY, z: minZ },
+            { x: maxX, y: maxY, z: maxZ }
+        );
+    }
+
+    /**获取区域最大点坐标 */
+    getMax(): Vector3 {
+        return {
+            x: Math.max(this.pos1.x, this.pos2.x),
+            y: Math.max(this.pos1.y, this.pos2.y),
+            z: Math.max(this.pos1.z, this.pos2.z),
+        };
+    }
+    /**获取区域最小点坐标 */
+    getMin(): Vector3 {
+        return {
+            x: Math.min(this.pos1.x, this.pos2.x),
+            y: Math.min(this.pos1.y, this.pos2.y),
+            z: Math.min(this.pos1.z, this.pos2.z),
         };
     }
 }
@@ -126,6 +193,15 @@ export class SphereRegion extends GameRegion {
     isInside(loc: Vector3): boolean {
         const distance = VectorUtils.squaredDistance(this.center, loc);
         return distance <= this.r * this.r;
+    }
+}
+
+export class CylinderRegion extends GameRegion {
+    override getEntityQueryOption(): EntityQueryOptions {
+        throw new Error("Method not implemented.");
+    }
+    override isInside(loc: any): boolean {
+        throw new Error("Method not implemented.");
     }
 }
 

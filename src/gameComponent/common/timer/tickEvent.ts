@@ -1,5 +1,9 @@
-import { CustomEventSignal, EventCallBack } from "@sapi-game/gameEvent/eventSignal";
+import {
+    CustomEventSignal,
+    EventCallBack,
+} from "@sapi-game/gameEvent/eventSignal";
 import { Subscription } from "@sapi-game/gameEvent/subscription";
+import { Logger } from "@sapi-game/utils";
 
 export interface TimerTickEvent {
     remainingTime: number;
@@ -7,6 +11,7 @@ export interface TimerTickEvent {
 
 export class TimerTickEventSignal implements CustomEventSignal<TimerTickEvent> {
     private tickCallbacks: Set<EventCallBack<TimerTickEvent>> = new Set();
+    private logger = new Logger(this.constructor.name);
 
     constructor() {}
 
@@ -24,7 +29,9 @@ export class TimerTickEventSignal implements CustomEventSignal<TimerTickEvent> {
         this.tickCallbacks.forEach((cb) => {
             try {
                 cb({ remainingTime: remainingTime });
-            } catch (err) {}
+            } catch (err) {
+                this.logger.error("timer Tick事件执行错误", err);
+            }
         });
     }
 }

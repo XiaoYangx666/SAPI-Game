@@ -151,7 +151,7 @@ export abstract class GameState<
         }
     }
 
-    subscribe<T extends EventSignal<any>>(
+    protected subscribe<T extends EventSignal<any>>(
         event: T,
         ...args: Parameters<T["subscribe"]>
     ) {
@@ -159,7 +159,7 @@ export abstract class GameState<
     }
 
     /** 进入一个新的子状态 */
-    pushState<S extends gameStateConstructor<P, C, any>>(
+    protected pushState<S extends gameStateConstructor<P, C, any>>(
         stateType: S,
         config?: ExtractConfig<S>
     ) {
@@ -167,12 +167,15 @@ export abstract class GameState<
     }
 
     /** 返回到父状态 */
-    popState() {
+    protected popState() {
         this.engine.popState();
     }
 
     /**将当前状态及其所有子状态，替换为一个新状态。*/
-    transitionTo<T>(stateType: gameStateConstructor<P, C, T>, config?: T) {
+    protected transitionTo<T>(
+        stateType: gameStateConstructor<P, C, T>,
+        config?: T
+    ) {
         this.engine.replaceFrom(this, stateType, config);
     }
 
@@ -186,23 +189,6 @@ export abstract class GameState<
     }
 
     onExit() {}
-
-    debug() {
-        const stateName = this.constructor.name;
-        const componentNames = [...this.components.values()].map(
-            (c) => c.constructor.name
-        );
-
-        this.logger.log(
-            [
-                "=== State Debug ===",
-                `State: ${stateName}`,
-                `Components(${componentNames.length}): ${
-                    componentNames.length ? componentNames.join(", ") : "<none>"
-                }`,
-            ].join("\n  ")
-        );
-    }
 
     /**返回基本信息 */
     stats() {

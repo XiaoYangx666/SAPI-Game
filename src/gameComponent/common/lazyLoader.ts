@@ -6,7 +6,7 @@ import { GameComponent, GameComponentType } from "../gameComponent";
 
 interface LazyLoadOptions {
     /** 要检测的维度 */
-    dimension: DimensionIds;
+    dimensionId: DimensionIds;
     /** 用于检测是否加载的方块坐标 */
     pos: Vector3;
     /** 加载时的回调（区块首次加载时触发） */
@@ -35,7 +35,12 @@ export class LazyLoader extends GameComponent<
             Game.events.interval,
             () => {
                 if (!this.options) return;
-                const { dimension, pos, onLoad, onUnload } = this.options;
+                const {
+                    dimensionId: dimension,
+                    pos,
+                    onLoad,
+                    onUnload,
+                } = this.options;
                 const block = world.getDimension(dimension).getBlock(pos);
                 if (block) {
                     if (!this.active) {
