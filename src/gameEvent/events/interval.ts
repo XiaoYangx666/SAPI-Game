@@ -34,7 +34,6 @@ export class IntervalEventSignal implements CustomEventSignal<void> {
 
     private start() {
         this.intervalId = system.runInterval(() => this.tick());
-        this.logger.debug("已启动interval");
     }
 
     private tick() {
@@ -44,7 +43,7 @@ export class IntervalEventSignal implements CustomEventSignal<void> {
                 try {
                     item.callback();
                 } catch (e) {
-                    console.error("Interval callback error:", e);
+                    this.logger.error("Interval callback error:", e);
                 }
                 item.tickCount = item.interval;
             }
@@ -55,7 +54,6 @@ export class IntervalEventSignal implements CustomEventSignal<void> {
         if (this.intervalId !== null) {
             this.items.clear();
             system.clearRun(this.intervalId);
-            this.logger.debug("已停止interval");
         }
     }
 }

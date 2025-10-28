@@ -3,26 +3,27 @@ import { GamePlayer, ValidGamePlayer } from "./gamePlayer";
 import { PlayerGroup } from "./playerGroup";
 
 /**玩家组集合 */
-export class PlayerGroupSet<T extends GamePlayer = GamePlayer> {
-    private groups: PlayerGroup<T>[] = [];
+export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
+    private groups: PlayerGroup<T, TData>[] = [];
 
-    constructor(groups?: PlayerGroup<T>[]) {
+    constructor(groups?: PlayerGroup<T, TData>[]) {
         if (groups) this.groups = groups.slice();
     }
 
-    addGroup(group: PlayerGroup<T>) {
-        if (!(group instanceof PlayerGroup)) throw new Error("只能添加 PlayerGroup 实例");
+    addGroup(group: PlayerGroup<T, TData>) {
+        if (!(group instanceof PlayerGroup))
+            throw new Error("只能添加 PlayerGroup 实例");
         this.groups.push(group);
         return this;
     }
 
-    removeGroup(group: PlayerGroup<T>) {
+    removeGroup(group: PlayerGroup<T, TData>) {
         const index = this.groups.indexOf(group);
         if (index !== -1) this.groups.splice(index, 1);
         return this;
     }
 
-    getGroups(): readonly PlayerGroup<T>[] {
+    getGroups(): readonly PlayerGroup<T, TData>[] {
         return this.groups.slice();
     }
 
@@ -34,8 +35,10 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer> {
     }
 
     /**获取所有有效玩家 */
-    getAllValidPlayers() {
-        return this.getAllPlayers().filter((p) => p.isValid);
+    getAllValidPlayers(): ValidGamePlayer<T>[] {
+        return this.getAllPlayers().filter(
+            (p) => p.isValid
+        ) as ValidGamePlayer<T>[];
     }
 
     /**对所有有效玩家执行操作*/
@@ -44,7 +47,7 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer> {
         return this;
     }
 
-    forEachGroup(func: (g: PlayerGroup<T>) => void) {
+    forEachGroup(func: (g: PlayerGroup<T, TData>) => void) {
         this.groups.forEach(func);
     }
 
@@ -100,7 +103,9 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer> {
     }
 
     /** 根据玩家 ID 查找玩家及其所在组 */
-    findById(id: string): { player: T; group: PlayerGroup<T> } | undefined {
+    findById(
+        id: string
+    ): { player: T; group: PlayerGroup<T, TData> } | undefined {
         for (const group of this.groups) {
             const player = group.getById(id);
             if (player) return { player, group };

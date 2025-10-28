@@ -1,8 +1,8 @@
 import { DisplaySlotId, ScoreboardObjective, world } from "@minecraft/server";
-import { GameState } from "@sapi-game/gameState";
+import { GameState } from "@sapi-game/gameState/gameState";
 import { GameComponent } from "../gameComponent";
 
-interface infoScoreboardOptions {
+export interface infoScoreboardOptions {
     /**计分板名 */
     scoreBoardName: string;
     /**计分板显示名字 */
@@ -25,7 +25,7 @@ export class InfoScoreboard extends GameComponent<
     private objective: ScoreboardObjective | undefined;
     private initCode = 48;
 
-    getObj() {
+    private getObj() {
         if (this.objective && this.objective.isValid) return this.objective;
         const name = this.options!.scoreBoardName;
         this.objective =
@@ -65,10 +65,11 @@ export class InfoScoreboard extends GameComponent<
             world.scoreboard.getObjectiveAtDisplaySlot(DisplaySlotId.Sidebar)
                 ?.objective.id == sb.id;
         world.scoreboard.removeObjective(sb);
-        //如果正在显示就恢复显示
-        if (isDisplay) {
-            this.show();
+        //如果不在显示则直接返回
+        if (!isDisplay) {
+            return;
         }
+        this.show();
         //预处理
         let blankCode = this.initCode;
         for (let i = 0; i < lines.length; i++) {
@@ -86,9 +87,10 @@ export class InfoScoreboard extends GameComponent<
         if (footer) {
             lines.push(...footer());
         }
+        const sb1 = this.getObj();
         //设置
         for (let i = 0; i < lines.length; i++) {
-            sb.setScore(lines[i], lines.length - i - 1);
+            sb1.setScore(lines[i], lines.length - i - 1);
         }
     }
 }

@@ -1,12 +1,12 @@
 import { RegionEventType } from "@sapi-game/gameEvent/events/regionEvents";
 import { PlayerGroup } from "@sapi-game/gamePlayer/playerGroup";
 import { GameRegion } from "@sapi-game/gameRegion/gameRegion";
-import { GameState } from "@sapi-game/gameState";
+import { GameState } from "@sapi-game/gameState/gameState";
 import { Game } from "@sapi-game/main";
 import { GameComponent } from "../gameComponent";
 import { Player } from "@minecraft/server";
 
-interface RegionTeamCleanUpOptions {
+export interface RegionTeamCleanUpOptions {
     region: GameRegion;
     teams: PlayerGroup<any>[];
     onClean?: (p: Player) => void;

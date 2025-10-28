@@ -1,7 +1,11 @@
 import { GameContext } from "./gameContext";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
 import { GamePlayerManager } from "./gamePlayer/playerManager";
-import { ExtractConfig, GameState, gameStateConstructor } from "./gameState";
+import {
+    ExtractConfig,
+    GameState,
+    gameStateConstructor,
+} from "./gameState/gameState";
 import { Game } from "./main";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";

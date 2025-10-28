@@ -19,11 +19,23 @@ class PlayerGroupError extends GameError {
 }
 
 /**玩家组 */
-export class PlayerGroup<T extends GamePlayer = GamePlayer> {
+export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
     private players: T[];
     readonly playerConstructor: GamePlayerConstructor<T>;
+    readonly data: TData;
 
-    constructor(playerClass: GamePlayerConstructor<T>, players?: T[]) {
+    /**创建新的玩家组 */
+    constructor(playerClass: GamePlayerConstructor<T>, players?: T[]);
+    constructor(
+        playerClass: GamePlayerConstructor<T>,
+        players: T[],
+        data?: TData
+    );
+    constructor(
+        playerClass: GamePlayerConstructor<T>,
+        players?: T[],
+        data?: TData
+    ) {
         this.playerConstructor = playerClass;
         if (
             players != undefined &&
@@ -31,6 +43,7 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer> {
         ) {
             throw new PlayerGroupError(`players必须全为:${playerClass.name}`);
         }
+        this.data = data as TData;
         this.players = players ?? [];
     }
 

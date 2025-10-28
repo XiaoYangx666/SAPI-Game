@@ -10,10 +10,12 @@
         }
     },
     "scripts": {
-        "update": "npx sapi-kit update",
-        "pack": "npx sapi-kit pack",
         "dev": "npx sapi-kit dev",
         "build": "npx sapi-kit build",
-        "copy": "npx sapi-kit copy"
+        "doc": "npx typedoc --plugin typedoc-plugin-markdown ./src/main.ts --disableSources --name SAPI-Game"
+    },
+    "devDependencies": {
+        "typedoc": "^0.28.14",
+        "typedoc-plugin-markdown": "^4.9.0"
     }
 }

@@ -1,4 +1,4 @@
-import { BlockType, BlockTypes, world } from "@minecraft/server";
+import { BlockTypes, world } from "@minecraft/server";
 import { CubeRegion } from "./gameRegion";
 
 /**游戏区域 */
@@ -15,7 +15,6 @@ class RegionHelper {
         const blockType = BlockTypes.get(block);
         if (!blockType) return;
         for (let region of regions) {
-            console.log(region.toVolume().getCapacity());
             dim.fillBlocks(region.toVolume(), blockType);
             yield;
         }
@@ -94,7 +93,6 @@ class RegionHelper {
                 )
             );
         }
-        console.log(result.map((r) => r.getCapacity()).join(","));
         return result;
     }
 }

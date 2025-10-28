@@ -1,6 +1,6 @@
 import { EventSubscription } from "@sapi-game/gameEvent/eventManager";
 import { EventSignal } from "../gameEvent/eventSignal";
-import { GameState } from "../gameState";
+import { GameState } from "../gameState/gameState";
 
 type InferContext<S> = S extends GameState<any, infer C, any> ? C : never;
 

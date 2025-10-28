@@ -2,7 +2,7 @@ import { GameComponent } from "./gameComponent/gameComponent";
 import { GameContext } from "./gameContext";
 import { GameEngine } from "./gameEngine";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
-import { GameState } from "./gameState";
+import { GameState } from "./gameState/gameState";
 import { classConstructor } from "./utils/interfaces";
 
 export function createGameModule<

@@ -29,3 +29,11 @@ export class gameEvents {
         this.inSlot = new PlayerItemInSlotEventSignal(this.interval);
     }
 }
+
+export * from "./events/buttonPush";
+export * from "./events/inSlot";
+export * from "./events/interval";
+export * from "./events/itemUse";
+export * from "./events/onBlock";
+export * from "./events/regionEvents";
+export * from "./events/signClick";

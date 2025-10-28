@@ -29,7 +29,13 @@ system.beforeEvents.startup.subscribe((t) => {
 
 export * as Region from "@sapi-game/gameRegion/gameRegion";
 export { regionHelper } from "@sapi-game/gameRegion/regionHelper";
-export * as GameUtils from "@sapi-game/utils";
-export { GameComponent } from "./gameComponent/gameComponent";
+export * as Utils from "@sapi-game/utils";
+export * from "./gameComponent/index";
+export * from "./gameState/index";
 export { GameEngine } from "./gameEngine";
-export { GameState } from "./gameState";
+export { GameStructure } from "./gameStructure/gameStructure";
+export { ScriptRunner, ScriptCancelledError } from "./Runner/scriptRunner";
+export { RunnerManager } from "./Runner/RunnerManager";
+export * from "./gameEvent/index";
+export * from "./system/gameManager";
+export * from "./system/globalPlayerManager";

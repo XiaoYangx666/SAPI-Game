@@ -7,7 +7,7 @@ interface itemData extends SubscriptionData<ItemUseAfterEvent> {
     players?: PlayerGroup<any>;
 }
 
-interface itemEventOptions {
+export interface itemEventOptions {
     itemId: string;
     players?: PlayerGroup<any>;
 }

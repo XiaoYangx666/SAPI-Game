@@ -1,16 +1,16 @@
 import {
     GameComponent,
     GameComponentType,
-} from "./gameComponent/gameComponent";
-import { GameContext } from "./gameContext";
-import { GameEngine } from "./gameEngine";
-import { EventManager } from "./gameEvent/eventManager";
-import { EventSignal } from "./gameEvent/eventSignal";
-import { GamePlayer } from "./gamePlayer/gamePlayer";
-import { GamePlayerManager } from "./gamePlayer/playerManager";
-import { RunnerManager } from "./Runner/RunnerManager";
-import { GameStateError } from "./utils/GameError";
-import { Logger } from "./utils/logger";
+} from "../gameComponent/gameComponent";
+import { GameContext } from "../gameContext";
+import { GameEngine } from "../gameEngine";
+import { EventManager } from "../gameEvent/eventManager";
+import { EventSignal } from "../gameEvent/eventSignal";
+import { GamePlayer } from "../gamePlayer/gamePlayer";
+import { GamePlayerManager } from "../gamePlayer/playerManager";
+import { RunnerManager } from "../Runner/RunnerManager";
+import { GameStateError } from "../utils/GameError";
+import { Logger } from "../utils/logger";
 
 export type ExtractConfig<S> = S extends gameStateConstructor<any, any, infer T>
     ? T

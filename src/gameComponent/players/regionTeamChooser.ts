@@ -6,7 +6,7 @@ import { Game } from "@sapi-game/main";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
 import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { GameRegion } from "../../gameRegion/gameRegion";
-import { GameState } from "../../gameState";
+import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
 
 export interface RegionTeamChooserData<P extends GamePlayer> {

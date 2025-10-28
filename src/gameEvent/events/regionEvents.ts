@@ -1,6 +1,6 @@
 import { Player, world } from "@minecraft/server";
-import { difference } from "@sapi-game/utils/func";
 import { GameRegion } from "@sapi-game/gameRegion/gameRegion";
+import { difference } from "@sapi-game/utils/func";
 import { Logger } from "@sapi-game/utils/logger";
 import { DimensionIds } from "@sapi-game/utils/vanila-data";
 import { CustomEventSignal } from "../eventSignal";
@@ -88,13 +88,9 @@ export class PlayerRegionEventSignal
 
     private checkAllRegions(): void {
         // 1. 按维度收集所有玩家
-        const players = world.getAllPlayers();
+        const players = world.getAllPlayers().filter((p) => p != undefined);
         const playersByDimension: Record<string, Player[]> = {};
-        const dimensions = [
-            DimensionIds.Overworld,
-            DimensionIds.Nether,
-            DimensionIds.End,
-        ];
+        const dimensions = Object.values(DimensionIds);
 
         for (const dim of dimensions) {
             playersByDimension[dim] = players.filter(
@@ -124,7 +120,7 @@ export class PlayerRegionEventSignal
 
             //离开事件
             for (const playerId of difference(prevPlayers, currPlayers)) {
-                const player = dimensionPlayers.find((p) => p.id === playerId);
+                const player = players.find((p) => p.id === playerId);
                 if (player) this.publish(player, RegionEventType.Leave, sub);
             }
 

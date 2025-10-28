@@ -11,12 +11,12 @@ import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
 import { IntervalEventSignal } from "./interval";
 
-interface PlayerItemInSlotEvent {
+export interface PlayerItemInSlotEvent {
     item: ItemStack;
     player: Player;
 }
 
-interface PlayerItemInSlotOption {
+export interface PlayerItemInSlotOption {
     slot: EquipmentSlot;
     itemId: string;
     group?: PlayerGroup<any>;

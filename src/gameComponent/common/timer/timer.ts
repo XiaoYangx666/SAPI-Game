@@ -1,4 +1,4 @@
-import { GameState } from "@sapi-game/gameState";
+import { GameState } from "@sapi-game/gameState/gameState";
 import { Game } from "@sapi-game/main";
 import { GameComponent } from "../../gameComponent";
 import { TimerOnTimeEventSignal } from "./onTimeEvent";

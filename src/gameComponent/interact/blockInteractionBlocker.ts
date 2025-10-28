@@ -2,7 +2,7 @@ import { BlockComponentTypes, system, world } from "@minecraft/server";
 import { PlayerGroupSet } from "@sapi-game/gamePlayer/groupSet";
 import { GameComponent, GameState } from "@sapi-game/main";
 
-interface InteractionBlockerOptions {
+export interface InteractionBlockerOptions {
     /** 被限制的玩家组 */
     groupSet: PlayerGroupSet;
 

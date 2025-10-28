@@ -1,5 +1,6 @@
 import {
     PlayerInteractWithBlockBeforeEvent,
+    system,
     Vector3,
     world,
 } from "@minecraft/server";
@@ -10,12 +11,16 @@ import { BaseMapEventSignal, SubscriptionData } from "../mapEventSignal";
 interface SignClickData
     extends SubscriptionData<PlayerInteractWithBlockBeforeEvent> {
     players?: PlayerGroup<any>;
+    lastClick: number;
+    clickInterval: number;
 }
 
-interface SignClickEventOptions {
+export interface SignClickEventOptions {
     dimensionId: DimensionIds;
     loc: Vector3;
     players?: PlayerGroup<any>;
+    /**两次点击的最小间隔(默认1)，0表示无间隔 */
+    clickInterval?: number;
 }
 
 export class SignClickEventSignal extends BaseMapEventSignal<
@@ -37,6 +42,8 @@ export class SignClickEventSignal extends BaseMapEventSignal<
         return {
             callback,
             players: options.players,
+            lastClick: system.currentTick,
+            clickInterval: options.clickInterval ?? 1,
         };
     }
 
@@ -55,9 +62,13 @@ export class SignClickEventSignal extends BaseMapEventSignal<
         data: SignClickData,
         event: PlayerInteractWithBlockBeforeEvent
     ): boolean {
+        if (system.currentTick - data.lastClick < data.clickInterval) {
+            return false;
+        }
         if (data.players && !data.players.getById(event.player.id)) {
             return false;
         }
+        data.lastClick = system.currentTick;
         return true;
     }
 

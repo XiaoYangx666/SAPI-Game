@@ -1,9 +1,11 @@
 import { Player, world } from "@minecraft/server";
-import { GameState } from "@sapi-game/gameState";
+import { GameState } from "@sapi-game/gameState/gameState";
 import { GameComponent } from "../gameComponent";
 
 /**监听玩家和指定实体的互动 */
-export class EntityInteractionListener extends GameComponent<GameState<any, any>> {
+export class EntityInteractionListener extends GameComponent<
+    GameState<any, any>
+> {
     callbacks: Map<string, (source: Player) => void> = new Map();
 
     override onAttach(): void {

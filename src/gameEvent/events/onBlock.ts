@@ -6,7 +6,7 @@ import { SubscriptionData } from "../mapEventSignal";
 import { Subscription } from "../subscription";
 import { IntervalEventSignal } from "./interval";
 
-interface PlayerOnBlockEvent {
+export interface PlayerOnBlockEvent {
     player: Player;
     block: Block;
 }
@@ -16,7 +16,7 @@ interface PlayerOnBlockData extends SubscriptionData<PlayerOnBlockEvent> {
     typeIds?: string[];
 }
 
-interface PlayerOnBlockEventOption {
+export interface PlayerOnBlockEventOption {
     group?: PlayerGroup<any>;
     typeIds?: string[]; // 单个或多个
 }

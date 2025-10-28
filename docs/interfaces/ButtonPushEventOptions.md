@@ -1,0 +1,31 @@
+[**SAPI-Game**](../README.md)
+
+***
+
+[SAPI-Game](../README.md) / ButtonPushEventOptions
+
+# Interface: ButtonPushEventOptions
+
+## Properties
+
+### dimensionId
+
+> **dimensionId**: [`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+
+***
+
+### loc
+
+> **loc**: \[`number`, `number`, `number`\]
+
+***
+
+### players?
+
+> `optional` **players**: `PlayerGroup`\<`any`\>
+
+***
+
+### sourceType?
+
+> `optional` **sourceType**: `string`

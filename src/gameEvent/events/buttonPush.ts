@@ -9,7 +9,7 @@ interface ButtonData extends SubscriptionData<ButtonPushAfterEvent> {
     sourceType?: string;
 }
 
-interface ButtonPushEventOptions {
+export interface ButtonPushEventOptions {
     dimensionId: DimensionIds;
     loc: [number, number, number];
     players?: PlayerGroup<any>;
@@ -44,7 +44,8 @@ export class ButtonPushEventSignal extends BaseMapEventSignal<
     }
 
     protected filter(data: ButtonData, event: ButtonPushAfterEvent): boolean {
-        if (data.sourceType && event.source.typeId !== data.sourceType) return false;
+        if (data.sourceType && event.source.typeId !== data.sourceType)
+            return false;
         if (
             event.source instanceof Player &&
             data.players &&

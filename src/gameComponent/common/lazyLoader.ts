@@ -4,7 +4,7 @@ import { Duration, Logger } from "@sapi-game/utils";
 import { DimensionIds } from "@sapi-game/utils/vanila-data";
 import { GameComponent, GameComponentType } from "../gameComponent";
 
-interface LazyLoadOptions {
+export interface LazyLoadOptions {
     /** 要检测的维度 */
     dimensionId: DimensionIds;
     /** 用于检测是否加载的方块坐标 */

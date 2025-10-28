@@ -1,7 +1,6 @@
 import {
     EffectType,
     EntityComponentTypes,
-    EntityEffectOptions,
     ItemStack,
     Player,
     RawMessage,
