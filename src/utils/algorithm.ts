@@ -1,5 +1,5 @@
 import { Block, Vector3 } from "@minecraft/server";
-import { VectorUtils } from "./vector";
+import { Vector3Utils } from "./vector";
 
 /**
  * BFS 遍历方块
@@ -21,7 +21,7 @@ function bfsBlocks(
 
     while (queue.length > 0) {
         const { block, distance } = queue.shift()!;
-        const locStr = VectorUtils.toString(block.location);
+        const locStr = Vector3Utils.toString(block.location);
 
         if (visited.has(locStr)) continue;
         visited.add(locStr);
@@ -36,7 +36,7 @@ function bfsBlocks(
             if (distance < maxDistance) {
                 for (const neighbor of getNeighborBlocks(block)) {
                     if (result.length >= maxBlocks) break; // 避免继续加入
-                    const neighborLocStr = VectorUtils.toString(
+                    const neighborLocStr = Vector3Utils.toString(
                         neighbor.location
                     );
                     if (!visited.has(neighborLocStr)) {

@@ -1,7 +1,7 @@
 import { ButtonPushAfterEvent, Player, world } from "@minecraft/server";
 import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { DimensionIds } from "../../utils/vanila-data";
-import { VectorUtils } from "../../utils/vector";
+import { Vector3Utils } from "../../utils/vector";
 import { BaseMapEventSignal, SubscriptionData } from "../mapEventSignal";
 
 interface ButtonData extends SubscriptionData<ButtonPushAfterEvent> {
@@ -23,7 +23,7 @@ export class ButtonPushEventSignal extends BaseMapEventSignal<
     ButtonPushEventOptions
 > {
     protected buildKey(options: ButtonPushEventOptions): string {
-        const loc = VectorUtils.fromArray(options.loc);
+        const loc = Vector3Utils.fromArray(options.loc);
         return `${options.dimensionId}-${loc.x}-${loc.y}-${loc.z}`;
     }
 

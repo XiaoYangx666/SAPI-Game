@@ -7,7 +7,7 @@ import {
     world,
 } from "@minecraft/server";
 import { DimensionIds } from "../utils/vanila-data";
-import { VectorUtils } from "../utils/vector";
+import { Vector3Utils } from "../utils/vector";
 
 /**游戏区域 */
 export abstract class GameRegion {
@@ -68,7 +68,7 @@ export class CubeRegion extends GameRegion {
     getEntityQueryOption(): EntityQueryOptions {
         return {
             location: this.pos1,
-            volume: VectorUtils.subtract(this.pos2, this.pos1),
+            volume: Vector3Utils.subtract(this.pos2, this.pos1),
         };
     }
 
@@ -97,8 +97,8 @@ export class CubeRegion extends GameRegion {
 
     /**获取大小 */
     getCapacity() {
-        const dif = VectorUtils.add(
-            VectorUtils.subtract(this.getMax(), this.getMin()),
+        const dif = Vector3Utils.add(
+            Vector3Utils.subtract(this.getMax(), this.getMin()),
             { x: 1, y: 1, z: 1 }
         );
         return Math.abs(dif.x * dif.y * dif.z);
@@ -191,7 +191,7 @@ export class SphereRegion extends GameRegion {
     }
 
     isInside(loc: Vector3): boolean {
-        const distance = VectorUtils.squaredDistance(this.center, loc);
+        const distance = Vector3Utils.squaredDistance(this.center, loc);
         return distance <= this.r * this.r;
     }
 }

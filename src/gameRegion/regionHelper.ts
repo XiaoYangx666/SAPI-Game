@@ -4,8 +4,8 @@ import { CubeRegion } from "./gameRegion";
 /**游戏区域 */
 class RegionHelper {
     /**填充方块，需自己保证区块已加载 */
-    fillGenerator(region: CubeRegion, block: string) {
-        const splited = this.splitCubeRegion(region);
+    fillGenerator(region: CubeRegion, block: string, batchSize = 32767) {
+        const splited = this.splitCubeRegion(region, batchSize);
         return this.fillGen(splited, block);
     }
 
@@ -21,8 +21,12 @@ class RegionHelper {
     }
 
     /**分割Region，保证每块小于32767 */
-    splitCubeRegion(initialRegion: CubeRegion): CubeRegion[] {
+    splitCubeRegion(
+        initialRegion: CubeRegion,
+        batchSize = 32767
+    ): CubeRegion[] {
         const MAX_CAPACITY = 32767;
+        if (batchSize > MAX_CAPACITY) batchSize = MAX_CAPACITY;
         const queue: CubeRegion[] = [initialRegion];
         const result: CubeRegion[] = [];
 
@@ -30,7 +34,7 @@ class RegionHelper {
             // 使用 ! 断言确保 region 存在，因为 queue.length > 0
             const region = queue.shift()!;
 
-            if (region.getCapacity() <= MAX_CAPACITY) {
+            if (region.getCapacity() <= batchSize) {
                 result.push(region);
                 continue;
             }

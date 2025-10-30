@@ -41,8 +41,8 @@ export class LazyLoader extends GameComponent<
                     onLoad,
                     onUnload,
                 } = this.options;
-                const block = world.getDimension(dimension).getBlock(pos);
-                if (block) {
+                const load = world.getDimension(dimension).getBlock(pos);
+                if (load) {
                     if (!this.active) {
                         this.logger.log("load");
                         try {

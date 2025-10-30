@@ -11,6 +11,11 @@ import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
 
+interface GameStateInternal {
+    _onExit: () => void;
+    onEnter: () => void;
+}
+
 export abstract class GameEngine<
     P extends GamePlayer = any,
     C extends GameContext = any,
@@ -65,7 +70,7 @@ export abstract class GameEngine<
         this.logger.debug(`Pushing state: ${stateType.name}`);
         const stateInstance = new stateType(this, config);
         this.stateStack.push(stateInstance);
-        stateInstance.onEnter();
+        (stateInstance as any as GameStateInternal).onEnter();
         return this;
     }
 
@@ -121,7 +126,7 @@ export abstract class GameEngine<
 
     private removeState(state: GameState<P, C>) {
         this.logger.debug(`Removing state: ${state.constructor.name}`);
-        state._onExit();
+        (state as any as GameStateInternal)._onExit();
     }
 
     /**获取下一个state */

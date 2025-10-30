@@ -1,7 +1,7 @@
 import { Vector3 } from "@minecraft/server";
 
 /**向量工具类，提供向量相关的操作方法 */
-export class VectorUtils {
+export class Vector3Utils {
     /**距离 */
     static distance(v1: Vector3, v2: Vector3): number {
         return Math.sqrt(this.squaredDistance(v1, v2));
@@ -111,8 +111,8 @@ export class VectorUtils {
         return this.subtract(v, { x: 0, y: step, z: 0 });
     }
 
-    /**小数坐标转为整数坐标 */
-    static intLoc(v: Vector3) {
+    /**获取坐标所在方块的位置，即浮点数坐标向下取整后的整数坐标。 */
+    static intPos(v: Vector3) {
         return { x: Math.floor(v.x), y: Math.floor(v.y), z: Math.floor(v.z) };
     }
 }

@@ -8,6 +8,14 @@ export abstract class GameComponent<
     S extends GameState<any, any>,
     O = unknown
 > {
+    private _isAttached = false;
+    /**是否已经attach */
+    get isAttached(): Readonly<boolean> {
+        return this._isAttached;
+    }
+    protected readonly state: S;
+    /**tag */
+    readonly tag?: string;
     protected get context(): InferContext<S> {
         return this.state.context;
     }
@@ -16,23 +24,33 @@ export abstract class GameComponent<
         return this.state.runner;
     }
 
-    constructor(protected state: S, protected options?: O) {}
+    constructor(state: S, protected options?: O, tag?: string) {
+        this.state = state;
+        this.tag = tag;
+    }
 
-    abstract onAttach(): void;
+    private _onAttach() {
+        this.onAttach();
+        this._isAttached = true;
+    }
+
+    protected abstract onAttach(): void;
+
+    private _onDetach() {
+        this.state.eventManager.unsubscribeBySubscriber(this);
+        this.onDetach();
+        this._isAttached = false;
+    }
 
     /**随便重写 */
-    onDetach() {}
+    protected onDetach() {}
 
     /**订阅事件 */
     protected subscribe<T extends EventSignal<any>>(
         event: T,
         ...args: Parameters<T["subscribe"]>
     ) {
-        return this.state.eventManager.subscribe(
-            this.constructor,
-            event,
-            ...args
-        );
+        return this.state.eventManager.subscribe(this, event, ...args);
     }
 
     /**取消订阅 */
@@ -43,5 +61,6 @@ export abstract class GameComponent<
 
 export type GameComponentType<S extends GameState<any, any>, O = any> = new (
     state: S,
-    options?: O
+    options?: O,
+    tag?: string
 ) => GameComponent<S, O>;
