@@ -6,6 +6,20 @@
 
 # Abstract Class: GameComponent\<S, O\>
 
+## Extended by
+
+- [`InfoScoreboard`](InfoScoreboard.md)
+- [`LazyLoader`](LazyLoader.md)
+- [`Timer`](Timer.md)
+- [`BlockInteractionBlocker`](BlockInteractionBlocker.md)
+- [`EntityInteractionBlocker`](EntityInteractionBlocker.md)
+- [`PlayerAttackListener`](PlayerAttackListener.md)
+- [`EntityInteractionListener`](EntityInteractionListener.md)
+- [`RegionTeamChooser`](RegionTeamChooser.md)
+- [`RegionTeamCleaner`](RegionTeamCleaner.md)
+- [`TeamScoreBoard`](TeamScoreBoard.md)
+- [`PlayerHealthIndicator`](PlayerHealthIndicator.md)
+
 ## Type Parameters
 
 ### S
@@ -20,7 +34,7 @@
 
 ### Constructor
 
-> **new GameComponent**\<`S`, `O`\>(`state`, `options?`): `GameComponent`\<`S`, `O`\>
+> **new GameComponent**\<`S`, `O`\>(`state`, `options?`, `tag?`): `GameComponent`\<`S`, `O`\>
 
 #### Parameters
 
@@ -31,6 +45,10 @@
 ##### options?
 
 `O`
+
+##### tag?
+
+`string`
 
 #### Returns
 
@@ -46,7 +64,15 @@
 
 ### state
 
-> `protected` **state**: `S`
+> `protected` `readonly` **state**: `S`
+
+***
+
+### tag?
+
+> `readonly` `optional` **tag**: `string`
+
+tag
 
 ## Accessors
 
@@ -59,6 +85,20 @@
 ##### Returns
 
 `InferContext`\<`S`\>
+
+***
+
+### isAttached
+
+#### Get Signature
+
+> **get** **isAttached**(): `Readonly`\<`boolean`\>
+
+是否已经attach
+
+##### Returns
+
+`Readonly`\<`boolean`\>
 
 ***
 
@@ -76,7 +116,7 @@
 
 ### onAttach()
 
-> `abstract` **onAttach**(): `void`
+> `abstract` `protected` **onAttach**(): `void`
 
 #### Returns
 
@@ -86,7 +126,7 @@
 
 ### onDetach()
 
-> **onDetach**(): `void`
+> `protected` **onDetach**(): `void`
 
 随便重写
 

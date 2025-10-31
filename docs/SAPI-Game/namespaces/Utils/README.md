@@ -9,7 +9,7 @@
 ## Namespaces
 
 - [func](namespaces/func/README.md)
-- [GameError](namespaces/GameError/README.md)
+- [GameErrors](namespaces/GameErrors/README.md)
 - [vanilaData](namespaces/vanilaData/README.md)
 
 ## Enumerations
@@ -18,10 +18,11 @@
 
 ## Classes
 
+- [ChunkUtils](classes/ChunkUtils.md)
 - [Duration](classes/Duration.md)
 - [Logger](classes/Logger.md)
 - [RandomUtils](classes/RandomUtils.md)
-- [VectorUtils](classes/VectorUtils.md)
+- [Vector3Utils](classes/Vector3Utils.md)
 
 ## Variables
 

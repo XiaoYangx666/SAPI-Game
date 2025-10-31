@@ -1,5 +1,5 @@
 import { Player } from "@minecraft/server";
-import { Game } from "@sapi-game/main";
+import { Game, globalPlayerManagerInternal } from "@sapi-game/main";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
 
@@ -30,10 +30,9 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
             this.players.set(p.id, gamePlayer);
             //申请分配玩家
             if (!this.isDaemon) {
-                const ans = Game.playerManager.allocatePlayerToGame(
-                    p.id,
-                    this.gameKey
-                );
+                const ans = (
+                    Game.playerManager as unknown as globalPlayerManagerInternal
+                ).allocatePlayerToGame(p.id, this.gameKey);
                 (gamePlayer as any).isActive = ans;
             }
         }
@@ -62,6 +61,8 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     dispose() {
-        Game.playerManager.releaseAllPlayerFromGame(this.gameKey);
+        (
+            Game.playerManager as unknown as globalPlayerManagerInternal
+        ).releaseAllPlayerFromGame(this.gameKey);
     }
 }

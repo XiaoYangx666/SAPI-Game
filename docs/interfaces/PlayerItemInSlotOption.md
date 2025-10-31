@@ -10,7 +10,7 @@
 
 ### group?
 
-> `optional` **group**: `PlayerGroup`\<`any`\>
+> `optional` **group**: [`PlayerGroup`](../classes/PlayerGroup.md)\<`any`, `undefined`\>
 
 ***
 

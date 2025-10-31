@@ -17,6 +17,12 @@ class globalPlayer {
     }
 }
 
+/**内部接口,勿用 */
+export interface globalPlayerManagerInternal {
+    releaseAllPlayerFromGame(gameKey: string): void;
+    allocatePlayerToGame(playerId: string, gameKey: string): boolean;
+}
+
 export class globalPlayerManager {
     private readonly players: Map<string, globalPlayer> = new Map();
     private readonly logger = new Logger(this.constructor.name);
@@ -34,10 +40,10 @@ export class globalPlayerManager {
     }
 
     /**请求分配玩家
-     * 系统调用，别乱用
+     * 系统调用
      * @returns boolean 是否成功分配
      */
-    allocatePlayerToGame(playerId: string, gameKey: string): boolean {
+    protected allocatePlayerToGame(playerId: string, gameKey: string): boolean {
         this.logger.debug(`allocate player ${playerId} for ${gameKey}`);
         const player = this.players.get(playerId);
         this.logger.debug(
@@ -51,9 +57,9 @@ export class globalPlayerManager {
     }
 
     /**将玩家从指定游戏释放
-     * 系统调用，别乱用
+     * 系统调用
      */
-    releaseAllPlayerFromGame(gameKey: string) {
+    protected releaseAllPlayerFromGame(gameKey: string) {
         this.players.forEach((p) => {
             if (p.curGame == gameKey) p.curGame == undefined;
         });

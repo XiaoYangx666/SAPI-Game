@@ -2,25 +2,19 @@
 
 ***
 
-[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [GameError](../README.md) / GameError
+[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [GameErrors](../README.md) / GameManagerError
 
-# Class: GameError
+# Class: GameManagerError
 
 ## Extends
 
-- `Error`
-
-## Extended by
-
-- [`GameManagerError`](GameManagerError.md)
-- [`GameEngineError`](GameEngineError.md)
-- [`GameStateError`](GameStateError.md)
+- [`GameError`](GameError.md)
 
 ## Constructors
 
 ### Constructor
 
-> **new GameError**(`mes`, `options?`): `GameError`
+> **new GameManagerError**(`mes`, `options?`): `GameManagerError`
 
 #### Parameters
 
@@ -34,11 +28,11 @@
 
 #### Returns
 
-`GameError`
+`GameManagerError`
 
 #### Overrides
 
-`Error.constructor`
+[`GameError`](GameError.md).[`constructor`](GameError.md#constructor)
 
 ## Properties
 
@@ -48,7 +42,7 @@
 
 #### Inherited from
 
-`Error.cause`
+[`GameError`](GameError.md).[`cause`](GameError.md#cause)
 
 ***
 
@@ -58,7 +52,7 @@
 
 #### Inherited from
 
-`Error.message`
+[`GameError`](GameError.md).[`message`](GameError.md#message)
 
 ***
 
@@ -68,7 +62,7 @@
 
 #### Inherited from
 
-`Error.name`
+[`GameError`](GameError.md).[`name`](GameError.md#name)
 
 ***
 
@@ -78,7 +72,7 @@
 
 #### Inherited from
 
-`Error.stack`
+[`GameError`](GameError.md).[`stack`](GameError.md#stack)
 
 ## Methods
 
@@ -100,4 +94,4 @@ Indicates whether the argument provided is a built-in Error instance or not.
 
 #### Inherited from
 
-`Error.isError`
+[`GameError`](GameError.md).[`isError`](GameError.md#iserror)

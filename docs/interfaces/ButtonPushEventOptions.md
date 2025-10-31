@@ -22,7 +22,7 @@
 
 ### players?
 
-> `optional` **players**: `PlayerGroup`\<`any`\>
+> `optional` **players**: [`PlayerGroup`](../classes/PlayerGroup.md)\<`any`, `undefined`\>
 
 ***
 

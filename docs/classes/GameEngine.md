@@ -10,11 +10,11 @@
 
 ### P
 
-`P` *extends* `GamePlayer` = `any`
+`P` *extends* [`GamePlayer`](GamePlayer.md) = `any`
 
 ### C
 
-`C` *extends* `GameContext` = `any`
+`C` *extends* [`GameContext`](GameContext.md) = `any`
 
 ### O
 
@@ -66,7 +66,7 @@
 
 ### playerManager
 
-> `readonly` **playerManager**: `GamePlayerManager`\<`P`\>
+> `readonly` **playerManager**: [`GamePlayerManager`](GamePlayerManager.md)\<`P`\>
 
 ## Accessors
 
@@ -74,13 +74,13 @@
 
 #### Get Signature
 
-> **get** **groupBuilder**(): `PlayerGroupBuilder`\<`P`\>
+> **get** **groupBuilder**(): [`PlayerGroupBuilder`](PlayerGroupBuilder.md)\<`P`\>
 
 玩家组构建器
 
 ##### Returns
 
-`PlayerGroupBuilder`\<`P`\>
+[`PlayerGroupBuilder`](PlayerGroupBuilder.md)\<`P`\>
 
 ***
 

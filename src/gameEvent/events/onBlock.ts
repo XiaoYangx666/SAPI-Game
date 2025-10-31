@@ -1,6 +1,6 @@
 import { Block, Player, world } from "@minecraft/server";
 import { PlayerGroup } from "@sapi-game/gamePlayer/playerGroup";
-import { Logger, VectorUtils } from "@sapi-game/utils";
+import { Logger, Vector3Utils } from "@sapi-game/utils";
 import { CustomEventSignal } from "../eventSignal";
 import { SubscriptionData } from "../mapEventSignal";
 import { Subscription } from "../subscription";
@@ -104,7 +104,7 @@ export class PlayerOnBlockEventSignal
             )
                 continue;
             const block = p.dimension.getBlock(
-                VectorUtils.subtract(
+                Vector3Utils.subtract(
                     p.location,
                     PlayerOnBlockEventSignal.BELOW_OFFSET
                 )

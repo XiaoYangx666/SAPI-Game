@@ -2,9 +2,9 @@
 
 ***
 
-[SAPI-Game](../../../../../README.md) / [Utils](../../README.md) / GameError
+[SAPI-Game](../../../../../README.md) / [Utils](../../README.md) / GameErrors
 
-# GameError
+# GameErrors
 
 ## Classes
 

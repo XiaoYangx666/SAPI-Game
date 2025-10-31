@@ -200,7 +200,7 @@ export abstract class GameState<
         event: T,
         ...args: Parameters<T["subscribe"]>
     ) {
-        this.eventManager.subscribe(this, event, ...args);
+        return this.eventManager.subscribe(this, event, ...args);
     }
 
     /** 进入一个新的子状态 */

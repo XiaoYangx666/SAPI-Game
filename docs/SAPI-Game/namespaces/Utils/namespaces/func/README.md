@@ -9,3 +9,4 @@
 ## Functions
 
 - [difference](functions/difference.md)
+- [mapObject](functions/mapObject.md)

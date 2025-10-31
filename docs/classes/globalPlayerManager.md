@@ -20,10 +20,10 @@
 
 ### allocatePlayerToGame()
 
-> **allocatePlayerToGame**(`playerId`, `gameKey`): `boolean`
+> `protected` **allocatePlayerToGame**(`playerId`, `gameKey`): `boolean`
 
 请求分配玩家
-系统调用，别乱用
+系统调用
 
 #### Parameters
 
@@ -93,10 +93,10 @@ boolean 是否成功分配
 
 ### releaseAllPlayerFromGame()
 
-> **releaseAllPlayerFromGame**(`gameKey`): `void`
+> `protected` **releaseAllPlayerFromGame**(`gameKey`): `void`
 
 将玩家从指定游戏释放
-系统调用，别乱用
+系统调用
 
 #### Parameters
 

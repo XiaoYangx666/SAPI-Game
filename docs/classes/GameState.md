@@ -12,11 +12,11 @@
 
 ### P
 
-`P` *extends* `GamePlayer` = `any`
+`P` *extends* [`GamePlayer`](GamePlayer.md) = `any`
 
 ### C
 
-`C` *extends* `GameContext` = `any`
+`C` *extends* [`GameContext`](GameContext.md) = `any`
 
 ### TConfig
 
@@ -134,31 +134,19 @@
 
 #### Get Signature
 
-> **get** **playerManager**(): `GamePlayerManager`\<`P`\>
+> **get** **playerManager**(): [`GamePlayerManager`](GamePlayerManager.md)\<`P`\>
 
 玩家管理器
 
 ##### Returns
 
-`GamePlayerManager`\<`P`\>
+[`GamePlayerManager`](GamePlayerManager.md)\<`P`\>
 
 ## Methods
 
-### \_onExit()
-
-> **\_onExit**(): `void`
-
-系统调用，不要重写！
-
-#### Returns
-
-`void`
-
-***
-
 ### addComponent()
 
-> **addComponent**\<`C`\>(`component`, `options?`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
+> **addComponent**\<`C`\>(`component`, `options?`, `tag?`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
 
 添加组件到当前状态
 
@@ -174,9 +162,19 @@
 
 `C`
 
+组件类型
+
 ##### options?
 
 `ConstructorParameters`\<`C`\>\[`1`\]
+
+组件参数
+
+##### tag?
+
+`string`
+
+组件标签(唯一)
 
 #### Returns
 
@@ -184,7 +182,11 @@
 
 #### Throws
 
-GameStateError 若状态已存在
+组件已存在时抛出
+
+#### Throws
+
+组件加载失败时抛出
 
 ***
 
@@ -192,7 +194,7 @@ GameStateError 若状态已存在
 
 > **addComponents**(`components`): `void`
 
-添加多个components(不能带参数)
+添加多个components(不能带参数和tag)
 
 #### Parameters
 
@@ -208,7 +210,7 @@ GameStateError 若状态已存在
 
 ### deleteComponent()
 
-> **deleteComponent**(`component`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
+> **deleteComponent**(`component`, `tag?`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
 
 删除当前状态中的组件
 
@@ -218,15 +220,23 @@ GameStateError 若状态已存在
 
 `GameComponentType`\<`any`\>
 
+##### tag?
+
+`string`
+
 #### Returns
 
 `GameState`\<`P`, `C`, `TConfig`, `E`\>
+
+#### Throws
+
+组件删除失败时
 
 ***
 
 ### getComponent()
 
-> **getComponent**\<`C`\>(`type`): `InstanceType`\<`C`\>
+> **getComponent**\<`C`\>(`type`, `tag?`): `InstanceType`\<`C`\>
 
 获取当前状态中的组件
 
@@ -242,19 +252,27 @@ GameStateError 若状态已存在
 
 `C`
 
+组件类型
+
+##### tag?
+
+`string`
+
+组件标签
+
 #### Returns
 
 `InstanceType`\<`C`\>
 
 #### Throws
 
-GameStateError 若组件不存在，则抛出
+若组件不存在，则抛出
 
 ***
 
 ### onEnter()
 
-> `abstract` **onEnter**(): `void`
+> `abstract` `protected` **onEnter**(): `void`
 
 进入
 
@@ -266,7 +284,7 @@ GameStateError 若组件不存在，则抛出
 
 ### onExit()
 
-> **onExit**(): `void`
+> `protected` **onExit**(): `void`
 
 #### Returns
 
@@ -328,7 +346,7 @@ GameStateError 若组件不存在，则抛出
 
 ### subscribe()
 
-> `protected` **subscribe**\<`T`\>(`event`, ...`args`): `void`
+> `protected` **subscribe**\<`T`\>(`event`, ...`args`): [`EventSubscription`](EventSubscription.md) \| `undefined`
 
 #### Type Parameters
 
@@ -348,7 +366,7 @@ GameStateError 若组件不存在，则抛出
 
 #### Returns
 
-`void`
+[`EventSubscription`](EventSubscription.md) \| `undefined`
 
 ***
 

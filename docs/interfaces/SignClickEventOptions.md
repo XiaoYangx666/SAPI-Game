@@ -8,6 +8,14 @@
 
 ## Properties
 
+### clickInterval?
+
+> `optional` **clickInterval**: `number`
+
+两次点击的最小间隔(默认1)，0表示无间隔
+
+***
+
 ### dimensionId
 
 > **dimensionId**: [`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
@@ -22,4 +30,4 @@
 
 ### players?
 
-> `optional` **players**: `PlayerGroup`\<`any`\>
+> `optional` **players**: [`PlayerGroup`](../classes/PlayerGroup.md)\<`any`, `undefined`\>

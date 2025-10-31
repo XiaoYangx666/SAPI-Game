@@ -14,11 +14,9 @@
         "strict": true,
         "noImplicitAny": true,
         "noImplicitOverride": true,
-        "outDir": "cache",
+        "outDir": "scripts",
         "rootDir": "src",
         "allowJs": true,
-        "incremental": true,
-        "tsBuildInfoFile": "cache/tsbuildinfo.json",
         "paths": {
             "@sapi-game/*": ["./src/*"]
         }
