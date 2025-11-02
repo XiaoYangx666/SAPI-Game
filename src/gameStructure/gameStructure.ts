@@ -7,7 +7,7 @@ import {
 import { DimensionIds } from "@sapi-game/utils/vanila-data";
 
 /**游戏结构 */
-export class GameStructure {
+export class MCStructure {
     readonly id: string;
     readonly dim: DimensionIds;
     readonly loc: Vector3;

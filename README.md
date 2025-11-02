@@ -1,6 +1,6 @@
 # SAPI-Game
 
-![Requires](https://img.shields.io/badge/依赖-SAPI%202%2E2%2E0-red)
+![Requires](https://img.shields.io/badge/依赖-SAPI%202%2E3%2E0-red)
 
 > 使用纯 scriptApi 制作小游戏
 
@@ -188,7 +188,6 @@ graph LR
 
 ## 文档与教程
 
-[入门教程](./tutorial/入门.md)
 [文档](./tutorial/文档.md)
 
 ## 示例地图

@@ -8,6 +8,7 @@ import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { GameRegion } from "../../gameRegion/gameRegion";
 import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
+import { GameMode } from "@minecraft/server";
 
 export interface RegionTeamChooserData<P extends GamePlayer> {
     /**指定范围 */
@@ -22,8 +23,10 @@ export interface RegionTeamChooserData<P extends GamePlayer> {
 
 interface RegionTeamChooserConfig<P extends GamePlayer> {
     config: RegionTeamChooserData<P>[];
-    /**当玩家离开区域时是否从队伍中删除 */
+    /**当玩家离开区域时是否从队伍中删除(默认否) */
     removeOnLeave?: boolean;
+    /**是否允许旁观者进队(默认否) */
+    allowSpectator?: boolean;
 }
 
 /**区域队伍选择器 */
@@ -68,6 +71,13 @@ export class RegionTeamChooser<
         gamePlayer: P,
         configData: RegionTeamChooserData<P>
     ) {
+        //不允许旁观者直接返回
+        if (
+            (this.options!.allowSpectator ?? true) &&
+            gamePlayer.player?.getGameMode() == GameMode.Spectator
+        ) {
+            return;
+        }
         const newTeam = configData.team;
         const alreadyInTeam = newTeam.has(gamePlayer);
         if (configData.onEnter) {

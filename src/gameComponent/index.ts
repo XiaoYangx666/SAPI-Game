@@ -1,11 +1,13 @@
 export * from "./common/infoScoreboard";
 export * from "./common/lazyLoader";
 export * from "./common/timer/timer";
+export * from "./common/stopWatch/stopWatch";
 export { GameComponent } from "./gameComponent";
 export * from "./interact/blockInteractionBlocker";
 export * from "./interact/entityInteractionBlocker";
 export * from "./interact/playerAttackListener";
 export * from "./interact/playerInteractListener";
+export * from "./interact/regionProtecter";
 export * from "./players/regionTeamChooser";
 export * from "./players/regionTeamCleaner";
 export * from "./players/teamScoreboard";

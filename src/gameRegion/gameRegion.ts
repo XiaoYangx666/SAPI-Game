@@ -19,6 +19,7 @@ export abstract class GameRegion {
 
     abstract getEntityQueryOption(): EntityQueryOptions;
     abstract isInside(loc: any): boolean;
+    abstract isBlockInside(loc: any): boolean;
 
     /**获取区域内的玩家 */
     getPlayersInRegion() {
@@ -86,6 +87,22 @@ export class CubeRegion extends GameRegion {
         const inX = loc.x + EPSILON >= minX && loc.x - EPSILON <= maxX;
         const inY = loc.y + EPSILON >= minY && loc.y - EPSILON <= maxY;
         const inZ = loc.z + EPSILON >= minZ && loc.z - EPSILON <= maxZ;
+
+        return inX && inY && inZ;
+    }
+
+    /**判断方块是否在区域内 */
+    isBlockInside(loc: Vector3) {
+        const minX = Math.min(this.pos1.x, this.pos2.x);
+        const maxX = Math.max(this.pos1.x, this.pos2.x);
+        const minY = Math.min(this.pos1.y, this.pos2.y);
+        const maxY = Math.max(this.pos1.y, this.pos2.y);
+        const minZ = Math.min(this.pos1.z, this.pos2.z);
+        const maxZ = Math.max(this.pos1.z, this.pos2.z);
+
+        const inX = loc.x >= minX && loc.x <= maxX;
+        const inY = loc.y >= minY && loc.y <= maxY;
+        const inZ = loc.z >= minZ && loc.z <= maxZ;
 
         return inX && inY && inZ;
     }
@@ -194,6 +211,10 @@ export class SphereRegion extends GameRegion {
         const distance = Vector3Utils.squaredDistance(this.center, loc);
         return distance <= this.r * this.r;
     }
+
+    override isBlockInside(loc: any): boolean {
+        return this.isInside(loc);
+    }
 }
 
 export class CylinderRegion extends GameRegion {
@@ -202,6 +223,9 @@ export class CylinderRegion extends GameRegion {
     }
     override isInside(loc: any): boolean {
         throw new Error("Method not implemented.");
+    }
+    override isBlockInside(loc: any): boolean {
+        return this.isInside(loc);
     }
 }
 
@@ -240,6 +264,17 @@ export class PlaneRegion extends GameRegion {
 
         const inX = loc.x + EPSILON >= minX && loc.x - EPSILON <= maxX;
         const inY = loc.y + EPSILON >= minY && loc.y - EPSILON <= maxY;
+
+        return inX && inY;
+    }
+    override isBlockInside(loc: any): boolean {
+        const minX = Math.min(this.pos1.x, this.pos2.x);
+        const maxX = Math.max(this.pos1.x, this.pos2.x);
+        const minY = Math.min(this.pos1.y, this.pos2.y);
+        const maxY = Math.max(this.pos1.y, this.pos2.y);
+
+        const inX = loc.x >= minX && loc.x <= maxX;
+        const inY = loc.y >= minY && loc.y <= maxY;
 
         return inX && inY;
     }

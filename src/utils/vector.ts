@@ -21,9 +21,9 @@ export class Vector3Utils {
         return [vector.x, vector.y, vector.z];
     }
 
-    /**转为字符串 */
-    static toString(vector: Vector3): string {
-        return `(${vector.x}, ${vector.y}, ${vector.z})`;
+    /**转为字符串，用指定分隔符连接 */
+    static toString(vector: Vector3, sep: string = ","): string {
+        return this.toArray(vector).join(sep);
     }
 
     /**将数组转为Vector3 */

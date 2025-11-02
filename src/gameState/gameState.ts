@@ -120,7 +120,10 @@ export abstract class GameState<
             const comp = componentInstance as any as GameComponentInternal;
             comp._onAttach();
         } catch (err) {
-            throw new ComponentLoadFailedError(component, tag, { cause: err });
+            this.logger.error(
+                `组件 ${component.name} tag=${tag} 加载失败`,
+                err
+            );
         }
 
         return this;

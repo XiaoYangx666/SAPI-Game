@@ -112,4 +112,9 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
         }
         return undefined;
     }
+
+    /**判断玩家是否在内 */
+    has(id: string) {
+        return this.findById(id) != undefined;
+    }
 }

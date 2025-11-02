@@ -27,10 +27,11 @@ export class GameManager {
      * 启动指定游戏
      * @throws GameManagerError 当游戏已存在时
      */
-    startGame<
-        T extends GameEngine<any, any, any>,
-        C = T extends GameEngine<any, any, infer P> ? P : unknown
-    >(game: classConstructor<T>, config?: C, tag?: string) {
+    startGame<T extends GameEngine<any, any, any>>(
+        game: classConstructor<T>,
+        config?: T extends GameEngine<any, any, infer P> ? P : unknown,
+        tag?: string
+    ) {
         const key = this.buildKey(game, tag);
         const gameInstance = new game(key, config);
         this.addGame(this.games, key, gameInstance);
