@@ -124,7 +124,7 @@
 
 ### startGame()
 
-> **startGame**\<`T`, `C`\>(`game`, `config?`, `tag?`): `void`
+> **startGame**\<`T`\>(`game`, `config?`, `tag?`): `void`
 
 启动指定游戏
 
@@ -134,10 +134,6 @@
 
 `T` *extends* [`GameEngine`](GameEngine.md)\<`any`, `any`, `any`\>
 
-##### C
-
-`C` = `T` *extends* [`GameEngine`](GameEngine.md)\<`any`, `any`, `P`\> ? `P` : `unknown`
-
 #### Parameters
 
 ##### game
@@ -146,7 +142,7 @@
 
 ##### config?
 
-`C`
+`T` *extends* [`GameEngine`](GameEngine.md)\<`any`, `any`, `P`\> ? `P` : `unknown`
 
 ##### tag?
 

@@ -11,14 +11,17 @@
 - [`InfoScoreboard`](InfoScoreboard.md)
 - [`LazyLoader`](LazyLoader.md)
 - [`Timer`](Timer.md)
+- [`StopWatch`](StopWatch.md)
 - [`BlockInteractionBlocker`](BlockInteractionBlocker.md)
 - [`EntityInteractionBlocker`](EntityInteractionBlocker.md)
 - [`PlayerAttackListener`](PlayerAttackListener.md)
 - [`EntityInteractionListener`](EntityInteractionListener.md)
+- [`RegionProtector`](RegionProtector.md)
 - [`RegionTeamChooser`](RegionTeamChooser.md)
 - [`RegionTeamCleaner`](RegionTeamCleaner.md)
 - [`TeamScoreBoard`](TeamScoreBoard.md)
 - [`PlayerHealthIndicator`](PlayerHealthIndicator.md)
+- [`PlayerRegionMonitor`](PlayerRegionMonitor.md)
 
 ## Type Parameters
 

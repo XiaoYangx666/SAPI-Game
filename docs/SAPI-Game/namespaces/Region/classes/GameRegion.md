@@ -97,6 +97,22 @@
 
 ***
 
+### isBlockInside()
+
+> `abstract` **isBlockInside**(`loc`): `boolean`
+
+#### Parameters
+
+##### loc
+
+`any`
+
+#### Returns
+
+`boolean`
+
+***
+
 ### isInside()
 
 > `abstract` **isInside**(`loc`): `boolean`

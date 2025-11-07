@@ -26,7 +26,7 @@ export abstract class GameEngine<
     public readonly context: C;
     public readonly playerManager: GamePlayerManager<P>;
     public readonly key: string;
-    private _isActive = true;
+    private _isActive = false;
 
     /**是否是常驻游戏（常驻游戏不会被game end结束) */
     get isDaemon() {
@@ -51,15 +51,16 @@ export abstract class GameEngine<
         this.key = key;
         this.context = this.buildContext(config ?? ({} as O));
         this.logger = new Logger(this.constructor.name);
+        this._isActive = true;
     }
 
     protected abstract buildContext(config: O): C;
 
     /**游戏开始 */
-    abstract onStart(): void;
+    protected abstract onStart(): void;
 
     /**游戏结束(dispose前调用) */
-    abstract onStop(): void;
+    protected abstract onStop(): void;
 
     /** 在栈顶添加一个新的子状态 */
     pushState<S extends gameStateConstructor<P, C, any>>(
@@ -193,10 +194,16 @@ export abstract class GameEngine<
         Game.manager.stopGameByKey(this.key);
     }
 
-    onDispose() {
+    private onDispose() {
         this.logger?.debug("dispose");
         this.playerManager.dispose();
         this._isActive = false;
         this.clearStateStack();
     }
+}
+
+export interface GameEngineInternal {
+    onDispose(): void;
+    onStart(): void;
+    onStop(): void;
 }

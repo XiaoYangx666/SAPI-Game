@@ -204,19 +204,9 @@
 
 ***
 
-### onDispose()
-
-> **onDispose**(): `void`
-
-#### Returns
-
-`void`
-
-***
-
 ### onStart()
 
-> `abstract` **onStart**(): `void`
+> `abstract` `protected` **onStart**(): `void`
 
 游戏开始
 
@@ -228,7 +218,7 @@
 
 ### onStop()
 
-> `abstract` **onStop**(): `void`
+> `abstract` `protected` **onStop**(): `void`
 
 游戏结束(dispose前调用)
 

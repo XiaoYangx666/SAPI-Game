@@ -208,6 +208,24 @@ readonly [`PlayerGroup`](PlayerGroup.md)\<`T`, `TData`\>[]
 
 ***
 
+### has()
+
+> **has**(`id`): `boolean`
+
+判断玩家是否在内
+
+#### Parameters
+
+##### id
+
+`string`
+
+#### Returns
+
+`boolean`
+
+***
+
 ### removeGroup()
 
 > **removeGroup**(`group`): `PlayerGroupSet`\<`T`, `TData`\>

@@ -118,6 +118,26 @@
 
 ***
 
+### isBlockInside()
+
+> **isBlockInside**(`loc`): `boolean`
+
+#### Parameters
+
+##### loc
+
+`any`
+
+#### Returns
+
+`boolean`
+
+#### Overrides
+
+[`GameRegion`](GameRegion.md).[`isBlockInside`](GameRegion.md#isblockinside)
+
+***
+
 ### isInside()
 
 > **isInside**(`loc`): `boolean`

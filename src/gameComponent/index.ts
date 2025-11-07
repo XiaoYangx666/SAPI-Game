@@ -12,3 +12,4 @@ export * from "./players/regionTeamChooser";
 export * from "./players/regionTeamCleaner";
 export * from "./players/teamScoreboard";
 export * from "./players/healthIndicator";
+export * from "./players/regionMonitor";

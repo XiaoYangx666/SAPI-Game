@@ -5,7 +5,7 @@ import { Game } from "@sapi-game/main";
 import { Duration } from "@sapi-game/utils";
 import { GameComponent } from "../gameComponent";
 
-interface PlayerRegionMonitorOptions<P extends GamePlayer> {
+export interface PlayerRegionMonitorOptions<P extends GamePlayer> {
     /**区域 */
     region: GameRegion;
     /**检测间隔 */

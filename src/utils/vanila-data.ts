@@ -32,6 +32,8 @@ export enum CameraPreset {
 export enum EntityTypeIds {
     /**玩家 */
     Player = "minecraft:player",
+    /**盔甲架 */
+    ArmorStand = "minecraft:armor_stand",
 }
 
 /**各种状态效果 */

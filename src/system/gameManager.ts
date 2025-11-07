@@ -1,10 +1,10 @@
 import { Player } from "@minecraft/server";
+import { Game } from "@sapi-game/main";
 import { SAPIGameConfig } from "../config";
-import { GameEngine } from "../gameEngine";
+import { GameEngine, GameEngineInternal } from "../gameEngine";
 import { GameManagerError } from "../utils/GameError";
 import { classConstructor } from "../utils/interfaces";
 import { Logger } from "../utils/logger";
-import { Game } from "@sapi-game/main";
 
 export class GameManager {
     private games: Map<string, GameEngine<any, any>> = new Map();
@@ -19,7 +19,7 @@ export class GameManager {
             throw new GameManagerError(`已存在游戏: ${key}`);
         }
         this.logger.log(`startedGame: ${key}`);
-        gameInstance.onStart();
+        (gameInstance as any as GameEngineInternal).onStart();
         map.set(key, gameInstance);
     }
 
@@ -69,7 +69,9 @@ export class GameManager {
     }
 
     stopGameByKey(key: string) {
-        const gameInstance = this.games.get(key);
+        const gameInstance = this.games.get(key) as any as
+            | GameEngineInternal
+            | undefined;
         if (gameInstance) {
             gameInstance.onStop();
             gameInstance.onDispose();
@@ -84,8 +86,9 @@ export class GameManager {
     stopAll() {
         for (const [key, game] of this.games) {
             if (game.isDaemon) continue;
-            game.onStop();
-            game.onDispose();
+            const instance = game as any as GameEngineInternal;
+            instance.onStop();
+            instance.onDispose();
             this.logger.log(`stopedGame: ${key}`);
             this.games.delete(key);
         }
@@ -95,7 +98,7 @@ export class GameManager {
     end() {
         for (const [key, game] of this.games) {
             if (game.isDaemon) continue;
-            game.onDispose();
+            (game as any as GameEngineInternal).onDispose();
             this.logger.log(`endedGame: ${key}`);
             this.games.delete(key);
         }
@@ -116,11 +119,24 @@ export class GameManager {
 
         lines.push("");
 
+        // 常驻游戏
+        if (this.games.size) {
+            lines.push("§d—— 常驻游戏 ——");
+            for (const [key, g] of this.games) {
+                if (g.isDaemon) {
+                    lines.push(`§a● ${key} §7|\ §f${g.stats(detail)}`);
+                }
+            }
+            lines.push("");
+        }
+
         // 普通游戏
         if (this.games.size) {
             lines.push("§d—— 普通游戏 ——");
             for (const [key, g] of this.games) {
-                lines.push(`§a● ${key} §7|\ §f${g.stats(detail)}`);
+                if (!g.isDaemon) {
+                    lines.push(`§a● ${key} §7|\ §f${g.stats(detail)}`);
+                }
             }
             lines.push("");
         }

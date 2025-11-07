@@ -8,6 +8,14 @@
 
 ## Enumeration Members
 
+### ArmorStand
+
+> **ArmorStand**: `"minecraft:armor_stand"`
+
+盔甲架
+
+***
+
 ### Player
 
 > **Player**: `"minecraft:player"`

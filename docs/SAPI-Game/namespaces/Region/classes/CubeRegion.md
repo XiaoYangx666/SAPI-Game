@@ -228,6 +228,28 @@
 
 ***
 
+### isBlockInside()
+
+> **isBlockInside**(`loc`): `boolean`
+
+判断方块是否在区域内
+
+#### Parameters
+
+##### loc
+
+`Vector3`
+
+#### Returns
+
+`boolean`
+
+#### Overrides
+
+[`GameRegion`](GameRegion.md).[`isBlockInside`](GameRegion.md#isblockinside)
+
+***
+
 ### isInside()
 
 > **isInside**(`loc`): `boolean`

@@ -424,15 +424,19 @@ v1-v2
 
 ### toString()
 
-> `static` **toString**(`vector`): `string`
+> `static` **toString**(`vector`, `sep`): `string`
 
-转为字符串
+转为字符串，用指定分隔符连接
 
 #### Parameters
 
 ##### vector
 
 `Vector3`
+
+##### sep
+
+`string` = `","`
 
 #### Returns
 
