@@ -14,8 +14,6 @@
 - [`StopWatch`](StopWatch.md)
 - [`BlockInteractionBlocker`](BlockInteractionBlocker.md)
 - [`EntityInteractionBlocker`](EntityInteractionBlocker.md)
-- [`PlayerAttackListener`](PlayerAttackListener.md)
-- [`EntityInteractionListener`](EntityInteractionListener.md)
 - [`RegionProtector`](RegionProtector.md)
 - [`RegionTeamChooser`](RegionTeamChooser.md)
 - [`RegionTeamCleaner`](RegionTeamCleaner.md)

@@ -10,7 +10,6 @@ export interface TimerOptions {
     initialTime?: number;
     /** 是否在附加到游戏时自动开始
      *
-     * 这会导致第一秒的回调无法被执行
      * @default false
      */
     autoStart?: boolean;
@@ -25,7 +24,6 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
     private remainingTime: number = 0;
     private _isRunning: boolean = false;
     private lastTime: number = 0;
-    private isActive: boolean = true;
     public readonly events = {
         tick: new TimerTickEventSignal(),
         onTime: new TimerOnTimeEventSignal(),
@@ -45,12 +43,7 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
      * 组件被附加到游戏对象时调用
      */
     override onAttach(): void {
-        this.isActive = true;
         this.set(this.options?.initialTime ?? 0);
-
-        if (this.options?.autoStart) {
-            this.start();
-        }
 
         // 订阅游戏的tick事件，这是驱动计时器的核心
         this.subscribe(Game.events.interval, () => {
@@ -83,11 +76,14 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
                 this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
             }
         });
+
+        if (this.options?.autoStart) {
+            this.start();
+        }
     }
 
     override onDetach(): void {
         this._isRunning = false;
-        this.isActive = false;
         super.onDetach();
         this.state.eventManager.unsubscribeByEvent(this.events.onTime);
         this.state.eventManager.unsubscribeByEvent(this.events.tick);
@@ -106,7 +102,7 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
 
     /**启动计时器 */
     public start(): void {
-        if (this.remainingTime > 0 && !this._isRunning && this.isActive) {
+        if (this.remainingTime > 0 && !this._isRunning && this.isAttached) {
             this._isRunning = true;
             this.lastTime = Date.now();
             this.events.tick.publish(this.remainingTime);
