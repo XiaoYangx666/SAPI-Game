@@ -1,22 +1,27 @@
 # SAPI-Game
 
-![Requires](https://img.shields.io/badge/依赖-SAPI%202%2E3%2E0-red)
-
 > 使用纯 scriptApi 制作小游戏
-
-[简体中文](./) | [English](./README.md)
 
 ---
 
 ## 目录
 
+-   [简介](#简介)
 -   [安装与使用](#安装与使用)
+-   [框架优势](#框架优势)
 -   架构
     -   [单局游戏架构](#单局游戏架构)
     -   [系统架构](#系统架构)
 -   [文档与教程](#文档与教程)
 -   [示例地图](#示例地图)
 -   [反馈与交流](#反馈与交流)
+
+## 简介
+
+SAPI-Game 是一款由小阳 x666 研发的，专为 MCBE 小游戏设计的 SAPI 框架。  
+传统小游戏开发通常依赖命令方块，但命令功能有限，许多复杂逻辑需要使用 SAPI 补充。
+
+SAPI-Game 提供了完整解决方案，将 **多层级游戏架构、组件化开发、事件与异步管理** 融为一体，使开发者可以专注于游戏逻辑本身，同时充分利用 npm 生态 的工具库。通过 SAPI-Game，你可以轻松构建易维护、可复用、多游戏并行的 MCBE 小游戏项目。
 
 ## 安装与使用
 
@@ -25,7 +30,7 @@
 1.安装 sapi-kit
 
 ```shell
-npm i sapi-kit
+npm i -g sapi-kit
 ```
 
 2.初始化
@@ -37,7 +42,7 @@ sapi-kit init
 3.安装 SAPI-Game
 
 ```shell
-npm i sapi-game
+npm i @sapi-game
 ```
 
 4.在入口文件中配置 SAPI-Game
@@ -56,6 +61,27 @@ initSAPIGame({
     },
 });
 ```
+
+## 框架优势
+
+-   #### 多层级架构
+    GameEngine → GameState → GameComponent，保证代码清晰、可复用、易维护。
+-   #### 多游戏支持
+    轻松运行多个游戏实例，每个实例互不干扰，方便管理并行小游戏。
+-   #### 事件系统管理
+    独立 EventManager 与 GameState 生命周期绑定，状态结束时自动清理订阅，避免内存泄漏。
+-   #### 异步与可取消流程
+    内置 ScriptRunner 和 runJob 支持可取消的异步任务，安全处理状态切换和延迟逻辑。
+-   #### 丰富工具集
+    内置随机、坐标计算、区块计算等常用工具。
+-   #### 实践验证
+    框架已在 10+ 小游戏中验证，稳定可靠。
+-   #### 命令方块特性支持
+    | 命令方块特性     | SAPI-Game 对应      |
+    | ---------------- | ------------------- |
+    | 区块加载才执行   | LazyLoader 组件     |
+    | 红石断开就不执行 | ScriptRunner        |
+    | 命令方块延迟     | ScriptRunner.wait() |
 
 ## 架构
 
@@ -192,7 +218,7 @@ graph LR
 
 ## 示例地图
 
-[PartyGames 地图]()
+[PartyGames 地图](https://gitee.com/ykxyx666_admin/partygames)
 
 ## 反馈与交流
 

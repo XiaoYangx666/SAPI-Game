@@ -76,7 +76,6 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
                 this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
             }
         });
-
         if (this.options?.autoStart) {
             this.start();
         }

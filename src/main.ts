@@ -35,7 +35,7 @@ export * from "./gameState/index";
 export * from "./gamePlayer/index";
 export { GameEngine } from "./gameEngine";
 export { GameContext } from "./gameContext";
-export { MCStructure } from "./gameStructure/gameStructure";
+export { GameStructure } from "./gameStructure/gameStructure";
 export { ScriptRunner, ScriptCancelledError } from "./Runner/scriptRunner";
 export { RunnerManager } from "./Runner/RunnerManager";
 export * from "./gameEvent/index";

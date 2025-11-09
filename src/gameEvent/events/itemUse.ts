@@ -2,7 +2,7 @@ import { ItemUseAfterEvent, Player, world } from "@minecraft/server";
 import { PlayerGroup } from "@sapi-game/gamePlayer/playerGroup";
 import { BaseMapEventSignal, SubscriptionData } from "../mapEventSignal";
 
-interface itemData extends SubscriptionData<ItemUseAfterEvent> {
+export interface itemData extends SubscriptionData<ItemUseAfterEvent> {
     itemId: string;
     players?: PlayerGroup<any>;
 }

@@ -8,7 +8,7 @@
 
 ## Extends
 
-- `BaseMapEventSignal`\<`string`, `ItemUseAfterEvent`, `itemData`, [`itemEventOptions`](../interfaces/itemEventOptions.md)\>
+- `BaseMapEventSignal`\<`string`, `ItemUseAfterEvent`, [`itemData`](../interfaces/itemData.md), [`itemEventOptions`](../interfaces/itemEventOptions.md)\>
 
 ## Constructors
 
@@ -38,7 +38,7 @@
 
 ### map
 
-> `protected` **map**: `Map`\<`string`, `Set`\<`itemData`\>\>
+> `protected` **map**: `Map`\<`string`, `Set`\<[`itemData`](../interfaces/itemData.md)\>\>
 
 #### Inherited from
 
@@ -58,7 +58,7 @@
 
 ### buildData()
 
-> `protected` **buildData**(`callback`, `options`): `itemData`
+> `protected` **buildData**(`callback`, `options`): [`itemData`](../interfaces/itemData.md)
 
 子类实现：如何从订阅 options 构造 data
 
@@ -70,11 +70,11 @@
 
 ##### options
 
-`itemData`
+[`itemData`](../interfaces/itemData.md)
 
 #### Returns
 
-`itemData`
+[`itemData`](../interfaces/itemData.md)
 
 #### Overrides
 
@@ -92,7 +92,7 @@
 
 ##### options
 
-`itemData`
+[`itemData`](../interfaces/itemData.md)
 
 #### Returns
 
@@ -172,7 +172,7 @@
 
 ##### data
 
-`itemData`
+[`itemData`](../interfaces/itemData.md)
 
 ##### event
 

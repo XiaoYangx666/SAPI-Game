@@ -105,7 +105,4 @@ function linspace(start: Vector3, end: Vector3, num: number): Vector3[] {
     }));
 }
 
-export const Algorithm = {
-    bfsBlocks,
-    linspace,
-};
+export { bfsBlocks, linspace };

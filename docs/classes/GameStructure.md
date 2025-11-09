@@ -2,9 +2,9 @@
 
 ***
 
-[SAPI-Game](../README.md) / MCStructure
+[SAPI-Game](../README.md) / GameStructure
 
-# Class: MCStructure
+# Class: GameStructure
 
 游戏结构
 
@@ -12,7 +12,7 @@
 
 ### Constructor
 
-> **new MCStructure**(`id`, `loc`, `dim`): `MCStructure`
+> **new GameStructure**(`id`, `loc`, `dim`): `GameStructure`
 
 构造一个游戏结构
 
@@ -38,7 +38,7 @@
 
 #### Returns
 
-`MCStructure`
+`GameStructure`
 
 ## Properties
 

@@ -30,8 +30,13 @@ export abstract class GameComponent<
     }
 
     private _onAttach() {
-        this.onAttach();
-        this._isAttached = true;
+        try {
+            this._isAttached = true;
+            this.onAttach();
+        } catch (err) {
+            this._isAttached = false;
+            throw err;
+        }
     }
 
     protected abstract onAttach(): void;
@@ -50,6 +55,7 @@ export abstract class GameComponent<
         event: T,
         ...args: Parameters<T["subscribe"]>
     ) {
+        if (!this.isAttached) return;
         return this.state.eventManager.subscribe(this, event, ...args);
     }
 

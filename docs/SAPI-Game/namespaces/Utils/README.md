@@ -8,6 +8,7 @@
 
 ## Namespaces
 
+- [Algorithm](namespaces/Algorithm/README.md)
 - [func](namespaces/func/README.md)
 - [GameErrors](namespaces/GameErrors/README.md)
 - [vanilaData](namespaces/vanilaData/README.md)
@@ -23,7 +24,3 @@
 - [Logger](classes/Logger.md)
 - [RandomUtils](classes/RandomUtils.md)
 - [Vector3Utils](classes/Vector3Utils.md)
-
-## Variables
-
-- [Algorithm](variables/Algorithm.md)

@@ -12,7 +12,6 @@ import { RunnerManager } from "../Runner/RunnerManager";
 import { Logger } from "../utils/logger";
 import {
     ComponentDeleteFailedError,
-    ComponentLoadFailedError,
     GameComponentAlreadyExistsError,
     GameComponentNotExistsError,
 } from "./types";
