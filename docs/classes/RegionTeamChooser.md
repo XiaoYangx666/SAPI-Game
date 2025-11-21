@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionTeamChooser
+[SAPI-Game](../globals.md) / RegionTeamChooser
 
 # Class: RegionTeamChooser\<P, S\>
 

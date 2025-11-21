@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / ScriptCancelledError
+[SAPI-Game](../globals.md) / ScriptCancelledError
 
 # Class: ScriptCancelledError
 

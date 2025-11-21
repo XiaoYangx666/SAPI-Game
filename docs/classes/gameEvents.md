@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / gameEvents
+[SAPI-Game](../globals.md) / gameEvents
 
 # Class: gameEvents
 

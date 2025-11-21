@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerRegionEventSignal
+[SAPI-Game](../globals.md) / PlayerRegionEventSignal
 
 # Class: PlayerRegionEventSignal
 
@@ -50,7 +50,7 @@
 
 ##### region
 
-[`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+[`GameRegion`](GameRegion.md)
 
 #### Returns
 

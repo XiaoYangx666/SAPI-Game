@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / EventCallBack
+[SAPI-Game](../globals.md) / EventCallBack
 
 # Type Alias: EventCallBack\<T\>
 

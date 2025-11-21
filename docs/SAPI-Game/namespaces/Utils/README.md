@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../README.md) / Utils
+[SAPI-Game](../../../globals.md) / Utils
 
 # Utils
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / itemData
+[SAPI-Game](../globals.md) / itemData
 
 # Interface: itemData
 

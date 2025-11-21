@@ -1,8 +1,8 @@
-[**SAPI-Game**](../../../../README.md)
+[**SAPI-Game**](../README.md)
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Region](../README.md) / GameRegion
+[SAPI-Game](../globals.md) / GameRegion
 
 # Abstract Class: GameRegion
 
@@ -25,7 +25,7 @@
 
 ##### dimId
 
-[`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+[`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
 #### Returns
 
@@ -35,7 +35,7 @@
 
 ### dimensionId
 
-> **dimensionId**: [`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+> **dimensionId**: [`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
 ## Methods
 

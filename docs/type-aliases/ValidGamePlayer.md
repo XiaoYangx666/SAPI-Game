@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / ValidGamePlayer
+[SAPI-Game](../globals.md) / ValidGamePlayer
 
 # Type Alias: ValidGamePlayer\<T\>
 

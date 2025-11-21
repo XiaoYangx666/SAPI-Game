@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GameEventSubscription
+[SAPI-Game](../globals.md) / GameEventSubscription
 
 # Class: GameEventSubscription\<T\>
 

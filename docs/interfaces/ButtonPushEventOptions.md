@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / ButtonPushEventOptions
+[SAPI-Game](../globals.md) / ButtonPushEventOptions
 
 # Interface: ButtonPushEventOptions
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / TeamScoreBoardOptions
+[SAPI-Game](../globals.md) / TeamScoreBoardOptions
 
 # Interface: TeamScoreBoardOptions\<P\>
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / TeamScoreBoardTeamData
+[SAPI-Game](../globals.md) / TeamScoreBoardTeamData
 
 # Interface: TeamScoreBoardTeamData\<T\>
 

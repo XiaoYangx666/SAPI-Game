@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Utils](../README.md) / Vector3Utils
+[SAPI-Game](../../../../globals.md) / [Utils](../README.md) / Vector3Utils
 
 # Class: Vector3Utils
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / ButtonPushEventSignal
+[SAPI-Game](../globals.md) / ButtonPushEventSignal
 
 # Class: ButtonPushEventSignal
 

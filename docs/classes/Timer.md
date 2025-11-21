@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / Timer
+[SAPI-Game](../globals.md) / Timer
 
 # Class: Timer
 

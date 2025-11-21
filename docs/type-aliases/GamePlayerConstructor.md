@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GamePlayerConstructor
+[SAPI-Game](../globals.md) / GamePlayerConstructor
 
 # Type Alias: GamePlayerConstructor()\<T\>
 

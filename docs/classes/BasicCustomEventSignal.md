@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / BasicCustomEventSignal
+[SAPI-Game](../globals.md) / BasicCustomEventSignal
 
 # Abstract Class: BasicCustomEventSignal\<T, U\>
 

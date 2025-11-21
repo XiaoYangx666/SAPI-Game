@@ -24,7 +24,7 @@ this.subscribe(world.beforeEvents.effectAdd, (e) => {
 
 ```ts
 //订阅框架事件
-import { Game } from "@sapi-game/main";
+import { Game } from "sapi-game/main";
 this.subscribe(
     Game.events.interval,
     () => {

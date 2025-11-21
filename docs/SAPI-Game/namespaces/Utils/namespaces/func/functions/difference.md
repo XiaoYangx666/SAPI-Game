@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [func](../README.md) / difference
+[SAPI-Game](../../../../../../globals.md) / [Utils](../../../README.md) / [func](../README.md) / difference
 
 # Function: difference()
 

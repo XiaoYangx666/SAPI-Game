@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RunnerManager
+[SAPI-Game](../globals.md) / RunnerManager
 
 # Class: RunnerManager
 

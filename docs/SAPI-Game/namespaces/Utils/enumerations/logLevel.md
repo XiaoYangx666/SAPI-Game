@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Utils](../README.md) / logLevel
+[SAPI-Game](../../../../globals.md) / [Utils](../README.md) / logLevel
 
 # Enumeration: logLevel
 

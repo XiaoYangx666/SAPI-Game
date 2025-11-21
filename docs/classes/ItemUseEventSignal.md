@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / ItemUseEventSignal
+[SAPI-Game](../globals.md) / ItemUseEventSignal
 
 # Class: ItemUseEventSignal
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / StopWatch
+[SAPI-Game](../globals.md) / StopWatch
 
 # Class: StopWatch
 

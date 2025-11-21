@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionTeamChooserData
+[SAPI-Game](../globals.md) / RegionTeamChooserData
 
 # Interface: RegionTeamChooserData\<P\>
 
@@ -52,7 +52,7 @@
 
 ### region
 
-> **region**: [`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+> **region**: [`GameRegion`](../classes/GameRegion.md)
 
 指定范围
 

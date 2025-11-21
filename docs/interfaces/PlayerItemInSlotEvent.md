@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerItemInSlotEvent
+[SAPI-Game](../globals.md) / PlayerItemInSlotEvent
 
 # Interface: PlayerItemInSlotEvent
 

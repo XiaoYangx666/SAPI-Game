@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GamePlayer
+[SAPI-Game](../globals.md) / GamePlayer
 
 # Class: GamePlayer
 

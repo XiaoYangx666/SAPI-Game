@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionTeamCleanUpOptions
+[SAPI-Game](../globals.md) / RegionTeamCleanUpOptions
 
 # Interface: RegionTeamCleanUpOptions
 
@@ -26,7 +26,7 @@
 
 ### region
 
-> **region**: [`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+> **region**: [`GameRegion`](../classes/GameRegion.md)
 
 ***
 

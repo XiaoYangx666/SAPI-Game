@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / regionHelper
+[SAPI-Game](../globals.md) / regionHelper
 
 # Variable: regionHelper
 

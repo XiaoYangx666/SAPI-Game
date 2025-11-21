@@ -2,65 +2,65 @@
 
 ***
 
-[SAPI-Game](../globals.md) / GameState
+[SAPI-Game](../globals.md) / AutoStopState
 
-# Abstract Class: GameState\<P, C, TConfig, E\>
+# Class: AutoStopState\<T\>
 
-游戏状态
+自动在groupSet所有玩家寄了之后停止游戏
 
-## Extended by
+## Extends
 
-- [`AutoStopState`](AutoStopState.md)
+- [`GameState`](GameState.md)\<`T`, `any`, `AutoStopStateConfig`\<`T`\>\>
 
 ## Type Parameters
 
-### P
+### T
 
-`P` *extends* [`GamePlayer`](GamePlayer.md) = `any`
-
-### C
-
-`C` *extends* [`GameContext`](GameContext.md) = `any`
-
-### TConfig
-
-`TConfig` = `unknown`
-
-### E
-
-`E` *extends* [`GameEngine`](GameEngine.md)\<`P`, `C`\> = [`GameEngine`](GameEngine.md)\<`P`, `C`\>
+`T` *extends* [`TTLPlayer`](TTLPlayer.md) = `any`
 
 ## Constructors
 
 ### Constructor
 
-> **new GameState**\<`P`, `C`, `TConfig`, `E`\>(`engine`, `config?`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
+> **new AutoStopState**\<`T`\>(`engine`, `config?`): `AutoStopState`\<`T`\>
 
 #### Parameters
 
 ##### engine
 
-`E`
+[`GameEngine`](GameEngine.md)
 
 ##### config?
 
-`TConfig`
+`AutoStopStateConfig`\<`T`\>
 
 #### Returns
 
-`GameState`\<`P`, `C`, `TConfig`, `E`\>
+`AutoStopState`\<`T`\>
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`constructor`](GameState.md#constructor)
 
 ## Properties
 
 ### config?
 
-> `readonly` `optional` **config**: `TConfig`
+> `readonly` `optional` **config**: `AutoStopStateConfig`\<`T`\>
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`config`](GameState.md#config)
 
 ***
 
 ### engine
 
-> `protected` `readonly` **engine**: `E`
+> `protected` `readonly` **engine**: [`GameEngine`](GameEngine.md)
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`engine`](GameState.md#engine)
 
 ***
 
@@ -68,17 +68,29 @@
 
 > `readonly` **eventManager**: [`EventManager`](EventManager.md)
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`eventManager`](GameState.md#eventmanager)
+
 ***
 
 ### logger
 
 > `protected` `readonly` **logger**: [`Logger`](../SAPI-Game/namespaces/Utils/classes/Logger.md)
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`logger`](GameState.md#logger)
+
 ***
 
 ### runner
 
 > `readonly` **runner**: [`RunnerManager`](RunnerManager.md)
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`runner`](GameState.md#runner)
 
 ## Accessors
 
@@ -94,6 +106,10 @@
 
 `C`
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`context`](GameState.md#context)
+
 ***
 
 ### gameKey
@@ -106,17 +122,25 @@
 
 `string`
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`gameKey`](GameState.md#gamekey)
+
 ***
 
 ### lastState
 
 #### Get Signature
 
-> **get** **lastState**(): `GameState`\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
+> **get** **lastState**(): [`GameState`](GameState.md)\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
 
 ##### Returns
 
-`GameState`\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
+[`GameState`](GameState.md)\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`lastState`](GameState.md#laststate)
 
 ***
 
@@ -124,13 +148,17 @@
 
 #### Get Signature
 
-> **get** **nextState**(): `GameState`\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
+> **get** **nextState**(): [`GameState`](GameState.md)\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
 
 获取子状态
 
 ##### Returns
 
-`GameState`\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
+[`GameState`](GameState.md)\<`P`, `C`, `unknown`, [`GameEngine`](GameEngine.md)\<`P`, `C`, `unknown`\>\> \| `undefined`
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`nextState`](GameState.md#nextstate)
 
 ***
 
@@ -146,11 +174,15 @@
 
 [`GamePlayerManager`](GamePlayerManager.md)\<`P`\>
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`playerManager`](GameState.md#playermanager)
+
 ## Methods
 
 ### addComponent()
 
-> **addComponent**\<`C`\>(`component`, `options?`, `tag?`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
+> **addComponent**\<`C`\>(`component`, `options?`, `tag?`): `AutoStopState`\<`T`\>
 
 添加组件到当前状态
 
@@ -182,7 +214,7 @@
 
 #### Returns
 
-`GameState`\<`P`, `C`, `TConfig`, `E`\>
+`AutoStopState`\<`T`\>
 
 #### Throws
 
@@ -191,6 +223,10 @@
 #### Throws
 
 组件加载失败时抛出
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`addComponent`](GameState.md#addcomponent)
 
 ***
 
@@ -210,11 +246,15 @@
 
 `void`
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`addComponents`](GameState.md#addcomponents)
+
 ***
 
 ### deleteComponent()
 
-> **deleteComponent**(`component`, `tag?`): `GameState`\<`P`, `C`, `TConfig`, `E`\>
+> **deleteComponent**(`component`, `tag?`): `AutoStopState`\<`T`\>
 
 删除当前状态中的组件
 
@@ -230,11 +270,15 @@
 
 #### Returns
 
-`GameState`\<`P`, `C`, `TConfig`, `E`\>
+`AutoStopState`\<`T`\>
 
 #### Throws
 
 组件删除失败时
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`deleteComponent`](GameState.md#deletecomponent)
 
 ***
 
@@ -272,17 +316,25 @@
 
 若组件不存在，则抛出
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`getComponent`](GameState.md#getcomponent)
+
 ***
 
 ### onEnter()
 
-> `abstract` `protected` **onEnter**(): `void`
+> **onEnter**(): `void`
 
 进入
 
 #### Returns
 
 `void`
+
+#### Overrides
+
+[`GameState`](GameState.md).[`onEnter`](GameState.md#onenter)
 
 ***
 
@@ -293,6 +345,10 @@
 #### Returns
 
 `void`
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`onExit`](GameState.md#onexit)
 
 ***
 
@@ -306,6 +362,10 @@
 
 `void`
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`popState`](GameState.md#popstate)
+
 ***
 
 ### pushState()
@@ -318,7 +378,7 @@
 
 ##### S
 
-`S` *extends* `gameStateConstructor`\<`P`, `C`, `any`\>
+`S` *extends* `gameStateConstructor`\<`T`, `any`, `any`\>
 
 #### Parameters
 
@@ -334,6 +394,10 @@
 
 `void`
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`pushState`](GameState.md#pushstate)
+
 ***
 
 ### stats()
@@ -345,6 +409,10 @@
 #### Returns
 
 `string`
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`stats`](GameState.md#stats)
 
 ***
 
@@ -372,6 +440,20 @@
 
 [`EventSubscription`](EventSubscription.md) \| `undefined`
 
+#### Inherited from
+
+[`GameState`](GameState.md).[`subscribe`](GameState.md#subscribe)
+
+***
+
+### tick()
+
+> **tick**(): `void`
+
+#### Returns
+
+`void`
+
 ***
 
 ### transitionTo()
@@ -390,7 +472,7 @@
 
 ##### stateType
 
-`gameStateConstructor`\<`P`, `C`, `T`\>
+`gameStateConstructor`\<`T`, `any`, `T`\>
 
 ##### config?
 
@@ -399,3 +481,7 @@
 #### Returns
 
 `void`
+
+#### Inherited from
+
+[`GameState`](GameState.md).[`transitionTo`](GameState.md#transitionto)

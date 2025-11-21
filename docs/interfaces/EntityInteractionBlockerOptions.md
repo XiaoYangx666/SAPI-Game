@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / EntityInteractionBlockerOptions
+[SAPI-Game](../globals.md) / EntityInteractionBlockerOptions
 
 # Interface: EntityInteractionBlockerOptions
 

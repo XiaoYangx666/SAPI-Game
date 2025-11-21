@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Utils](../README.md) / RandomUtils
+[SAPI-Game](../../../../globals.md) / [Utils](../README.md) / RandomUtils
 
 # Class: RandomUtils
 

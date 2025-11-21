@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / Game
+[SAPI-Game](../globals.md) / Game
 
 # Variable: Game
 

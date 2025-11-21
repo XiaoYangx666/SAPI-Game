@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [vanilaData](../README.md) / DimensionIds
+[SAPI-Game](../../../../../../globals.md) / [Utils](../../../README.md) / [vanilaData](../README.md) / DimensionIds
 
 # Enumeration: DimensionIds
 

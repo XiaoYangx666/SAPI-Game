@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / VanillaEventSignal
+[SAPI-Game](../globals.md) / VanillaEventSignal
 
 # Interface: VanillaEventSignal\<T\>
 

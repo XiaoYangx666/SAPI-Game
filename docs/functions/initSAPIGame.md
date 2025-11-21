@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / initSAPIGame
+[SAPI-Game](../globals.md) / initSAPIGame
 
 # Function: initSAPIGame()
 

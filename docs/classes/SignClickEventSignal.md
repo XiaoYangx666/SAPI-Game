@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / SignClickEventSignal
+[SAPI-Game](../globals.md) / SignClickEventSignal
 
 # Class: SignClickEventSignal
 

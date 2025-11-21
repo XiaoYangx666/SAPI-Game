@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / infoScoreboardOptions
+[SAPI-Game](../globals.md) / infoScoreboardOptions
 
 # Interface: infoScoreboardOptions
 

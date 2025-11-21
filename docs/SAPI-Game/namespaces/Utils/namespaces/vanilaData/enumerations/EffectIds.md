@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [vanilaData](../README.md) / EffectIds
+[SAPI-Game](../../../../../../globals.md) / [Utils](../../../README.md) / [vanilaData](../README.md) / EffectIds
 
 # Enumeration: EffectIds
 

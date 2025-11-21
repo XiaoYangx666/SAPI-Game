@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [func](../README.md) / mapObject
+[SAPI-Game](../../../../../../globals.md) / [Utils](../../../README.md) / [func](../README.md) / mapObject
 
 # Function: mapObject()
 

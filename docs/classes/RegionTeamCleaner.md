@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionTeamCleaner
+[SAPI-Game](../globals.md) / RegionTeamCleaner
 
 # Class: RegionTeamCleaner
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionEventType
+[SAPI-Game](../globals.md) / RegionEventType
 
 # Enumeration: RegionEventType
 

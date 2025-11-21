@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / BlockInteractionBlocker
+[SAPI-Game](../globals.md) / BlockInteractionBlocker
 
 # Class: BlockInteractionBlocker
 

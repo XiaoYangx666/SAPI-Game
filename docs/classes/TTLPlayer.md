@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / TTLPlayer
+[SAPI-Game](../globals.md) / TTLPlayer
 
 # Class: TTLPlayer
 

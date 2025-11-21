@@ -1,12 +1,12 @@
-[**SAPI-Game**](../../../../README.md)
+[**SAPI-Game**](../README.md)
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Region](../README.md) / SphereRegion
+[SAPI-Game](../globals.md) / CubeRegion
 
-# Class: SphereRegion
+# Class: CubeRegion
 
-球形区域
+立方体区域
 
 ## Extends
 
@@ -16,29 +16,25 @@
 
 ### Constructor
 
-> **new SphereRegion**(`dimId`, `center`, `r`, `rm?`): `SphereRegion`
+> **new CubeRegion**(`dimId`, `pos1`, `pos2`): `CubeRegion`
 
 #### Parameters
 
 ##### dimId
 
-[`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+[`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
-##### center
+##### pos1
 
 `Vector3`
 
-##### r
+##### pos2
 
-`number`
-
-##### rm?
-
-`number`
+`Vector3`
 
 #### Returns
 
-`SphereRegion`
+`CubeRegion`
 
 #### Overrides
 
@@ -46,15 +42,9 @@
 
 ## Properties
 
-### center
-
-> **center**: `Vector3`
-
-***
-
 ### dimensionId
 
-> **dimensionId**: [`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+> **dimensionId**: [`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
 #### Inherited from
 
@@ -62,15 +52,15 @@
 
 ***
 
-### r
+### pos1
 
-> **r**: `number`
+> `readonly` **pos1**: `Vector3`
 
 ***
 
-### rm?
+### pos2
 
-> `optional` **rm**: `number`
+> `readonly` **pos2**: `Vector3`
 
 ## Methods
 
@@ -93,6 +83,54 @@
 #### Inherited from
 
 [`GameRegion`](GameRegion.md).[`forEachPlayer`](GameRegion.md#foreachplayer)
+
+***
+
+### getBounds()
+
+> **getBounds**(): `object`
+
+获取范围
+
+#### Returns
+
+`object`
+
+##### x1
+
+> **x1**: `number`
+
+##### x2
+
+> **x2**: `number`
+
+##### y1
+
+> **y1**: `number`
+
+##### y2
+
+> **y2**: `number`
+
+##### z1
+
+> **z1**: `number`
+
+##### z2
+
+> **z2**: `number`
+
+***
+
+### getCapacity()
+
+> **getCapacity**(): `number`
+
+获取大小
+
+#### Returns
+
+`number`
 
 ***
 
@@ -132,6 +170,30 @@
 
 ***
 
+### getMax()
+
+> **getMax**(): `Vector3`
+
+获取区域最大点坐标
+
+#### Returns
+
+`Vector3`
+
+***
+
+### getMin()
+
+> **getMin**(): `Vector3`
+
+获取区域最小点坐标
+
+#### Returns
+
+`Vector3`
+
+***
+
 ### getPlayersInRegion()
 
 > **getPlayersInRegion**(): `Player`[]
@@ -148,15 +210,35 @@
 
 ***
 
+### inSet()
+
+> **inSet**(`distance`): `CubeRegion` \| `undefined`
+
+向内收缩区域（若收缩后无体积则返回 undefined）
+
+#### Parameters
+
+##### distance
+
+`Vector3`
+
+#### Returns
+
+`CubeRegion` \| `undefined`
+
+***
+
 ### isBlockInside()
 
 > **isBlockInside**(`loc`): `boolean`
+
+判断方块是否在区域内
 
 #### Parameters
 
 ##### loc
 
-`any`
+`Vector3`
 
 #### Returns
 
@@ -172,6 +254,8 @@
 
 > **isInside**(`loc`): `boolean`
 
+判断是否在区域内
+
 #### Parameters
 
 ##### loc
@@ -185,6 +269,24 @@
 #### Overrides
 
 [`GameRegion`](GameRegion.md).[`isInside`](GameRegion.md#isinside)
+
+***
+
+### outSet()
+
+> **outSet**(`distance`): `CubeRegion`
+
+向外扩张区域
+
+#### Parameters
+
+##### distance
+
+`Vector3`
+
+#### Returns
+
+`CubeRegion`
 
 ***
 
@@ -207,3 +309,15 @@
 #### Inherited from
 
 [`GameRegion`](GameRegion.md).[`runCommandOnPlayers`](GameRegion.md#runcommandonplayers)
+
+***
+
+### toVolume()
+
+> **toVolume**(): `BlockVolume`
+
+转换为BlockVolume
+
+#### Returns
+
+`BlockVolume`

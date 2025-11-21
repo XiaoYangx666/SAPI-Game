@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerItemInSlotOption
+[SAPI-Game](../globals.md) / PlayerItemInSlotOption
 
 # Interface: PlayerItemInSlotOption
 

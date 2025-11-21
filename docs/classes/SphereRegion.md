@@ -1,12 +1,12 @@
-[**SAPI-Game**](../../../../README.md)
+[**SAPI-Game**](../README.md)
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Region](../README.md) / PlaneRegion
+[SAPI-Game](../globals.md) / SphereRegion
 
-# Class: PlaneRegion
+# Class: SphereRegion
 
-平面区域
+球形区域
 
 ## Extends
 
@@ -16,25 +16,29 @@
 
 ### Constructor
 
-> **new PlaneRegion**(`dimId`, `pos1`, `pos2`): `PlaneRegion`
+> **new SphereRegion**(`dimId`, `center`, `r`, `rm?`): `SphereRegion`
 
 #### Parameters
 
 ##### dimId
 
-[`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+[`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
-##### pos1
+##### center
 
-`Vector2`
+`Vector3`
 
-##### pos2
+##### r
 
-`Vector2`
+`number`
+
+##### rm?
+
+`number`
 
 #### Returns
 
-`PlaneRegion`
+`SphereRegion`
 
 #### Overrides
 
@@ -42,9 +46,15 @@
 
 ## Properties
 
+### center
+
+> **center**: `Vector3`
+
+***
+
 ### dimensionId
 
-> **dimensionId**: [`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+> **dimensionId**: [`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
 #### Inherited from
 
@@ -52,15 +62,15 @@
 
 ***
 
-### pos1
+### r
 
-> **pos1**: `Vector2`
+> **r**: `number`
 
 ***
 
-### pos2
+### rm?
 
-> **pos2**: `Vector2`
+> `optional` **rm**: `number`
 
 ## Methods
 
@@ -166,7 +176,7 @@
 
 ##### loc
 
-`Vector2`
+`Vector3`
 
 #### Returns
 

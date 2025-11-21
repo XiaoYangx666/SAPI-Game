@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Utils](../README.md) / ChunkUtils
+[SAPI-Game](../../../../globals.md) / [Utils](../README.md) / ChunkUtils
 
 # Class: ChunkUtils
 

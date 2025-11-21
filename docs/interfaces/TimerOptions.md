@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / TimerOptions
+[SAPI-Game](../globals.md) / TimerOptions
 
 # Interface: TimerOptions
 

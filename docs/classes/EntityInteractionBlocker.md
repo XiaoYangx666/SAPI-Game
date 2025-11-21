@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / EntityInteractionBlocker
+[SAPI-Game](../globals.md) / EntityInteractionBlocker
 
 # Class: EntityInteractionBlocker
 

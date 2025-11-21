@@ -1,6 +1,8 @@
 # SAPI-Game
 
-> 使用纯 scriptApi 制作小游戏
+![依赖](https://img.shields.io/badge/依赖-ScriptApi-blue?style=for-the-badge) [![1004513100](https://img.shields.io/badge/1004513100-red?style=for-the-badge&logo=qq)](https://qm.qq.com/q/YCQ7ohJpIc)
+
+> 使用纯 ScriptApi 制作基岩版小游戏
 
 ---
 
@@ -42,7 +44,7 @@ sapi-kit init
 3.安装 SAPI-Game
 
 ```shell
-npm i @sapi-game
+npm i sapi-game
 ```
 
 4.在入口文件中配置 SAPI-Game

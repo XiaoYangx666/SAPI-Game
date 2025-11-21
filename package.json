@@ -1,4 +1,36 @@
 {
+    "name": "sapi-game",
+    "version": "0.0.1",
+    "description": "make mini game fully by sapi",
+    "main": "dist/main.js",
+    "types": "dist/main.d.ts",
+    "type": "module",
+    "author": {
+        "name": "XiaoYangx666",
+        "email": "2408807389@qq.com"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://gitee.com/ykxyx666_admin/sapi-game.git"
+    },
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": "./dist/main.js",
+        "./main": "./dist/main.js",
+        "./utils": "./dist/utils/index.js",
+        "./gameComponent": "./dist/gameComponent/index.js",
+        "./gamePlayer": "./dist/gamePlayer/index.js",
+        "./gameRegion": "./dist/gameRegion/index.js",
+        "./gameState": "./dist/gameState/index.js",
+        "./gameStructure": "./dist/gameStructure/gameStructure.js",
+        "./constants": "./dist/constants.js",
+        "./gameContext": "./dist/gameContext.js",
+        "./createGameModule": "./dist/createGameModule.js",
+        "./utils/vanila-data": "./dist/utils/vanila-data.js"
+    },
     "dependencies": {
         "@minecraft/server": "2.3.0",
         "@minecraft/server-ui": "2.0.0"
@@ -9,12 +41,26 @@
         }
     },
     "scripts": {
-        "dev": "npx sapi-kit dev",
-        "build": "npx sapi-kit build",
+        "clean": "rimraf dist || true",
+        "build": "npm run clean && tsc && tsc-alias",
         "doc": "npx typedoc --plugin typedoc-plugin-markdown ./src/main.ts --disableSources --name SAPI-Game"
     },
     "devDependencies": {
+        "@rollup/plugin-commonjs": "^29.0.0",
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "rimraf": "^6.1.2",
+        "rollup": "^4.53.3",
+        "rollup-plugin-dts": "^6.2.3",
+        "tsc-alias": "^1.8.16",
         "typedoc": "^0.28.14",
         "typedoc-plugin-markdown": "^4.9.0"
-    }
+    },
+    "keywords": [
+        "minecraft",
+        "bedrock",
+        "bedrock-edition",
+        "ScriptApi",
+        "library",
+        "miniGame"
+    ]
 }

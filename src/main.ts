@@ -27,8 +27,7 @@ system.beforeEvents.startup.subscribe((t) => {
     regGameCommand(t.customCommandRegistry);
 });
 
-export * as Region from "@sapi-game/gameRegion/gameRegion";
-export { regionHelper } from "@sapi-game/gameRegion/regionHelper";
+export * from "@sapi-game/gameRegion/index";
 export * as Utils from "@sapi-game/utils";
 export * from "./gameComponent/index";
 export * from "./gameState/index";
@@ -41,3 +40,4 @@ export { RunnerManager } from "./Runner/RunnerManager";
 export * from "./gameEvent/index";
 export * from "./system/gameManager";
 export * from "./system/globalPlayerManager";
+export { createGameModule } from "./createGameModule";

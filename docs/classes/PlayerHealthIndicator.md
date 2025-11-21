@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerHealthIndicator
+[SAPI-Game](../globals.md) / PlayerHealthIndicator
 
 # Class: PlayerHealthIndicator
 

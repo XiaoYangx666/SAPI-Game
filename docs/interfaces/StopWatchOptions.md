@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / StopWatchOptions
+[SAPI-Game](../globals.md) / StopWatchOptions
 
 # Interface: StopWatchOptions
 

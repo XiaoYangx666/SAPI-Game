@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../../../README.md) / [Utils](../../../README.md) / [GameErrors](../README.md) / GameStateError
+[SAPI-Game](../../../../../../globals.md) / [Utils](../../../README.md) / [GameErrors](../README.md) / GameStateError
 
 # Class: GameStateError
 

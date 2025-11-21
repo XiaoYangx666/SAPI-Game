@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / Subscription
+[SAPI-Game](../globals.md) / Subscription
 
 # Interface: Subscription
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / globalPlayerManagerInternal
+[SAPI-Game](../globals.md) / globalPlayerManagerInternal
 
 # Interface: globalPlayerManagerInternal
 

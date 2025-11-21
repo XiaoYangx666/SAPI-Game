@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / CustomEventSignal
+[SAPI-Game](../globals.md) / CustomEventSignal
 
 # Interface: CustomEventSignal\<T\>
 

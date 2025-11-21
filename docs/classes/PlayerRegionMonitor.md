@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerRegionMonitor
+[SAPI-Game](../globals.md) / PlayerRegionMonitor
 
 # Class: PlayerRegionMonitor\<P\>
 

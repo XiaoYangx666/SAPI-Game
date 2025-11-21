@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerOnBlockEventSignal
+[SAPI-Game](../globals.md) / PlayerOnBlockEventSignal
 
 # Class: PlayerOnBlockEventSignal
 

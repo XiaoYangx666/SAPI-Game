@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GameStructure
+[SAPI-Game](../globals.md) / GameStructure
 
 # Class: GameStructure
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / itemEventOptions
+[SAPI-Game](../globals.md) / itemEventOptions
 
 # Interface: itemEventOptions
 

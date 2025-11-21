@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionProtector
+[SAPI-Game](../globals.md) / RegionProtector
 
 # Class: RegionProtector
 

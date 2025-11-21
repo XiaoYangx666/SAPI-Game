@@ -1,12 +1,12 @@
-[**SAPI-Game**](../../../../README.md)
+[**SAPI-Game**](../README.md)
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Region](../README.md) / CylinderRegion
+[SAPI-Game](../globals.md) / PlaneRegion
 
-# Class: CylinderRegion
+# Class: PlaneRegion
 
-游戏区域
+平面区域
 
 ## Extends
 
@@ -16,19 +16,27 @@
 
 ### Constructor
 
-> **new CylinderRegion**(`dimId`): `CylinderRegion`
+> **new PlaneRegion**(`dimId`, `pos1`, `pos2`): `PlaneRegion`
 
 #### Parameters
 
 ##### dimId
 
-[`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+[`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+
+##### pos1
+
+`Vector2`
+
+##### pos2
+
+`Vector2`
 
 #### Returns
 
-`CylinderRegion`
+`PlaneRegion`
 
-#### Inherited from
+#### Overrides
 
 [`GameRegion`](GameRegion.md).[`constructor`](GameRegion.md#constructor)
 
@@ -36,11 +44,23 @@
 
 ### dimensionId
 
-> **dimensionId**: [`DimensionIds`](../../Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
+> **dimensionId**: [`DimensionIds`](../SAPI-Game/namespaces/Utils/namespaces/vanilaData/enumerations/DimensionIds.md)
 
 #### Inherited from
 
 [`GameRegion`](GameRegion.md).[`dimensionId`](GameRegion.md#dimensionid)
+
+***
+
+### pos1
+
+> **pos1**: `Vector2`
+
+***
+
+### pos2
+
+> **pos2**: `Vector2`
 
 ## Methods
 
@@ -146,7 +166,7 @@
 
 ##### loc
 
-`any`
+`Vector2`
 
 #### Returns
 

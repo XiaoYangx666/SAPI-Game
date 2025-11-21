@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / RegionProtectionOptions
+[SAPI-Game](../globals.md) / RegionProtectionOptions
 
 # Interface: RegionProtectionOptions
 
@@ -50,6 +50,6 @@
 
 ### region
 
-> **region**: [`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+> **region**: [`GameRegion`](../classes/GameRegion.md)
 
 需要保护的区域

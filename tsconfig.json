@@ -5,7 +5,7 @@
         "module": "esnext",
         "lib": ["ESNext", "DOM"],
         "types": [],
-        "declaration": false,
+        "declaration": true,
         "noLib": false,
         "sourceMap": false,
         "pretty": true,
@@ -14,7 +14,7 @@
         "strict": true,
         "noImplicitAny": true,
         "noImplicitOverride": true,
-        "outDir": "scripts",
+        "outDir": "dist",
         "rootDir": "src",
         "allowJs": true,
         "paths": {

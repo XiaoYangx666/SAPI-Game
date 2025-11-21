@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerOnBlockEvent
+[SAPI-Game](../globals.md) / PlayerOnBlockEvent
 
 # Interface: PlayerOnBlockEvent
 

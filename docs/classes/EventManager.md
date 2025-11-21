@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / EventManager
+[SAPI-Game](../globals.md) / EventManager
 
 # Class: EventManager
 

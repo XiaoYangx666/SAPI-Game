@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerGroup
+[SAPI-Game](../globals.md) / PlayerGroup
 
 # Class: PlayerGroup\<T, TData\>
 

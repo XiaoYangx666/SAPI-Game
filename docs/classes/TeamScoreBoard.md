@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / TeamScoreBoard
+[SAPI-Game](../globals.md) / TeamScoreBoard
 
 # Class: TeamScoreBoard\<P\>
 

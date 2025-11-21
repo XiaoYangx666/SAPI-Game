@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GameManager
+[SAPI-Game](../globals.md) / GameManager
 
 # Class: GameManager
 

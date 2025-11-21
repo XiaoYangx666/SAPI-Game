@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / InteractionBlockerOptions
+[SAPI-Game](../globals.md) / InteractionBlockerOptions
 
 # Interface: InteractionBlockerOptions
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / IntervalEventSignal
+[SAPI-Game](../globals.md) / IntervalEventSignal
 
 # Class: IntervalEventSignal
 

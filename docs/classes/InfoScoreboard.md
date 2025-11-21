@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / InfoScoreboard
+[SAPI-Game](../globals.md) / InfoScoreboard
 
 # Class: InfoScoreboard
 

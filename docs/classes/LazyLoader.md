@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / LazyLoader
+[SAPI-Game](../globals.md) / LazyLoader
 
 # Class: LazyLoader
 

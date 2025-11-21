@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerItemInSlotEventSignal
+[SAPI-Game](../globals.md) / PlayerItemInSlotEventSignal
 
 # Class: PlayerItemInSlotEventSignal
 

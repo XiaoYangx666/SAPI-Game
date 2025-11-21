@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GameComponent
+[SAPI-Game](../globals.md) / GameComponent
 
 # Abstract Class: GameComponent\<S, O\>
 

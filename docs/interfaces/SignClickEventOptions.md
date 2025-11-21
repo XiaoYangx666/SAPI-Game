@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / SignClickEventOptions
+[SAPI-Game](../globals.md) / SignClickEventOptions
 
 # Interface: SignClickEventOptions
 

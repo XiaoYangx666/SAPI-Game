@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GameContext
+[SAPI-Game](../globals.md) / GameContext
 
 # Class: GameContext
 

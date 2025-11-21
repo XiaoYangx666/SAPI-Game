@@ -2,14 +2,36 @@
 
 ***
 
-[SAPI-Game](../../../README.md) / Region
+[SAPI-Game](../../../globals.md) / Region
 
 # Region
 
-## Classes
+## References
 
-- [CubeRegion](classes/CubeRegion.md)
-- [CylinderRegion](classes/CylinderRegion.md)
-- [GameRegion](classes/GameRegion.md)
-- [PlaneRegion](classes/PlaneRegion.md)
-- [SphereRegion](classes/SphereRegion.md)
+### CubeRegion
+
+Re-exports [CubeRegion](../../../classes/CubeRegion.md)
+
+***
+
+### CylinderRegion
+
+Re-exports [CylinderRegion](../../../classes/CylinderRegion.md)
+
+***
+
+### GameRegion
+
+Re-exports [GameRegion](../../../classes/GameRegion.md)
+
+***
+
+### PlaneRegion
+
+Re-exports [PlaneRegion](../../../classes/PlaneRegion.md)
+
+***
+
+### SphereRegion
+
+Re-exports [SphereRegion](../../../classes/SphereRegion.md)

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerRegionMonitorOptions
+[SAPI-Game](../globals.md) / PlayerRegionMonitorOptions
 
 # Interface: PlayerRegionMonitorOptions\<P\>
 
@@ -50,6 +50,6 @@
 
 ### region
 
-> **region**: [`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+> **region**: [`GameRegion`](../classes/GameRegion.md)
 
 区域

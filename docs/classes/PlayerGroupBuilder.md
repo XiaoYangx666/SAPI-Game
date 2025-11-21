@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerGroupBuilder
+[SAPI-Game](../globals.md) / PlayerGroupBuilder
 
 # Class: PlayerGroupBuilder\<T\>
 
@@ -162,7 +162,7 @@
 
 ##### region
 
-[`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+[`GameRegion`](GameRegion.md)
 
 ##### rest
 

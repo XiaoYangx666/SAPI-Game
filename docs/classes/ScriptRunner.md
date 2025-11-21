@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / ScriptRunner
+[SAPI-Game](../globals.md) / ScriptRunner
 
 # Class: ScriptRunner
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerRegionEvent
+[SAPI-Game](../globals.md) / PlayerRegionEvent
 
 # Interface: PlayerRegionEvent
 
@@ -16,7 +16,7 @@
 
 ### region
 
-> `readonly` **region**: [`GameRegion`](../SAPI-Game/namespaces/Region/classes/GameRegion.md)
+> `readonly` **region**: [`GameRegion`](../classes/GameRegion.md)
 
 ***
 

@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / EventSignal
+[SAPI-Game](../globals.md) / EventSignal
 
 # Type Alias: EventSignal\<T\>
 

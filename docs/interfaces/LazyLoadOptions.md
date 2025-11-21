@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / LazyLoadOptions
+[SAPI-Game](../globals.md) / LazyLoadOptions
 
 # Interface: LazyLoadOptions
 

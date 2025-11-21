@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / GameEngine
+[SAPI-Game](../globals.md) / GameEngine
 
 # Abstract Class: GameEngine\<P, C, O\>
 

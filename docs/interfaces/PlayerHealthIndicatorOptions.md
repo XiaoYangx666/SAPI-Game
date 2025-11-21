@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../README.md) / PlayerHealthIndicatorOptions
+[SAPI-Game](../globals.md) / PlayerHealthIndicatorOptions
 
 # Interface: PlayerHealthIndicatorOptions
 

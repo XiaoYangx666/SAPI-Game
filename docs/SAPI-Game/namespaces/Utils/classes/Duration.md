@@ -2,7 +2,7 @@
 
 ***
 
-[SAPI-Game](../../../../README.md) / [Utils](../README.md) / Duration
+[SAPI-Game](../../../../globals.md) / [Utils](../README.md) / Duration
 
 # Class: Duration
 
