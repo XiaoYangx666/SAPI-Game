@@ -21,6 +21,9 @@
             "@sapi-game/*": ["./src/*"]
         }
     },
+    "tsc-alias": {
+        "resolveFullPaths": true
+    },
     "include": ["./src"],
     "compileOnSave": false
 }

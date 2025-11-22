@@ -52,12 +52,14 @@ npm i sapi-game
 示例(仅供参考，具体配置请按类型来)
 
 ```typescript
-import { initSAPIGame } from "@sapi-game/main";
+import { initSAPIGame } from "sapi-game/main";
+import { logLevel } from "sapi-game/utils";
+
 initSAPIGame({
     logLevel: logLevel.debug, //日志级别
     debugMode: true, //debugMode开关
-    onEnd: onEnd, //执行/game end时触发
-    hub: Hub, //玩家执行/hub时触发
+    onEnd() {}, //执行/game end时触发
+    hub(player) {}, //玩家执行/hub时触发
     onJoin(p) {
         //玩家进入游戏时执行(可传送到大厅)
     },
