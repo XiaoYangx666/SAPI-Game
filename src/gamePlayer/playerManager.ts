@@ -1,9 +1,9 @@
 import { Player } from "@minecraft/server";
-import { ParticipationManager } from "../participation/participationManager";
+import { GameParticipation } from "../participation/gameParticipation";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
 
-/**游戏实例内的玩家管理器 */
+/**游戏实例内的在线 GamePlayer 管理器。*/
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
     public readonly playerConstructor: GamePlayerConstructor<T>;
@@ -13,30 +13,25 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
 
     constructor(
         playerConstructor: GamePlayerConstructor<T>,
-        private readonly gameKey: string,
-        private readonly participation: ParticipationManager,
-        private readonly isDaemon: boolean
+        private readonly participation: GameParticipation
     ) {
         this.playerConstructor = playerConstructor;
         this.groupBuilder = new PlayerGroupBuilder(this);
     }
 
     /**
-     * 获取/加入游戏玩家。
+     * 获取/创建在线 GamePlayer。
      *
-     * 当前仍保留 get(Player) 这个入口，但玩家是否能进入游戏由注入的
-     * ParticipationManager 决定，不再依赖全局 Game 单例。
+     * membership 可以在玩家在线前由 engine.participation 仅凭 playerId 建立；
+     * 若此前尚未建立，get(Player) 仍会尝试加入，方便简单小游戏使用。
      */
     get(p: Player) {
         let gamePlayer = this.players.get(p.id);
         if (!gamePlayer || !(gamePlayer as any).isActive) {
+            const decision = this.participation.join(p.id);
             gamePlayer = new this.playerConstructor(p);
             this.players.set(p.id, gamePlayer);
-
-            if (!this.isDaemon) {
-                const decision = this.participation.join(p.id, this.gameKey);
-                (gamePlayer as any).isActive = decision.allowed;
-            }
+            (gamePlayer as any).isActive = decision.allowed;
         }
         return gamePlayer;
     }
@@ -53,11 +48,10 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     leave(playerId: string): boolean {
         const gamePlayer = this.players.get(playerId);
         if (gamePlayer) (gamePlayer as any).isActive = false;
-        if (!this.isDaemon) this.participation.leave(playerId, this.gameKey);
-        return gamePlayer !== undefined;
+        const released = this.participation.leave(playerId);
+        return gamePlayer !== undefined || released;
     }
 
-    /**兼容旧的按 Player 失活入口。*/
     deactivate(p: Player) {
         this.leave(p.id);
     }
@@ -75,6 +69,6 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         for (const player of this.players.values()) {
             (player as any).isActive = false;
         }
-        if (!this.isDaemon) this.participation.releaseGame(this.gameKey);
+        this.participation.clear();
     }
 }
