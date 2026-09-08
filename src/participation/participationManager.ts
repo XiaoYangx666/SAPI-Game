@@ -3,6 +3,7 @@ import {
     ParticipationDecision,
     ParticipationPolicy,
 } from "./policy";
+import type { ParticipationBatchDecision } from "./gameParticipation";
 
 /**
  * 维护玩家与游戏实例之间的参与关系。
@@ -13,7 +14,9 @@ import {
 export class ParticipationManager {
     private readonly memberships = new Map<string, Set<string>>();
 
-    constructor(private policy: ParticipationPolicy = new ExclusiveParticipationPolicy()) {}
+    constructor(
+        private policy: ParticipationPolicy = new ExclusiveParticipationPolicy()
+    ) {}
 
     setPolicy(policy: ParticipationPolicy) {
         this.policy = policy;
@@ -28,18 +31,59 @@ export class ParticipationManager {
         const current = this.memberships.get(playerId);
         if (current?.has(gameKey)) return { allowed: true };
 
-        const currentGameKeys = current ? [...current] : [];
-        const decision = this.policy.canJoin({
-            playerId,
-            targetGameKey: gameKey,
-            currentGameKeys,
-        });
+        const decision = this.evaluateJoin(playerId, gameKey);
         if (!decision.allowed) return decision;
 
-        const memberships = current ?? new Set<string>();
+        this.addMembership(playerId, gameKey);
+        return decision;
+    }
+
+    /**
+     * 原子加入一组玩家。
+     *
+     * 先对所有尚未加入目标游戏的 playerId 进行 policy 检查；只要任意一个
+     * 被拒绝，就不会写入任何新的 membership。
+     */
+    joinAll(
+        playerIds: readonly string[],
+        gameKey: string
+    ): ParticipationBatchDecision {
+        const uniquePlayerIds = [...new Set(playerIds)];
+
+        for (const playerId of uniquePlayerIds) {
+            if (this.has(playerId, gameKey)) continue;
+            const decision = this.evaluateJoin(playerId, gameKey);
+            if (!decision.allowed) {
+                return {
+                    allowed: false,
+                    playerId,
+                    ...(decision.reason ? { reason: decision.reason } : {}),
+                };
+            }
+        }
+
+        for (const playerId of uniquePlayerIds) {
+            this.addMembership(playerId, gameKey);
+        }
+        return { allowed: true };
+    }
+
+    private evaluateJoin(
+        playerId: string,
+        gameKey: string
+    ): ParticipationDecision {
+        const current = this.memberships.get(playerId);
+        return this.policy.canJoin({
+            playerId,
+            targetGameKey: gameKey,
+            currentGameKeys: current ? [...current] : [],
+        });
+    }
+
+    private addMembership(playerId: string, gameKey: string) {
+        const memberships = this.memberships.get(playerId) ?? new Set<string>();
         memberships.add(gameKey);
         this.memberships.set(playerId, memberships);
-        return decision;
     }
 
     leave(playerId: string, gameKey: string): boolean {
@@ -100,3 +144,4 @@ export class ParticipationManager {
 }
 
 export * from "./policy";
+export * from "./gameParticipation";
