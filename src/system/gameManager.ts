@@ -24,17 +24,18 @@ export class GameManager {
     }
 
     /**
-     * 启动指定游戏
+     * 启动指定游戏并返回创建出的实例。
      * @throws GameManagerError 当游戏已存在时
      */
     startGame<T extends GameEngine<any, any, any>>(
         game: classConstructor<T>,
         config?: T extends GameEngine<any, any, infer P> ? P : unknown,
         tag?: string
-    ) {
+    ): T {
         const key = this.buildKey(game, tag);
         const gameInstance = new game(key, config);
         this.addGame(this.games, key, gameInstance);
+        return gameInstance;
     }
 
     /**获取指定tag游戏是否已存在 */
@@ -108,7 +109,6 @@ export class GameManager {
     status(player?: Player, detail?: boolean) {
         const lines: string[] = [];
 
-        // 顶部标题
         lines.push("§6========== 游戏状态 ==========");
         lines.push(`§e总游戏数: §a${this.games.size}`);
         lines.push("§6================================");
@@ -119,7 +119,6 @@ export class GameManager {
 
         lines.push("");
 
-        // 常驻游戏
         if (this.games.size) {
             lines.push("§d—— 常驻游戏 ——");
             for (const [key, g] of this.games) {
@@ -130,7 +129,6 @@ export class GameManager {
             lines.push("");
         }
 
-        // 普通游戏
         if (this.games.size) {
             lines.push("§d—— 普通游戏 ——");
             for (const [key, g] of this.games) {
@@ -141,7 +139,6 @@ export class GameManager {
             lines.push("");
         }
 
-        // 汇总输出
         const message = lines.join("\n");
 
         if (player) {
