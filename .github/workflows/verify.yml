@@ -1,0 +1,26 @@
+name: Verify
+
+on:
+  push:
+    branches:
+      - master
+      - feat/ddz-support
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package.json
+      - run: npm install --ignore-scripts
+      - run: npm run build
