@@ -1,10 +1,15 @@
 import { SAPIGameConfig, SAPIGameConfigOptions } from "./config";
 import { Constants } from "./constants";
 import { gameEvents } from "./gameEvent/gameEvent";
+import { ParticipationPolicy } from "./participation/participationManager";
 import { GameManager } from "./system/gameManager";
 
 export { SAPIGameConfig } from "./config";
 export type { SAPIGameConfigOptions } from "./config";
+
+export interface SAPIGameInitOptions extends SAPIGameConfigOptions {
+    participationPolicy?: ParticipationPolicy;
+}
 
 const manager = new GameManager();
 
@@ -22,9 +27,13 @@ export const Game = {
     config: SAPIGameConfig,
 } as const;
 
-/**初始化 SAPIGame 核心配置。该函数本身不会注册服务器命令或玩家轮询。*/
-export function initSAPIGame(config: SAPIGameConfigOptions = {}) {
+/**初始化 SAPIGame 核心。该函数本身不会注册服务器命令或玩家轮询。*/
+export function initSAPIGame(options: SAPIGameInitOptions = {}) {
+    const { participationPolicy, ...config } = options;
     SAPIGameConfig.update(config);
+    if (participationPolicy) {
+        manager.participation.setPolicy(participationPolicy);
+    }
 }
 
 export * from "@sapi-game/gameRegion/index";
