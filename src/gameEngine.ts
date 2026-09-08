@@ -6,7 +6,10 @@ import {
     GameState,
     gameStateConstructor,
 } from "./gameState/gameState";
-import { ParticipationManager } from "./participation/participationManager";
+import {
+    GameParticipation,
+    ParticipationManager,
+} from "./participation/participationManager";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
@@ -16,10 +19,7 @@ interface GameStateInternal {
     onEnter: () => void;
 }
 
-/**
- * GameEngine 的创建者只需要提供游戏停止能力与共享的 participation 服务。
- * GameEngine 不再依赖全局 Game 单例。
- */
+/**GameEngine 的创建者只需要提供停止能力与共享的 participation 服务。*/
 export interface GameEngineOwner {
     readonly participation: ParticipationManager;
     stopGameByKey(key: string): void;
@@ -35,6 +35,8 @@ export abstract class GameEngine<
     protected readonly owner: GameEngineOwner;
     public readonly context: C;
     public readonly playerManager: GamePlayerManager<P>;
+    /**当前游戏实例自己的 participation 视图，可仅凭稳定 playerId 建立参与关系。*/
+    public readonly participation: GameParticipation;
     public readonly key: string;
     private _isActive = false;
 
@@ -60,11 +62,14 @@ export abstract class GameEngine<
     ) {
         this.owner = owner;
         this.key = key;
+        this.participation = new GameParticipation(
+            owner.participation,
+            key,
+            !this.isDaemon
+        );
         this.playerManager = new GamePlayerManager(
             playerClass,
-            key,
-            owner.participation,
-            this.isDaemon
+            this.participation
         );
         this.context = this.buildContext(config ?? ({} as O));
         this.logger = new Logger(this.constructor.name);
@@ -172,7 +177,7 @@ export abstract class GameEngine<
     stats(detail: boolean = false): string {
         let stateLine: string;
         const stateNames = this.stateStack.map((s) => s.constructor.name);
-        const playersLine = `§ePlayers§r: §a${this.playerManager.validSize}§r / §7${this.playerManager.size}`;
+        const playersLine = `§ePlayers§r: §a${this.playerManager.validSize}§r / §7${this.playerManager.size} §8(participants ${this.participation.size})`;
         if (detail) {
             const stateStats = this.stateStack.map((s) => s.stats());
             stateLine =
