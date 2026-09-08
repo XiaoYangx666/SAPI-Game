@@ -25,3 +25,4 @@ jobs:
           cache-dependency-path: package.json
       - run: npm install --ignore-scripts
       - run: npm run build
+      - run: npm run test:unit
