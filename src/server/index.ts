@@ -2,7 +2,7 @@ import { Player, system } from "@minecraft/server";
 import {
     Game,
     initSAPIGame,
-    SAPIGameConfigOptions,
+    SAPIGameInitOptions,
 } from "../main";
 import {
     registerServerGameCommands,
@@ -10,13 +10,17 @@ import {
 } from "./gameCommand";
 import { ServerPlayerTracker } from "./playerTracker";
 
-export interface SAPIGameServerOptions extends SAPIGameConfigOptions {
+export interface ServerIntegrationOptions {
     onJoin?: (player: Player) => void;
     hub?: (player: Player) => void;
     onEnd?: () => void;
     /**是否注册 /game:* 与 /game:hub 等服务器命令，默认 true。*/
     registerCommands?: boolean;
 }
+
+export interface SAPIGameServerOptions
+    extends SAPIGameInitOptions,
+        ServerIntegrationOptions {}
 
 /**
  * SAPIGame 的“完整小游戏服务器/地图”集成层。
@@ -32,7 +36,7 @@ export class SAPIGameServerIntegration {
         typeof system.beforeEvents.startup.subscribe
     >[0];
 
-    constructor(private readonly options: SAPIGameServerOptions = {}) {
+    constructor(private readonly options: ServerIntegrationOptions = {}) {
         this.players = new ServerPlayerTracker(Game.manager, {
             onJoin: options.onJoin,
         });
@@ -71,7 +75,7 @@ export class SAPIGameServerIntegration {
 
 /**
  * 一步启用 SAPIGame 的传统“大而全”小游戏服务器体验。
- * Addon/嵌入式使用者只需初始化 core，不需要调用此函数。
+ * Addon/嵌入式使用者只需 initSAPIGame，不需要调用此函数。
  */
 export function initSAPIGameServer(
     options: SAPIGameServerOptions = {}
@@ -81,13 +85,12 @@ export function initSAPIGameServer(
         hub,
         onEnd,
         registerCommands,
-        ...coreConfig
+        ...coreOptions
     } = options;
 
-    initSAPIGame(coreConfig);
+    initSAPIGame(coreOptions);
 
     return new SAPIGameServerIntegration({
-        ...coreConfig,
         onJoin,
         hub,
         onEnd,
