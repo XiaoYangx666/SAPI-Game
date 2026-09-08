@@ -151,7 +151,27 @@ export class GameManager {
         }
     }
 
+    /**
+     * 获取游戏类型标识。
+     *
+     * 游戏类可以声明 static gameType 作为跨重载/持久化稳定标识；
+     * 未声明时保持兼容，继续使用 class.name。
+     */
+    getGameType(game: Function) {
+        const explicitType = (game as Function & { gameType?: unknown }).gameType;
+        if (explicitType === undefined) return game.name;
+        if (typeof explicitType !== "string" || !explicitType.trim()) {
+            throw new GameManagerError("gameType 必须是非空字符串");
+        }
+
+        const gameType = explicitType.trim();
+        if (gameType.includes(":")) {
+            throw new GameManagerError("gameType 不能包含 ':'");
+        }
+        return gameType;
+    }
+
     buildKey(game: Function, tag?: string) {
-        return `${game.name}:${tag ?? 0}`;
+        return `${this.getGameType(game)}:${tag ?? 0}`;
     }
 }
