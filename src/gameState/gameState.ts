@@ -20,15 +20,19 @@ export type ExtractConfig<S> = S extends gameStateConstructor<any, any, infer T>
     ? T
     : never;
 
+/**
+ * State 构造器在运行时总是接收创建它的具体 Engine 实例。
+ *
+ * 这里不把构造器参数锁死为 `GameEngine<P, C>`，否则一个 State 将 engine
+ * 精确收窄为具体游戏 Engine（例如 DoudizhuGame）后，会因为构造器参数的
+ * 逆变规则而无法传给 pushState/resetState。返回值仍约束为同一 P/C 的
+ * GameState，因此不会放松 State 本身的类型边界。
+ */
 export type gameStateConstructor<
     P extends GamePlayer = any,
     C extends GameContext = any,
     TConfig = unknown
-> = new (engine: GameEngine<P, C, any>, config?: TConfig) => GameState<
-    P,
-    C,
-    TConfig
->;
+> = new (engine: any, config?: TConfig) => GameState<P, C, TConfig, any>;
 
 interface GameComponentInternal {
     isAttached: boolean;
@@ -154,7 +158,7 @@ export abstract class GameState<
     }
 
     /**删除当前状态中的组件
-     * @throws {ComponentDeleteFailedError} 组件删除失败时
+     * @throws {ComponentDeleteFailedError} 删除失败时
      */
     deleteComponent(component: GameComponentType<any>, tag?: string) {
         this.logger.debug(`删除组件:${component.name}`);
