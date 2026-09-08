@@ -6,6 +6,8 @@ import { regGameCommand } from "./system/gameCommand";
 import { GameManager } from "./system/gameManager";
 import { globalPlayerManager } from "./system/globalPlayerManager";
 
+export { SAPIGameConfig } from "./config";
+
 export const Game = {
     /**框架预定义事件 */
     events: new gameEvents(),

@@ -18,42 +18,57 @@
         "dist"
     ],
     "exports": {
-        ".": "./dist/main.js",
-        "./main": "./dist/main.js",
-        "./utils": "./dist/utils/index.js",
-        "./gameComponent": "./dist/gameComponent/index.js",
-        "./gamePlayer": "./dist/gamePlayer/index.js",
-        "./gameRegion": "./dist/gameRegion/index.js",
-        "./gameState": "./dist/gameState/index.js",
-        "./gameStructure": "./dist/gameStructure/gameStructure.js",
-        "./constants": "./dist/constants.js",
-        "./gameContext": "./dist/gameContext.js",
-        "./createGameModule": "./dist/createGameModule.js",
-        "./utils/vanila-data": "./dist/utils/vanila-data.js"
+        ".": {
+            "types": "./dist/main.d.ts",
+            "import": "./dist/main.js"
+        },
+        "./gameComponent": {
+            "types": "./dist/gameComponent/index.d.ts",
+            "import": "./dist/gameComponent/index.js"
+        },
+        "./gameEvent": {
+            "types": "./dist/gameEvent/index.d.ts",
+            "import": "./dist/gameEvent/index.js"
+        },
+        "./gamePlayer": {
+            "types": "./dist/gamePlayer/index.d.ts",
+            "import": "./dist/gamePlayer/index.js"
+        },
+        "./gameRegion": {
+            "types": "./dist/gameRegion/index.d.ts",
+            "import": "./dist/gameRegion/index.js"
+        },
+        "./gameState": {
+            "types": "./dist/gameState/index.d.ts",
+            "import": "./dist/gameState/index.js"
+        },
+        "./utils": {
+            "types": "./dist/utils/index.d.ts",
+            "import": "./dist/utils/index.js"
+        },
+        "./gameStructure": {
+            "types": "./dist/gameStructure/gameStructure.d.ts",
+            "import": "./dist/gameStructure/gameStructure.js"
+        },
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.js"
+        }
     },
-    "dependencies": {
+    "peerDependencies": {
         "@minecraft/server": "2.3.0",
         "@minecraft/server-ui": "2.0.0"
     },
-    "overrides": {
-        "@minecraft/server-ui": {
-            "@minecraft/server": "2.3.0"
-        }
-    },
     "scripts": {
         "clean": "rimraf dist || true",
-        "build": "npm run clean && tsc && tsc-alias",
-        "doc": "npx typedoc --plugin typedoc-plugin-markdown ./src/main.ts --disableSources --name SAPI-Game"
+        "build": "npm run clean && tsc --noEmit && rolldown -c"
     },
     "devDependencies": {
-        "@rollup/plugin-commonjs": "^29.0.0",
-        "@rollup/plugin-node-resolve": "^16.0.3",
         "rimraf": "^6.1.2",
-        "rollup": "^4.53.3",
-        "rollup-plugin-dts": "^6.2.3",
-        "tsc-alias": "^1.8.16",
-        "typedoc": "^0.28.14",
-        "typedoc-plugin-markdown": "^4.9.0"
+        "rolldown": "^1.1.5",
+        "rolldown-plugin-dts": "^0.27.6",
+        "tinyglobby": "^0.2.17",
+        "typescript": "^7.0.2"
     },
     "keywords": [
         "minecraft",
