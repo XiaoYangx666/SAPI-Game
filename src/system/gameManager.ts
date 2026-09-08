@@ -1,5 +1,4 @@
 import { Player } from "@minecraft/server";
-import { SAPIGameConfig } from "../config";
 import {
     GameEngine,
     GameEngineInternal,
@@ -44,7 +43,6 @@ export class GameManager implements GameEngineOwner {
         map.set(key, gameInstance);
     }
 
-    /**启动指定游戏并返回创建出的实例。*/
     startGame<T extends GameEngine<any, any, any>>(
         game: ManagedGameConstructor<T>,
         config?: T extends GameEngine<any, any, infer O> ? O : unknown,
@@ -106,7 +104,6 @@ export class GameManager implements GameEngineOwner {
         }
     }
 
-    /**停止所有普通游戏 */
     stopAll() {
         for (const [key, game] of this.games) {
             if (game.isDaemon) continue;
@@ -118,15 +115,17 @@ export class GameManager implements GameEngineOwner {
         }
     }
 
-    /**静默停止所有普通游戏 */
-    end() {
+    /**
+     * 静默释放所有普通游戏实例，不调用 onStop。
+     * 宿主在服务器关闭、地图重置等场景中可自行决定是否使用。
+     */
+    disposeAll() {
         for (const [key, game] of this.games) {
             if (game.isDaemon) continue;
             (game as any as GameEngineInternal).onDispose();
-            this.logger.log(`endedGame: ${key}`);
+            this.logger.log(`disposedGame: ${key}`);
             this.games.delete(key);
         }
-        SAPIGameConfig.config.onEnd();
     }
 
     status(player?: Player, detail?: boolean) {
@@ -164,7 +163,6 @@ export class GameManager implements GameEngineOwner {
         else console.log(message);
     }
 
-    /**获取游戏类型稳定标识。*/
     getGameType(game: Function) {
         const explicitType = (game as Function & { gameType?: unknown }).gameType;
         if (explicitType === undefined) return game.name;
