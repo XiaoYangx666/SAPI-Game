@@ -62,6 +62,7 @@
     "scripts": {
         "clean": "rimraf dist || true",
         "build": "npm run clean && tsc --noEmit && rolldown -c",
+        "test:unit": "node --test tests/*.test.mjs",
         "prepare": "npm run build"
     },
     "devDependencies": {
