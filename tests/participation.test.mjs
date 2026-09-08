@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+    GameParticipation,
     ParticipationManager,
     SharedParticipationPolicy,
 } from "../dist/participation/participationManager.js";
@@ -32,6 +33,39 @@ test("shared policy allows multiple concurrent games", () => {
     assert.deepEqual(manager.getGames("player-1"), ["game-a", "game-b"]);
     assert.deepEqual(manager.getPlayers("game-b"), ["player-1"]);
     assert.equal(manager.membershipCount, 2);
+});
+
+test("joinAll is atomic when one player is rejected", () => {
+    const manager = new ParticipationManager();
+    manager.join("player-2", "other-game");
+
+    const result = manager.joinAll(
+        ["player-1", "player-2", "player-3"],
+        "table-game"
+    );
+
+    assert.equal(result.allowed, false);
+    assert.equal(result.playerId, "player-2");
+    assert.deepEqual(manager.getPlayers("table-game"), []);
+    assert.deepEqual(manager.getGames("player-1"), []);
+    assert.deepEqual(manager.getGames("player-3"), []);
+});
+
+test("game-scoped participation works with stable player ids only", () => {
+    const manager = new ParticipationManager(new SharedParticipationPolicy());
+    const table = new GameParticipation(manager, "doudizhu:table-1");
+
+    assert.deepEqual(table.joinAll(["alice", "bob", "carol"]), {
+        allowed: true,
+    });
+    assert.equal(table.has("alice"), true);
+    assert.equal(table.size, 3);
+    assert.deepEqual(table.getAll(), ["alice", "bob", "carol"]);
+
+    table.leave("bob");
+    assert.deepEqual(table.getAll(), ["alice", "carol"]);
+    table.clear();
+    assert.equal(table.size, 0);
 });
 
 test("leave and releaseGame remove only the requested memberships", () => {
