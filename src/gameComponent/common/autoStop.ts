@@ -30,24 +30,19 @@ export class AutoStopComponent<T extends TTLPlayer> extends GameComponent<
         this.options!.groupSet.getAllPlayers().forEach((p) => {
             if (p.ttl > 0) liveSize++;
             if (p.isValid) {
-                p.ttl = p.initialTTL; //重置TTL
+                p.ttl = p.initialTTL;
             } else if (p.ttl > 0) {
-                p.ttl--; //下线的ttl减少
+                p.ttl--;
                 if (this.options?.immediateDie) p.ttl = 0;
                 if (p.ttl == 0) {
                     this.options!.onLeave?.(p);
-                    //自动释放玩家
-                    if (this.options?.shouldRelease)
-                        Game.playerManager.releasePlayerFromGame(
-                            p.id,
-                            this.state.gameKey
-                        );
+                    if (this.options?.shouldRelease) {
+                        this.state.playerManager.leave(p.id);
+                    }
                 }
             }
         });
 
-        if (liveSize === 0) {
-            this.options!.onStopGame();
-        }
+        if (liveSize === 0) this.options!.onStopGame();
     }
 }

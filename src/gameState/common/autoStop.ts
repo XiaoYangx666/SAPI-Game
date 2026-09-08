@@ -32,18 +32,15 @@ export class AutoStopState<T extends TTLPlayer = any> extends GameState<
         this.config!.groupSet.getAllPlayers().forEach((p) => {
             if (p.ttl > 0) liveSize++;
             if (p.isValid) {
-                p.ttl = p.initialTTL; //重置TTL
+                p.ttl = p.initialTTL;
             } else if (p.ttl > 0) {
-                p.ttl--; //下线的ttl减少
+                p.ttl--;
                 if (this.config?.immediateDie) p.ttl = 0;
                 if (p.ttl == 0) {
                     this.config!.onLeave?.(p);
-                    //自动释放玩家
-                    if (this.config?.shouldRelease ?? true)
-                        Game.playerManager.releasePlayerFromGame(
-                            p.id,
-                            this.engine.key
-                        );
+                    if (this.config?.shouldRelease ?? true) {
+                        this.playerManager.leave(p.id);
+                    }
                 }
             }
         });

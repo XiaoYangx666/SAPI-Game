@@ -1,9 +1,9 @@
 import { Player } from "@minecraft/server";
-import { Game, globalPlayerManagerInternal } from "@sapi-game/main";
+import { ParticipationManager } from "../participation/participationManager";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
 
-/**游戏玩家管理器 */
+/**游戏实例内的玩家管理器 */
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
     public readonly playerConstructor: GamePlayerConstructor<T>;
@@ -14,41 +14,52 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     constructor(
         playerConstructor: GamePlayerConstructor<T>,
         private readonly gameKey: string,
+        private readonly participation: ParticipationManager,
         private readonly isDaemon: boolean
     ) {
         this.playerConstructor = playerConstructor;
         this.groupBuilder = new PlayerGroupBuilder(this);
     }
 
-    /**获取游戏玩家(若玩家已分配，返回无效玩家) */
+    /**
+     * 获取/加入游戏玩家。
+     *
+     * 当前仍保留 get(Player) 这个入口，但玩家是否能进入游戏由注入的
+     * ParticipationManager 决定，不再依赖全局 Game 单例。
+     */
     get(p: Player) {
-        //创建
         let gamePlayer = this.players.get(p.id);
-        //若未创建或已失效，则重新创建并尝试分配
         if (!gamePlayer || !(gamePlayer as any).isActive) {
             gamePlayer = new this.playerConstructor(p);
             this.players.set(p.id, gamePlayer);
-            //申请分配玩家
+
             if (!this.isDaemon) {
-                const ans = (
-                    Game.playerManager as unknown as globalPlayerManagerInternal
-                ).allocatePlayerToGame(p.id, this.gameKey);
-                (gamePlayer as any).isActive = ans;
+                const decision = this.participation.join(p.id, this.gameKey);
+                (gamePlayer as any).isActive = decision.allowed;
             }
         }
         return gamePlayer;
+    }
+
+    getById(playerId: string): T | undefined {
+        return this.players.get(playerId);
     }
 
     getAll(): T[] {
         return Array.from(this.players.values());
     }
 
-    /**让玩家失活 */
+    /**让玩家退出当前游戏，并释放 participation。*/
+    leave(playerId: string): boolean {
+        const gamePlayer = this.players.get(playerId);
+        if (gamePlayer) (gamePlayer as any).isActive = false;
+        if (!this.isDaemon) this.participation.leave(playerId, this.gameKey);
+        return gamePlayer !== undefined;
+    }
+
+    /**兼容旧的按 Player 失活入口。*/
     deactivate(p: Player) {
-        let gamePlayer = this.players.get(p.id);
-        if (gamePlayer) {
-            (gamePlayer as any).isActive = false; //强制修改活动状态
-        }
+        this.leave(p.id);
     }
 
     get size() {
@@ -61,8 +72,9 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     dispose() {
-        (
-            Game.playerManager as unknown as globalPlayerManagerInternal
-        ).releaseAllPlayerFromGame(this.gameKey);
+        for (const player of this.players.values()) {
+            (player as any).isActive = false;
+        }
+        if (!this.isDaemon) this.participation.releaseGame(this.gameKey);
     }
 }

@@ -6,7 +6,7 @@ import {
     GameState,
     gameStateConstructor,
 } from "./gameState/gameState";
-import { Game } from "./main";
+import { ParticipationManager } from "./participation/participationManager";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
@@ -16,6 +16,15 @@ interface GameStateInternal {
     onEnter: () => void;
 }
 
+/**
+ * GameEngine 的创建者只需要提供游戏停止能力与共享的 participation 服务。
+ * GameEngine 不再依赖全局 Game 单例。
+ */
+export interface GameEngineOwner {
+    readonly participation: ParticipationManager;
+    stopGameByKey(key: string): void;
+}
+
 export abstract class GameEngine<
     P extends GamePlayer = any,
     C extends GameContext = any,
@@ -23,6 +32,7 @@ export abstract class GameEngine<
 > {
     private readonly stateStack: GameState<P, C>[] = [];
     protected readonly logger: Logger;
+    protected readonly owner: GameEngineOwner;
     public readonly context: C;
     public readonly playerManager: GamePlayerManager<P>;
     public readonly key: string;
@@ -42,13 +52,20 @@ export abstract class GameEngine<
         return this.playerManager.groupBuilder;
     }
 
-    constructor(playerClass: classConstructor<P>, key: string, config?: O) {
+    constructor(
+        playerClass: classConstructor<P>,
+        owner: GameEngineOwner,
+        key: string,
+        config?: O
+    ) {
+        this.owner = owner;
+        this.key = key;
         this.playerManager = new GamePlayerManager(
             playerClass,
             key,
+            owner.participation,
             this.isDaemon
         );
-        this.key = key;
         this.context = this.buildContext(config ?? ({} as O));
         this.logger = new Logger(this.constructor.name);
         this._isActive = true;
@@ -78,9 +95,7 @@ export abstract class GameEngine<
     /** 移除栈顶的状态，返回到父状态 */
     popState() {
         const topState = this.stateStack.pop();
-        if (topState) {
-            this.removeState(topState);
-        }
+        if (topState) this.removeState(topState);
     }
 
     /** 清空所有状态，并设置一个新的根状态 */
@@ -110,19 +125,16 @@ export abstract class GameEngine<
             );
             throw new GameEngineError("State to replace not found in stack.");
         }
-        // 清理后续所有状态
+
         while (this.stateStack.length > index) {
             const removed = this.stateStack.pop()!;
             this.removeState(removed);
         }
-
         this.pushState(newStateType, config);
     }
 
     private clearStateStack() {
-        while (this.stateStack.length > 0) {
-            this.popState();
-        }
+        while (this.stateStack.length > 0) this.popState();
     }
 
     private removeState(state: GameState<P, C>) {
@@ -130,7 +142,6 @@ export abstract class GameEngine<
         (state as any as GameStateInternal)._onExit();
     }
 
-    /**获取下一个state */
     getNextState(state: GameState<P, C>): GameState<P, C> | undefined {
         const index = this.stateStack.findIndex((s) => s === state);
         if (index != -1 && this.stateStack.length > index + 1) {
@@ -138,23 +149,16 @@ export abstract class GameEngine<
         }
     }
 
-    /**获取上一个state */
     getLastState(state: GameState<P, C>): GameState<P, C> | undefined {
         const index = this.stateStack.findIndex((s) => s === state);
-        if (index > 0) {
-            return this.stateStack[index - 1];
-        }
+        if (index > 0) return this.stateStack[index - 1];
     }
 
-    /**获取指定state */
     getState<T extends GameState<P, C, any>>(stateType: classConstructor<T>) {
         const state = this.stateStack.find((s) => s.constructor == stateType);
-        if (state) {
-            return state as T;
-        }
+        if (state) return state as T;
     }
 
-    /**删除指定state */
     deleteState(stateType: gameStateConstructor<P, C, any>) {
         const idx = this.stateStack.findIndex(
             (s) => s.constructor == stateType
@@ -165,7 +169,6 @@ export abstract class GameEngine<
         }
     }
 
-    /**显示engine信息 */
     stats(detail: boolean = false): string {
         let stateLine: string;
         const stateNames = this.stateStack.map((s) => s.constructor.name);
@@ -174,9 +177,7 @@ export abstract class GameEngine<
             const stateStats = this.stateStack.map((s) => s.stats());
             stateLine =
                 stateNames.length > 0
-                    ? `§eStates§r(${
-                          stateNames.length
-                      }): \n    ${stateStats.join("\n    ")}`
+                    ? `§eStates§r(${stateNames.length}): \n    ${stateStats.join("\n    ")}`
                     : `§eStates§r: §7<empty>`;
         } else {
             stateLine =
@@ -186,12 +187,11 @@ export abstract class GameEngine<
                       )}`
                     : `§eStates§r: §7<empty>`;
         }
-
         return ["", playersLine, stateLine].join("\n  ");
     }
 
     stopGame() {
-        Game.manager.stopGameByKey(this.key);
+        this.owner.stopGameByKey(this.key);
     }
 
     private onDispose() {

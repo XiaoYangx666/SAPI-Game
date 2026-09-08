@@ -1,16 +1,16 @@
 import { GameComponent } from "./gameComponent/gameComponent";
 import { GameContext } from "./gameContext";
-import { GameEngine } from "./gameEngine";
+import { GameEngine, GameEngineOwner } from "./gameEngine";
 import { GamePlayer } from "./gamePlayer/gamePlayer";
 import { GameState } from "./gameState/gameState";
 import { classConstructor } from "./utils/interfaces";
 
 export interface GameModule<P extends GamePlayer, C extends GameContext> {
-    Engine: abstract new <O = unknown>(key: string, config?: O) => GameEngine<
-        P,
-        C,
-        O
-    >;
+    Engine: abstract new <O = unknown>(
+        owner: GameEngineOwner,
+        key: string,
+        config?: O
+    ) => GameEngine<P, C, O>;
     State: abstract new <
         TConfig = unknown,
         E extends GameEngine<P, C> = GameEngine<P, C, unknown>
@@ -37,9 +37,10 @@ export function createGameModule<
 }): GameModule<P, C> {
     const playerClass =
         options.playerClass ?? (GamePlayer as classConstructor<P>);
+
     abstract class Engine<O = unknown> extends GameEngine<P, C, O> {
-        constructor(key: string, config?: O) {
-            super(playerClass, key, config);
+        constructor(owner: GameEngineOwner, key: string, config?: O) {
+            super(playerClass, owner, key, config);
         }
     }
 

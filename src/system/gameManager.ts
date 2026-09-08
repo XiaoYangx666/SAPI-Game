@@ -1,14 +1,35 @@
 import { Player } from "@minecraft/server";
-import { Game } from "@sapi-game/main";
 import { SAPIGameConfig } from "../config";
-import { GameEngine, GameEngineInternal } from "../gameEngine";
+import {
+    GameEngine,
+    GameEngineInternal,
+    GameEngineOwner,
+} from "../gameEngine";
+import {
+    ExclusiveParticipationPolicy,
+    ParticipationManager,
+    ParticipationPolicy,
+} from "../participation/participationManager";
 import { GameManagerError } from "../utils/GameError";
 import { classConstructor } from "../utils/interfaces";
 import { Logger } from "../utils/logger";
 
-export class GameManager {
+export type ManagedGameConstructor<T extends GameEngine<any, any, any>> = new (
+    owner: GameEngineOwner,
+    key: string,
+    config?: T extends GameEngine<any, any, infer O> ? O : unknown
+) => T;
+
+export class GameManager implements GameEngineOwner {
     private games: Map<string, GameEngine<any, any>> = new Map();
     private readonly logger = new Logger(this.constructor.name);
+    public readonly participation: ParticipationManager;
+
+    constructor(
+        participationPolicy: ParticipationPolicy = new ExclusiveParticipationPolicy()
+    ) {
+        this.participation = new ParticipationManager(participationPolicy);
+    }
 
     private addGame(
         map: Map<string, GameEngine<any, any>>,
@@ -23,32 +44,25 @@ export class GameManager {
         map.set(key, gameInstance);
     }
 
-    /**
-     * 启动指定游戏并返回创建出的实例。
-     * @throws GameManagerError 当游戏已存在时
-     */
+    /**启动指定游戏并返回创建出的实例。*/
     startGame<T extends GameEngine<any, any, any>>(
-        game: classConstructor<T>,
-        config?: T extends GameEngine<any, any, infer P> ? P : unknown,
+        game: ManagedGameConstructor<T>,
+        config?: T extends GameEngine<any, any, infer O> ? O : unknown,
         tag?: string
     ): T {
         const key = this.buildKey(game, tag);
-        const gameInstance = new game(key, config);
+        const gameInstance = new game(this, key, config);
         this.addGame(this.games, key, gameInstance);
         return gameInstance;
     }
 
-    /**获取指定tag游戏是否已存在 */
     hasGame<T extends GameEngine<any, any>>(
         game: classConstructor<T>,
         tag?: string
     ) {
-        const key = this.buildKey(game, tag);
-        const gameInstance = this.games.get(key);
-        return gameInstance != undefined;
+        return this.games.has(this.buildKey(game, tag));
     }
 
-    /**获取game */
     getGame<T extends GameEngine<any, any>>(
         game: classConstructor<T>,
         tag?: string
@@ -57,29 +71,38 @@ export class GameManager {
     }
 
     getGameByKey(key: string) {
-        const game = this.games.get(key);
-        return game;
+        return this.games.get(key);
     }
 
     stopGame<T extends GameEngine<any, any>>(
         game: classConstructor<T>,
         tag?: string
     ) {
-        const key = this.buildKey(game, tag);
-        this.stopGameByKey(key);
+        this.stopGameByKey(this.buildKey(game, tag));
     }
 
     stopGameByKey(key: string) {
         const gameInstance = this.games.get(key) as any as
             | GameEngineInternal
             | undefined;
-        if (gameInstance) {
-            gameInstance.onStop();
-            gameInstance.onDispose();
-            this.games.delete(key);
-            this.logger.log(`stopedGame: ${key}`);
-        } else {
+        if (!gameInstance) {
             this.logger.error("StopGame失败，游戏不存在:" + key);
+            return;
+        }
+
+        gameInstance.onStop();
+        gameInstance.onDispose();
+        this.games.delete(key);
+        this.logger.log(`stopedGame: ${key}`);
+    }
+
+    /**让玩家退出其当前参加的所有普通游戏。*/
+    leavePlayerFromAll(playerId: string) {
+        const gameKeys = [...this.participation.getGames(playerId)];
+        for (const key of gameKeys) {
+            const game = this.games.get(key);
+            if (game) game.playerManager.leave(playerId);
+            else this.participation.leave(playerId, key);
         }
     }
 
@@ -108,22 +131,19 @@ export class GameManager {
 
     status(player?: Player, detail?: boolean) {
         const lines: string[] = [];
-
         lines.push("§6========== 游戏状态 ==========");
         lines.push(`§e总游戏数: §a${this.games.size}`);
+        lines.push(
+            `§e参与关系: §a${this.participation.membershipCount} §7(玩家 ${this.participation.playerCount})`
+        );
         lines.push("§6================================");
-        lines.push("");
-
-        lines.push("玩家状态");
-        lines.push(Game.playerManager.status());
-
         lines.push("");
 
         if (this.games.size) {
             lines.push("§d—— 常驻游戏 ——");
             for (const [key, g] of this.games) {
                 if (g.isDaemon) {
-                    lines.push(`§a● ${key} §7|\ §f${g.stats(detail)}`);
+                    lines.push(`§a● ${key} §7|\\ §f${g.stats(detail)}`);
                 }
             }
             lines.push("");
@@ -133,27 +153,18 @@ export class GameManager {
             lines.push("§d—— 普通游戏 ——");
             for (const [key, g] of this.games) {
                 if (!g.isDaemon) {
-                    lines.push(`§a● ${key} §7|\ §f${g.stats(detail)}`);
+                    lines.push(`§a● ${key} §7|\\ §f${g.stats(detail)}`);
                 }
             }
             lines.push("");
         }
 
         const message = lines.join("\n");
-
-        if (player) {
-            player.sendMessage(message);
-        } else {
-            console.log(message);
-        }
+        if (player) player.sendMessage(message);
+        else console.log(message);
     }
 
-    /**
-     * 获取游戏类型标识。
-     *
-     * 游戏类可以声明 static gameType 作为跨重载/持久化稳定标识；
-     * 未声明时保持兼容，继续使用 class.name。
-     */
+    /**获取游戏类型稳定标识。*/
     getGameType(game: Function) {
         const explicitType = (game as Function & { gameType?: unknown }).gameType;
         if (explicitType === undefined) return game.name;
