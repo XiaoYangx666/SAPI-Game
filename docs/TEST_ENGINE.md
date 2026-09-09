@@ -17,24 +17,25 @@
 
 它的目标不是模拟 Minecraft 的完整物理、渲染、红石或实体 AI，而是提供 **确定性的 ScriptAPI 宿主**，让游戏状态机和 SAPIGame 生命周期可以在 CI 中快速运行。
 
-## 工作方式
+## Vitest
 
-测试运行前先加载：
+SAPIGame 使用 **Vitest** 作为测试运行器和断言框架：
 
 ```bash
-node --import sapi-game/testing/register --test
+npm test
+npm run test:unit
+npm run test:headless
+npm run test:watch
 ```
 
-`testing/register` 会在 Node 模块解析阶段把：
+`vitest.config.ts` 会把：
 
 ```text
 @minecraft/server
 @minecraft/server-ui
 ```
 
-重定向到 SAPIGame 自带的虚拟 ScriptAPI 实现。
-
-因此被测试的仍然是生产构建中的：
+重定向到 SAPIGame 自带的虚拟 ScriptAPI 实现。因此测试加载的仍然是真实生产构建中的：
 
 ```text
 GameManager
@@ -50,27 +51,31 @@ DisconnectTimeoutComponent
 
 而不是另外复制的一套 Fake GameEngine。
 
+`testing/register` 仍然保留，供不通过 Vitest、但希望在普通 Node 进程中加载虚拟 ScriptAPI 的外部测试场景使用。
+
 ## 基本示例
 
 ```ts
+import { expect, test } from "vitest";
 import { SAPIGameTestEngine } from "sapi-game/testing";
 import { MyGame } from "../src/MyGame.js";
 
-const env = new SAPIGameTestEngine();
+test("完整生命周期", async () => {
+    const env = new SAPIGameTestEngine();
+    env.reset();
 
-env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(MyGame, {
+        players: [alice],
+    });
 
-const alice = env.connectPlayer("alice", "Alice");
-const game = env.startGame(MyGame, {
-    players: [alice],
+    await env.advanceTicks(20);
+
+    env.disconnectPlayer("alice");
+    await env.advanceTicks(600);
+
+    expect(game.lifecycle).toBe("disposed");
 });
-
-await env.advanceTicks(20);
-
-env.disconnectPlayer("alice");
-await env.advanceTicks(600);
-
-// 对 game.lifecycle / participation / context / trace 等做断言
 ```
 
 `advanceTicks()` 是确定性的虚拟时间推进。推进 600 tick 不会真的等待 30 秒。
@@ -87,7 +92,7 @@ await env.advanceTicks(10);
 
 const after = env.connectPlayer("alice");
 
-assert.equal(before, after);
+expect(after).toBe(before);
 ```
 
 这与 SAPIGame 当前的玩家模型一致：
@@ -173,7 +178,7 @@ env.reset()
 ```text
 纯游戏 Core 测试
     ↓
-SAPIGame Headless Test Engine
+SAPIGame Headless Test Engine + Vitest
     ↓
 少量 Minecraft 真机/专服集成测试
 ```
