@@ -75,6 +75,7 @@ export abstract class GameEngine<
     ) {
         this.owner = owner;
         this.key = key;
+        this.logger = new Logger(this.constructor.name);
         this.participation = new GameParticipation(
             owner.participation,
             key,
@@ -84,8 +85,22 @@ export abstract class GameEngine<
             playerClass,
             this.participation
         );
-        this.context = this.buildContext(config ?? ({} as O));
-        this.logger = new Logger(this.constructor.name);
+
+        try {
+            this.context = this.buildContext(config ?? ({} as O));
+        } catch (buildError) {
+            // buildContext 在派生类构造期间执行，GameManager 尚未拿到实例，
+            // 因此这里必须自行回滚期间创建的 wrapper / participation。
+            try {
+                this.playerManager.dispose();
+            } catch (cleanupError) {
+                throw new AggregateError(
+                    [buildError, cleanupError],
+                    `Game ${key} buildContext 失败且 participation 回滚异常`
+                );
+            }
+            throw buildError;
+        }
     }
 
     protected abstract buildContext(config: O): C;

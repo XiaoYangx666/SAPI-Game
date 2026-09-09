@@ -1,5 +1,8 @@
 import { Player } from "@minecraft/server";
 import { GameParticipation } from "../participation/gameParticipation";
+import type {
+    ParticipationBatchDecision,
+} from "../participation/gameParticipation";
 import type { ParticipationDecision } from "../participation/policy";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
@@ -7,6 +10,10 @@ import { PlayerGroupBuilder } from "./groupBuilder";
 export type GamePlayerJoinDecision<T extends GamePlayer> =
     | { allowed: true; player: T }
     | { allowed: false; reason?: string };
+
+export type GamePlayerBatchJoinDecision<T extends GamePlayer> =
+    | { allowed: true; players: T[] }
+    | { allowed: false; playerId: string; reason?: string };
 
 /**游戏实例内的 GamePlayer wrapper 管理器。*/
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
@@ -32,14 +39,16 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
      */
     get(p: Player): T | undefined {
         if (!this.participation.has(p.id)) return undefined;
+        return this.ensurePlayer(p);
+    }
 
-        let gamePlayer = this.players.get(p.id);
-        if (!gamePlayer) {
-            gamePlayer = new this.playerConstructor(p);
-            this.players.set(p.id, gamePlayer);
-        }
-        gamePlayer._setActive(true);
-        return gamePlayer;
+    /**
+     * 获取一个非 owning 的 GamePlayer wrapper，不创建 participation membership。
+     *
+     * 主要用于 daemon/观察型游戏读取在线玩家。普通游戏若需要正式加入，请使用 join()/joinAll()。
+     */
+    view(p: Player): T {
+        return this.ensurePlayer(p);
     }
 
     /**
@@ -55,13 +64,55 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
             };
         }
 
-        let gamePlayer = this.players.get(p.id);
-        if (!gamePlayer) {
-            gamePlayer = new this.playerConstructor(p);
-            this.players.set(p.id, gamePlayer);
+        return { allowed: true, player: this.ensurePlayer(p) };
+    }
+
+    /**
+     * 原子加入一组在线玩家。
+     *
+     * participation 会先整体校验；任意玩家被拒绝时不会写入任何新 membership，
+     * 也不会创建新的 GamePlayer wrapper。
+     */
+    joinAll(players: readonly Player[]): GamePlayerBatchJoinDecision<T> {
+        const playerIds = players.map((player) => player.id);
+        const previousMemberships = new Set(
+            playerIds.filter((playerId) => this.participation.has(playerId))
+        );
+        const decision: ParticipationBatchDecision =
+            this.participation.joinAll(playerIds);
+
+        if (!decision.allowed) {
+            return {
+                allowed: false,
+                playerId: decision.playerId,
+                ...(decision.reason ? { reason: decision.reason } : {}),
+            };
         }
-        gamePlayer._setActive(true);
-        return { allowed: true, player: gamePlayer };
+
+        const createdPlayerIds = new Set<string>();
+        try {
+            const wrappers = players.map((player) => {
+                if (!this.players.has(player.id)) {
+                    createdPlayerIds.add(player.id);
+                }
+                return this.ensurePlayer(player);
+            });
+            return { allowed: true, players: wrappers };
+        } catch (error) {
+            // wrapper 构造异常时，仅回滚本次新建的 wrapper 和 membership，
+            // 不破坏调用前已经属于当前游戏的参与关系。
+            for (const playerId of createdPlayerIds) {
+                const player = this.players.get(playerId);
+                player?._setActive(false);
+                this.players.delete(playerId);
+            }
+            for (const playerId of new Set(playerIds)) {
+                if (!previousMemberships.has(playerId)) {
+                    this.participation.leave(playerId);
+                }
+            }
+            throw error;
+        }
     }
 
     getById(playerId: string): T | undefined {
@@ -112,5 +163,15 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
             player._setActive(false);
         }
         this.participation.clear();
+    }
+
+    private ensurePlayer(p: Player): T {
+        let gamePlayer = this.players.get(p.id);
+        if (!gamePlayer) {
+            gamePlayer = new this.playerConstructor(p);
+            this.players.set(p.id, gamePlayer);
+        }
+        gamePlayer._setActive(true);
+        return gamePlayer;
     }
 }

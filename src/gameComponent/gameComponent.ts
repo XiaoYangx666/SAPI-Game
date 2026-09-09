@@ -1,4 +1,4 @@
-import { EventSubscription } from "@sapi-game/gameEvent/eventManager";
+import { EventSubscription } from "../gameEvent/eventManager";
 import { EventSignal } from "../gameEvent/eventSignal";
 import { GameState } from "../gameState/gameState";
 

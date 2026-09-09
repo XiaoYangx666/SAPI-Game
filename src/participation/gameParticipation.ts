@@ -10,6 +10,10 @@ export type ParticipationBatchDecision =
  *
  * 游戏代码只需要关心“哪些 playerId 属于我”，无需反复传 gameKey，
  * 也无需持有 Minecraft Player。在线 GamePlayer 可以在之后按需创建。
+ *
+ * tracked=false 用于 daemon/观察型游戏：join()/joinAll() 为兼容旧调用会返回 allowed，
+ * 但不会创建 membership；has()/getAll()/size 始终反映为空。daemon 若只需要包装在线玩家，
+ * 应使用 GamePlayerManager.view()，而不是依赖 join() 的无 ownership 语义。
  */
 export class GameParticipation {
     constructor(

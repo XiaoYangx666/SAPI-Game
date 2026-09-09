@@ -1,17 +1,18 @@
-import { SAPIGameConfig, SAPIGameConfigOptions } from "./config";
+import { BEGameConfig, BEGameConfigOptions } from "./config";
 import { Constants } from "./constants";
 import { gameEvents } from "./gameEvent/gameEvent";
 import { ParticipationPolicy } from "./participation/participationManager";
 import { GameManager } from "./system/gameManager";
 
-export { SAPIGameConfig } from "./config";
-export type { SAPIGameConfigOptions } from "./config";
+export { BEGameConfig, SAPIGameConfig } from "./config";
+export type { BEGameConfigOptions, SAPIGameConfigOptions } from "./config";
 
-export interface SAPIGameInitOptions extends SAPIGameConfigOptions {
+export interface BEGameInitOptions extends BEGameConfigOptions {
     participationPolicy?: ParticipationPolicy;
 }
 
-export type BEGameInitOptions = SAPIGameInitOptions;
+/** @deprecated 使用 BEGameInitOptions。 */
+export type SAPIGameInitOptions = BEGameInitOptions;
 
 const manager = new GameManager();
 
@@ -21,13 +22,13 @@ export const Game = {
     manager,
     participation: manager.participation,
     constants: Constants,
-    config: SAPIGameConfig,
+    config: BEGameConfig,
 } as const;
 
 /** 初始化 BEGame Core；不会注册服务器命令或玩家轮询。 */
 export function initBEGame(options: BEGameInitOptions = {}) {
     const { participationPolicy, ...config } = options;
-    SAPIGameConfig.update(config);
+    BEGameConfig.update(config);
     if (participationPolicy) manager.participation.setPolicy(participationPolicy);
 }
 

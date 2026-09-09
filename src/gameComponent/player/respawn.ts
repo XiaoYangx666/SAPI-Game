@@ -1,8 +1,10 @@
 import { Entity, world } from "@minecraft/server";
-import { GamePlayer, PlayerGroup, PlayerGroupSet } from "@sapi-game/gamePlayer";
-import { GameState } from "@sapi-game/gameState";
-import { EntityTypeIds } from "@sapi-game/utils/vanila-data";
-import { GameComponent } from "..";
+import { GamePlayer } from "../../gamePlayer/gamePlayer";
+import { PlayerGroupSet } from "../../gamePlayer/groupSet";
+import { PlayerGroup } from "../../gamePlayer/playerGroup";
+import { GameState } from "../../gameState/gameState";
+import { EntityTypeIds } from "../../utils/vanila-data";
+import { GameComponent } from "../gameComponent";
 
 export interface RespawnComponentOptions<
     TPlayer extends GamePlayer,
