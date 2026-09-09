@@ -22,9 +22,7 @@ export class RunnerManager {
         return { id: id, runner: runner };
     }
 
-    /**
-     * 运行普通脚本
-     */
+    /**运行普通脚本 */
     run(script: (runner: ScriptRunner) => Promise<void> | void): string {
         const { id, runner } = this.new();
 
@@ -40,7 +38,6 @@ export class RunnerManager {
     ): string {
         const { id, runner } = this.new();
 
-        // 先等待 ticks 再执行
         runner
             .run(async (r) => {
                 await r.wait(ticks);
@@ -53,9 +50,7 @@ export class RunnerManager {
         return id;
     }
 
-    /**
-     * 使用游戏 runJob 运行 generator
-     */
+    /**使用游戏 runJob 运行 generator */
     runJob(generator: Generator<void, void, void>): {
         id: string;
         promise: Promise<void>;
@@ -64,37 +59,31 @@ export class RunnerManager {
         const wrapped = wrapGeneratorWithPromise(generator);
         const runId = system.runJob(wrapped.gen);
 
-        // 用对象保存 runId，方便取消
         this.runners.set(id, { runId });
-
         return { id, promise: wrapped.promise };
     }
 
-    /**
-     * 取消指定 runner 或 job
-     */
+    /**取消指定 runner 或 job */
     cancel(id: string): boolean {
         const entry = this.runners.get(id);
         if (!entry) return false;
 
         if (entry instanceof ScriptRunner) {
             entry.cancel();
-        } else if ("runId" in entry) {
-            system.clearRun(entry.runId);
+        } else {
+            system.clearJob(entry.runId);
         }
 
         this.runners.delete(id);
         return true;
     }
 
-    /**
-     * 取消所有 runner/job
-     */
+    /**取消所有 runner/job */
     dispose() {
         for (const entry of this.runners.values()) {
             if (entry instanceof ScriptRunner) {
                 entry.cancel();
-            } else if ("runId" in entry) {
+            } else {
                 system.clearJob(entry.runId);
             }
         }
