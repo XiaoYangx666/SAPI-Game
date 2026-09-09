@@ -25,8 +25,18 @@ export interface ReloadScenario<TSnapshot, TResult> {
 export class BEGameTestEngine {
     readonly trace: TestTraceEntry[] = [];
 
+    constructor() {
+        // Core / SAPI-Pro modules subscribe during import. Creating a test
+        // environment represents a loaded world, so finish that initialization.
+        virtualMinecraft.emitWorldLoad();
+    }
+
     get tick() {
         return virtualMinecraft.system.currentTick;
+    }
+
+    get nowMs() {
+        return virtualMinecraft.system.currentTimeMs;
     }
 
     get manager() {
@@ -103,6 +113,7 @@ export class BEGameTestEngine {
         this.manager.disposeAll({ includeDaemon: true });
         virtualMinecraft.resetScriptResources();
         virtualMinecraftUi.clearResponses();
+        virtualMinecraft.emitWorldLoad();
         this.record("reload");
         return await scenario.restore(snapshot);
     }
@@ -111,6 +122,7 @@ export class BEGameTestEngine {
         this.manager.disposeAll({ includeDaemon: true });
         virtualMinecraft.resetWorld();
         virtualMinecraftUi.clearResponses();
+        virtualMinecraft.emitWorldLoad();
         this.trace.length = 0;
         this.record("reset");
     }
