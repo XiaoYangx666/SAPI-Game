@@ -26,6 +26,13 @@
             "types": "./dist/server/index.d.ts",
             "import": "./dist/server/index.js"
         },
+        "./testing": {
+            "types": "./dist/testing/index.d.ts",
+            "import": "./dist/testing/index.js"
+        },
+        "./testing/register": {
+            "import": "./dist/testing/register.js"
+        },
         "./participation": {
             "types": "./dist/participation/participationManager.d.ts",
             "import": "./dist/participation/participationManager.js"
@@ -70,7 +77,8 @@
     "scripts": {
         "clean": "rimraf dist || true",
         "build": "npm run clean && tsc --noEmit && rolldown -c",
-        "test:unit": "node --test tests/*.test.mjs",
+        "test:unit": "node --import ./dist/testing/register.js --test tests/*.test.mjs",
+        "test:headless": "node --import ./dist/testing/register.js --test tests/lifecycle.test.mjs",
         "prepare": "npm run build"
     },
     "devDependencies": {
