@@ -77,8 +77,10 @@
     "scripts": {
         "clean": "rimraf dist || true",
         "build": "npm run clean && tsc --noEmit && rolldown -c",
-        "test:unit": "node --import ./dist/testing/register.js --test tests/*.test.mjs",
-        "test:headless": "node --import ./dist/testing/register.js --test tests/lifecycle.test.mjs",
+        "test": "vitest run",
+        "test:unit": "vitest run",
+        "test:headless": "vitest run tests/lifecycle.test.mjs",
+        "test:watch": "vitest",
         "prepare": "npm run build"
     },
     "devDependencies": {
@@ -86,7 +88,8 @@
         "rolldown": "^1.1.5",
         "rolldown-plugin-dts": "^0.27.6",
         "tinyglobby": "^0.2.17",
-        "typescript": "^7.0.2"
+        "typescript": "^7.0.2",
+        "vitest": "^5.0.0"
     },
     "keywords": [
         "minecraft",
