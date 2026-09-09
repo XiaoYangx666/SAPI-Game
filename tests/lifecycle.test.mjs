@@ -147,6 +147,35 @@ class ReloadGame extends GameEngine {
     }
 }
 
+class FailingState extends GameState {
+    onEnter() {
+        this.context.trace.push("failing:enter");
+        this.addComponent(TraceComponent);
+        throw new Error("intentional state failure");
+    }
+}
+
+class FailingGame extends TraceGame {
+    static gameType = "test-failing";
+
+    onStart() {
+        this.context.trace.push("game:start");
+        if (this.context.initialPlayer) {
+            const joined = this.playerManager.join(this.context.initialPlayer);
+            assert.equal(joined.allowed, true);
+        }
+        this.resetState(FailingState);
+    }
+}
+
+class DaemonGame extends TraceGame {
+    static gameType = "test-daemon";
+
+    get isDaemon() {
+        return true;
+    }
+}
+
 test("headless engine preserves Game/State/Component/Runner lifecycle ordering", async () => {
     const env = new SAPIGameTestEngine();
     env.reset();
@@ -254,6 +283,47 @@ test("reload keeps virtual world players but rebuilds game runtime from snapshot
     assert.equal(env.getPlayer("bob"), bob);
     assert.equal(alice.isValid, true);
     assert.equal(bob.isValid, true);
-    assert.equal(trace.includes("reload-game:stop"), false, "reload uses silent dispose, not normal onStop");
+    assert.equal(
+        trace.includes("reload-game:stop"),
+        false,
+        "reload uses silent dispose, not normal onStop"
+    );
     env.reset();
+});
+
+test("failed game startup rolls back state resources and participation atomically", () => {
+    const env = new SAPIGameTestEngine();
+    env.reset();
+    const trace = [];
+    const alice = env.connectPlayer("alice", "Alice");
+
+    assert.throws(
+        () => env.startGame(FailingGame, { trace, initialPlayer: alice }),
+        /intentional state failure/
+    );
+
+    assert.equal(env.getGame(FailingGame), undefined);
+    assert.equal(env.manager.participation.has("alice"), false);
+    assert.deepEqual(trace, [
+        "game:start",
+        "failing:enter",
+        "component:attach",
+        "component:detach",
+    ]);
+    env.reset();
+});
+
+test("test reset disposes daemon games as a real script reload would", () => {
+    const env = new SAPIGameTestEngine();
+    env.reset();
+    const trace = [];
+
+    const daemon = env.startGame(DaemonGame, { trace });
+    assert.equal(daemon.lifecycle, "running");
+    assert.notEqual(env.getGame(DaemonGame), undefined);
+
+    env.reset();
+
+    assert.equal(daemon.lifecycle, "disposed");
+    assert.equal(env.getGame(DaemonGame), undefined);
 });
