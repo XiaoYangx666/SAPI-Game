@@ -61,6 +61,7 @@ class DisconnectRootState extends GameState {
         this.context.trace.push("disconnect-root:enter");
         this.addComponent(DisconnectTimeoutComponent, {
             timeout: new Duration(this.context.timeoutTicks),
+            releaseOnTimeout: true,
             stopGameWhenEmpty: this.context.stopGameWhenEmpty,
             onOffline: (id) => this.context.trace.push(`offline:${id}`),
             onOnline: (id) => this.context.trace.push(`online:${id}`),
