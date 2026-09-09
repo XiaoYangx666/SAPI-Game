@@ -96,27 +96,46 @@ export abstract class GameEngine<
     /**游戏结束(dispose前调用) */
     protected abstract onStop(): void;
 
-    /** 在栈顶添加一个新的子状态。onEnter 失败时自动回滚该 State 的资源。 */
+    /**
+     * 在栈顶添加新的子状态。
+     * 若 onEnter 失败，会回滚该状态在进入期间创建的整个子状态树。
+     */
     pushState<S extends gameStateConstructor<P, C, any>>(
         stateType: S,
         config?: ExtractConfig<S>
     ) {
         if (!this.isActive) return this;
         this.logger.debug(`Pushing state: ${stateType.name}`);
+
+        const startIndex = this.stateStack.length;
         const stateInstance = new stateType(this, config);
         this.stateStack.push(stateInstance);
 
         try {
             (stateInstance as any as GameStateInternal)._onEnter();
         } catch (enterError) {
-            const index = this.stateStack.lastIndexOf(stateInstance);
-            if (index !== -1) this.stateStack.splice(index, 1);
+            const rollbackStates = this.stateStack.splice(startIndex);
+            const cleanupErrors: unknown[] = [];
 
+            // 子状态已经完整进入，按正常退出语义从栈顶向下清理。
+            for (let i = rollbackStates.length - 1; i >= 1; i--) {
+                try {
+                    this.removeState(rollbackStates[i]);
+                } catch (err) {
+                    cleanupErrors.push(err);
+                }
+            }
+
+            // 当前状态自身没有完成 onEnter，不调用用户 onExit，只释放已创建资源。
             try {
                 (stateInstance as any as GameStateInternal)._onEnterFailed();
-            } catch (cleanupError) {
+            } catch (err) {
+                cleanupErrors.push(err);
+            }
+
+            if (cleanupErrors.length > 0) {
                 throw new AggregateError(
-                    [enterError, cleanupError],
+                    [enterError, ...cleanupErrors],
                     `State ${stateType.name} 进入失败且回滚异常`
                 );
             }
