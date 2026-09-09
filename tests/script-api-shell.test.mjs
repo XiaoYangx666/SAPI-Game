@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
 import {
+    EnchantmentTypes,
+    ItemComponentTypes,
     ItemStack,
     Player,
     virtualMinecraft,
@@ -39,4 +41,22 @@ test("ScriptAPI ItemStack shell stores local placement metadata only", () => {
         "minecraft:dirt",
     ]);
     expect(item.getCanDestroy()).toEqual(["minecraft:glass"]);
+});
+
+test("ScriptAPI ItemStack shell exposes minimal durability and enchantable components", () => {
+    const item = new ItemStack("minecraft:diamond_pickaxe");
+    const durability = item.getComponent(ItemComponentTypes.Durability);
+    const enchantable = item.getComponent(ItemComponentTypes.Enchantable);
+
+    expect(durability.damage).toBe(0);
+    durability.damage = durability.maxDurability;
+    expect(durability.damage).toBe(durability.maxDurability);
+
+    enchantable.addEnchantment({
+        type: EnchantmentTypes.get("efficiency"),
+        level: 5,
+    });
+    expect(enchantable.getEnchantments()).toEqual([
+        { type: { id: "efficiency" }, level: 5 },
+    ]);
 });
