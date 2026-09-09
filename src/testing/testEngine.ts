@@ -86,14 +86,32 @@ export class BEGameTestEngine {
         this.record("advance", String(ticks));
     }
 
+    /** Emit any Minecraft world after-event with an arbitrary test payload. */
     emitAfterEvent(name: string, event: unknown) {
         virtualMinecraft.emitAfterEvent(name, event);
     }
 
+    /** Explicit alias for emitAfterEvent when a test mixes world/system events. */
+    emitWorldAfterEvent(name: string, event: unknown) {
+        virtualMinecraft.emitAfterEvent(name, event);
+    }
+
+    /** Emit any Minecraft world before-event with an arbitrary mutable payload. */
     emitBeforeEvent(name: string, event: unknown) {
         virtualMinecraft.emitBeforeEvent(name, event);
     }
 
+    /** Explicit alias for emitBeforeEvent when a test mixes world/system events. */
+    emitWorldBeforeEvent(name: string, event: unknown) {
+        virtualMinecraft.emitBeforeEvent(name, event);
+    }
+
+    /** Emit any Minecraft system after-event with an arbitrary test payload. */
+    emitSystemAfterEvent(name: string, event: unknown) {
+        virtualMinecraft.emitSystemAfterEvent(name, event);
+    }
+
+    /** Emit any Minecraft system before-event with an arbitrary mutable payload. */
     emitSystemBeforeEvent(name: string, event: unknown) {
         virtualMinecraft.emitSystemBeforeEvent(name, event);
     }
