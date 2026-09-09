@@ -6,7 +6,6 @@ on:
       - master
       - feat/ddz-support
       - experiment/runtime-host
-      - work/runtime-host-lifecycle
   pull_request:
     branches:
       - master
