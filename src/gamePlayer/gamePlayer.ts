@@ -10,10 +10,9 @@ import {
 /**游戏玩家基类 */
 export class GamePlayer {
     private readonly _player: Player;
+    private _isActive = true;
     public readonly id: string;
     public readonly name: string;
-    /**是否仍然在当前游戏（调用/hub等会为false） */
-    protected isActive: boolean = true;
 
     constructor(player: Player) {
         this._player = player;
@@ -21,12 +20,31 @@ export class GamePlayer {
         this.name = player.name;
     }
 
+    /**当前 Minecraft 玩家是否在线/有效。*/
+    get isOnline(): Readonly<boolean> {
+        return this._player.isValid;
+    }
+
+    /**该 GamePlayer 是否仍属于当前游戏生命周期。*/
+    get isActive(): Readonly<boolean> {
+        return this._isActive;
+    }
+
+    /**当前是否可以安全执行玩家操作。*/
     get isValid(): Readonly<boolean> {
-        return this._player.isValid && this.isActive;
+        return this.isOnline && this.isActive;
+    }
+
+    /**
+     * SAPIGame 内部生命周期入口。
+     * 游戏代码通常不应直接调用；membership 由 GamePlayerManager / Participation 管理。
+     */
+    _setActive(active: boolean) {
+        this._isActive = active;
     }
 
     /**获取player
-     * 若玩家下线或失效返回undefined
+     * 若玩家下线或已退出游戏返回undefined
      */
     get player(): Player | undefined {
         if (this.isValid) {
@@ -101,15 +119,18 @@ export class GamePlayer {
     }
 }
 
-/**带寿命的player */
+/**
+ * 带寿命的旧式玩家类型。
+ * 新代码更推荐由游戏/组件自行决定掉线宽限策略；该类型继续保留供现有小游戏使用。
+ */
 export class TTLPlayer extends GamePlayer {
     /**初始TTL，可override */
     readonly initialTTL: number = 30;
     private _ttl: number = this.initialTTL;
 
-    /**剩余寿命(自动处理isActive) */
+    /**剩余寿命 */
     set ttl(value: number) {
-        this._ttl = this.isActive ? value : 0; //如果isActive已经为false，则ttl直接归零
+        this._ttl = this.isActive ? value : 0;
     }
 
     /**获取玩家剩余存活时间 */
