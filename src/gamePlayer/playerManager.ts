@@ -72,6 +72,15 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         return Array.from(this.players.values());
     }
 
+    /**当前游戏全部 participation playerId，包括暂时没有在线 wrapper 的玩家。*/
+    getParticipantIds(): readonly string[] {
+        return this.participation.getAll();
+    }
+
+    hasParticipant(playerId: string): boolean {
+        return this.participation.has(playerId);
+    }
+
     /**让玩家退出当前游戏，并释放 participation。*/
     leave(playerId: string): boolean {
         const gamePlayer = this.players.get(playerId);
