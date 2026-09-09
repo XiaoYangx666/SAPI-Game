@@ -1,5 +1,7 @@
-import { Game } from "@sapi-game/main";
+import { Player } from "@minecraft/server";
+import { Game } from "../../main";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
+import type { PlayerGroupSet } from "../../gamePlayer/groupSet";
 import { GameState } from "../../gameState/gameState";
 import { Duration } from "../../utils/duration";
 import { GameComponent } from "../gameComponent";
@@ -7,9 +9,28 @@ import { GameComponent } from "../gameComponent";
 export interface DisconnectTimeoutOptions<P extends GamePlayer = GamePlayer> {
     /**掉线宽限时间，默认 30 秒。*/
     timeout?: Duration;
-    /**超时后是否自动释放 participation，默认 true。*/
+    /**
+     * 超时后是否自动释放 participation。
+     *
+     * 建议调用方显式设置，未设置时默认 false，避免超时回调隐式改变参与关系。
+     */
+    releaseOnTimeout?: boolean;
+    /** @deprecated 使用 releaseOnTimeout。仅为旧代码兼容保留。 */
     shouldRelease?: boolean;
-    /**释放后若当前游戏已没有 participant，是否自动 stopGame，默认 false。*/
+    /**
+     * 可选：仅监控该 PlayerGroupSet 中的 participant。
+     * 与 participantFilter 同时提供时，两者都必须匹配。
+     */
+    groupSet?: PlayerGroupSet<P>;
+    /**
+     * 可选：进一步筛选要监控的 participant。
+     * 回调会在掉线、上线和超时处理时重新求值。
+     */
+    participantFilter?: (playerId: string, player: P | undefined) => boolean;
+    /**
+     * release 后若当前监控 scope 已没有 participant，是否自动 stopGame，默认 false。
+     * 未设置 scope 时等价于检查整个游戏。
+     */
     stopGameWhenEmpty?: boolean;
     /**玩家掉线并开始计时时触发。*/
     onOffline?: (playerId: string, player: P | undefined) => void;
@@ -22,10 +43,11 @@ export interface DisconnectTimeoutOptions<P extends GamePlayer = GamePlayer> {
 /**
  * 将“掉线宽限/超时踢出”作为 State 生命周期策略，而不是 Player 类型能力。
  *
- * 推荐挂在整局常驻的根 State 上。组件只监控当前 Game 的 participation：
+ * 推荐挂在整局常驻的根 State 上。组件默认监控当前 Game 的全部 participation，
+ * 也可通过 groupSet / participantFilter 缩小到某个逻辑玩家集合：
  * - offline -> 开始独立倒计时；
  * - online -> 取消倒计时并恢复/创建 GamePlayer wrapper；
- * - timeout -> 可选 leave()，并可在全部 participant 离开后 stopGame()。
+ * - timeout -> 可选 leave()，并可在监控 scope 为空后 stopGame()。
  *
  * State 退出时所有倒计时会随 RunnerManager 一并取消。
  */
@@ -46,7 +68,7 @@ export class DisconnectTimeoutComponent<
 
         // connection signal 在第一个订阅者出现时会建立当前在线玩家快照。
         // 因此组件即使在游戏恢复后才挂载，也能正确处理此前已离线的 participant。
-        for (const playerId of this.state.playerManager.getParticipantIds()) {
+        for (const playerId of this.getScopedParticipantIds()) {
             const onlinePlayer = Game.events.connection.getOnlinePlayer(playerId);
             if (onlinePlayer) {
                 this.state.playerManager.get(onlinePlayer);
@@ -56,16 +78,19 @@ export class DisconnectTimeoutComponent<
         }
     }
 
-    private handleOnline(playerId: string, player: import("@minecraft/server").Player) {
+    private handleOnline(playerId: string, player: Player) {
         if (!this.state.playerManager.hasParticipant(playerId)) return;
+
+        // 即使 scope 在掉线期间发生变化，也应先清理之前已经启动的 timer。
         this.cancelTimeout(playerId);
 
         const gamePlayer = this.state.playerManager.get(player);
-        if (gamePlayer) this.options?.onOnline?.(playerId, gamePlayer);
+        if (!gamePlayer || !this.isInScope(playerId, gamePlayer)) return;
+        this.options?.onOnline?.(playerId, gamePlayer);
     }
 
     private handleOffline(playerId: string) {
-        if (!this.state.playerManager.hasParticipant(playerId)) return;
+        if (!this.isInScope(playerId)) return;
         this.options?.onOffline?.(
             playerId,
             this.state.playerManager.getById(playerId)
@@ -97,7 +122,7 @@ export class DisconnectTimeoutComponent<
     }
 
     private handleTimeout(playerId: string) {
-        if (!this.state.playerManager.hasParticipant(playerId)) return;
+        if (!this.isInScope(playerId)) return;
 
         // online 事件与 timeout 落在同一 tick 时，以在线状态为准。
         if (Game.events.connection.isOnline(playerId)) return;
@@ -105,16 +130,42 @@ export class DisconnectTimeoutComponent<
         const gamePlayer = this.state.playerManager.getById(playerId);
         this.options?.onTimeout?.(playerId, gamePlayer);
 
-        if (this.options?.shouldRelease ?? true) {
+        const releaseOnTimeout =
+            this.options?.releaseOnTimeout ??
+            this.options?.shouldRelease ??
+            false;
+        if (releaseOnTimeout) {
             this.state.playerManager.leave(playerId);
         }
 
         if (
             (this.options?.stopGameWhenEmpty ?? false) &&
-            this.state.playerManager.getParticipantIds().length === 0
+            this.getScopedParticipantIds().length === 0
         ) {
             this.state.stopGame();
         }
+    }
+
+    private isInScope(playerId: string, player?: P): boolean {
+        if (!this.state.playerManager.hasParticipant(playerId)) return false;
+
+        const gamePlayer = player ?? this.state.playerManager.getById(playerId);
+        if (this.options?.groupSet && !this.options.groupSet.has(playerId)) {
+            return false;
+        }
+        if (
+            this.options?.participantFilter &&
+            !this.options.participantFilter(playerId, gamePlayer)
+        ) {
+            return false;
+        }
+        return true;
+    }
+
+    private getScopedParticipantIds(): readonly string[] {
+        return this.state.playerManager
+            .getParticipantIds()
+            .filter((playerId) => this.isInScope(playerId));
     }
 
     protected override onDetach(): void {
