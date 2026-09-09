@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import {
     GameParticipation,
     ParticipationManager,
@@ -9,30 +8,30 @@ import {
 test("default policy keeps participation exclusive", () => {
     const manager = new ParticipationManager();
 
-    assert.deepEqual(manager.join("player-1", "game-a"), { allowed: true });
-    assert.equal(manager.join("player-1", "game-b").allowed, false);
-    assert.deepEqual(manager.getGames("player-1"), ["game-a"]);
-    assert.equal(manager.playerCount, 1);
-    assert.equal(manager.membershipCount, 1);
+    expect(manager.join("player-1", "game-a")).toEqual({ allowed: true });
+    expect(manager.join("player-1", "game-b").allowed).toBe(false);
+    expect(manager.getGames("player-1")).toEqual(["game-a"]);
+    expect(manager.playerCount).toBe(1);
+    expect(manager.membershipCount).toBe(1);
 });
 
 test("joining the same game is idempotent", () => {
     const manager = new ParticipationManager();
 
-    assert.equal(manager.join("player-1", "game-a").allowed, true);
-    assert.equal(manager.join("player-1", "game-a").allowed, true);
-    assert.deepEqual(manager.getGames("player-1"), ["game-a"]);
-    assert.equal(manager.membershipCount, 1);
+    expect(manager.join("player-1", "game-a").allowed).toBe(true);
+    expect(manager.join("player-1", "game-a").allowed).toBe(true);
+    expect(manager.getGames("player-1")).toEqual(["game-a"]);
+    expect(manager.membershipCount).toBe(1);
 });
 
 test("shared policy allows multiple concurrent games", () => {
     const manager = new ParticipationManager(new SharedParticipationPolicy());
 
-    assert.equal(manager.join("player-1", "game-a").allowed, true);
-    assert.equal(manager.join("player-1", "game-b").allowed, true);
-    assert.deepEqual(manager.getGames("player-1"), ["game-a", "game-b"]);
-    assert.deepEqual(manager.getPlayers("game-b"), ["player-1"]);
-    assert.equal(manager.membershipCount, 2);
+    expect(manager.join("player-1", "game-a").allowed).toBe(true);
+    expect(manager.join("player-1", "game-b").allowed).toBe(true);
+    expect(manager.getGames("player-1")).toEqual(["game-a", "game-b"]);
+    expect(manager.getPlayers("game-b")).toEqual(["player-1"]);
+    expect(manager.membershipCount).toBe(2);
 });
 
 test("joinAll is atomic when one player is rejected", () => {
@@ -44,28 +43,26 @@ test("joinAll is atomic when one player is rejected", () => {
         "table-game"
     );
 
-    assert.equal(result.allowed, false);
-    assert.equal(result.playerId, "player-2");
-    assert.deepEqual(manager.getPlayers("table-game"), []);
-    assert.deepEqual(manager.getGames("player-1"), []);
-    assert.deepEqual(manager.getGames("player-3"), []);
+    expect(result.allowed).toBe(false);
+    expect(result.playerId).toBe("player-2");
+    expect(manager.getPlayers("table-game")).toEqual([]);
+    expect(manager.getGames("player-1")).toEqual([]);
+    expect(manager.getGames("player-3")).toEqual([]);
 });
 
 test("game-scoped participation works with stable player ids only", () => {
     const manager = new ParticipationManager(new SharedParticipationPolicy());
     const table = new GameParticipation(manager, "doudizhu:table-1");
 
-    assert.deepEqual(table.joinAll(["alice", "bob", "carol"]), {
-        allowed: true,
-    });
-    assert.equal(table.has("alice"), true);
-    assert.equal(table.size, 3);
-    assert.deepEqual(table.getAll(), ["alice", "bob", "carol"]);
+    expect(table.joinAll(["alice", "bob", "carol"])).toEqual({ allowed: true });
+    expect(table.has("alice")).toBe(true);
+    expect(table.size).toBe(3);
+    expect(table.getAll()).toEqual(["alice", "bob", "carol"]);
 
     table.leave("bob");
-    assert.deepEqual(table.getAll(), ["alice", "carol"]);
+    expect(table.getAll()).toEqual(["alice", "carol"]);
     table.clear();
-    assert.equal(table.size, 0);
+    expect(table.size).toBe(0);
 });
 
 test("leave and releaseGame remove only the requested memberships", () => {
@@ -74,11 +71,11 @@ test("leave and releaseGame remove only the requested memberships", () => {
     manager.join("player-1", "game-b");
     manager.join("player-2", "game-b");
 
-    assert.equal(manager.leave("player-1", "game-a"), true);
-    assert.deepEqual(manager.getGames("player-1"), ["game-b"]);
-    assert.deepEqual(manager.releaseGame("game-b").sort(), ["player-1", "player-2"]);
-    assert.equal(manager.playerCount, 0);
-    assert.equal(manager.membershipCount, 0);
+    expect(manager.leave("player-1", "game-a")).toBe(true);
+    expect(manager.getGames("player-1")).toEqual(["game-b"]);
+    expect(manager.releaseGame("game-b").sort()).toEqual(["player-1", "player-2"]);
+    expect(manager.playerCount).toBe(0);
+    expect(manager.membershipCount).toBe(0);
 });
 
 test("leaveAll returns the released game keys", () => {
@@ -86,6 +83,6 @@ test("leaveAll returns the released game keys", () => {
     manager.join("player-1", "game-a");
     manager.join("player-1", "game-b");
 
-    assert.deepEqual(manager.leaveAll("player-1"), ["game-a", "game-b"]);
-    assert.equal(manager.has("player-1"), false);
+    expect(manager.leaveAll("player-1")).toEqual(["game-a", "game-b"]);
+    expect(manager.has("player-1")).toBe(false);
 });
