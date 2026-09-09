@@ -1,3 +1,4 @@
+import { GameMode } from "@minecraft/server";
 import {
     PlayerRegionEvent,
     RegionEventType,
@@ -8,7 +9,6 @@ import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { GameRegion } from "../../gameRegion/gameRegion";
 import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
-import { GameMode } from "@minecraft/server";
 
 export interface RegionTeamChooserData<P extends GamePlayer> {
     /**指定范围 */
@@ -49,14 +49,17 @@ export class RegionTeamChooser<
         event: PlayerRegionEvent,
         data: RegionTeamChooserData<P>
     ) {
-        const gamePlayer = this.state.playerManager.get(event.player);
-        if (!gamePlayer.isValid) {
+        // 区域选择器本身就是“加入游戏”的入口，因此这里显式 join，
+        // 不再依赖 playerManager.get() 的隐式副作用。
+        const joined = this.state.playerManager.join(event.player);
+        if (!joined.allowed) {
             if (event.player.isValid) {
                 event.player.sendMessage("暂时无法进入队伍");
             }
             return;
         }
 
+        const gamePlayer = joined.player;
         switch (event.type) {
             case RegionEventType.Enter:
                 this.handlePlayerEnter(gamePlayer, data);
@@ -71,29 +74,26 @@ export class RegionTeamChooser<
         gamePlayer: P,
         configData: RegionTeamChooserData<P>
     ) {
-        //不允许旁观者直接返回
         if (
-            (this.options!.allowSpectator ?? true) &&
-            gamePlayer.player?.getGameMode() == GameMode.Spectator
+            !(this.options?.allowSpectator ?? false) &&
+            gamePlayer.player?.getGameMode() === GameMode.Spectator
         ) {
             return;
         }
+
         const newTeam = configData.team;
         const alreadyInTeam = newTeam.has(gamePlayer);
-        if (configData.onEnter) {
-            configData.onEnter(gamePlayer);
-        }
-        //从所有队伍清除目标玩家
+        configData.onEnter?.(gamePlayer);
+
         this.options?.config.forEach((d) => {
             if (d.team !== newTeam) {
                 d.team.delete(gamePlayer);
             }
         });
-        //添加到新队伍
+
         newTeam.add(gamePlayer);
-        //执行回调
-        if (configData.onJoin && !alreadyInTeam) {
-            configData.onJoin(gamePlayer);
+        if (!alreadyInTeam) {
+            configData.onJoin?.(gamePlayer);
         }
     }
 
@@ -101,8 +101,7 @@ export class RegionTeamChooser<
         gamePlayer: P,
         configData: RegionTeamChooserData<P>
     ) {
-        const shouldRemoveOnLeave = this.options?.removeOnLeave ?? false;
-        if (shouldRemoveOnLeave) {
+        if (this.options?.removeOnLeave ?? false) {
             configData.team.delete(gamePlayer);
         }
     }
