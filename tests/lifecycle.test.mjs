@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import {
     DisconnectTimeoutComponent,
     GameComponent,
@@ -73,7 +72,7 @@ class TraceGame extends GameEngine {
         this.context.trace.push("game:start");
         if (this.context.initialPlayer) {
             const joined = this.playerManager.join(this.context.initialPlayer);
-            assert.equal(joined.allowed, true);
+            expect(joined.allowed).toBe(true);
         }
         this.resetState(RootState);
     }
@@ -107,7 +106,7 @@ class DisconnectGame extends TraceGame {
         this.context.trace.push("game:start");
         if (this.context.initialPlayer) {
             const joined = this.playerManager.join(this.context.initialPlayer);
-            assert.equal(joined.allowed, true);
+            expect(joined.allowed).toBe(true);
         }
         this.resetState(DisconnectRootState);
     }
@@ -130,7 +129,7 @@ class ReloadGame extends GameEngine {
         this.context.trace.push("reload-game:start");
         for (const player of this.context.players) {
             const joined = this.playerManager.join(player);
-            assert.equal(joined.allowed, true);
+            expect(joined.allowed).toBe(true);
         }
         this.resetState(DisconnectRootState);
     }
@@ -162,7 +161,7 @@ class FailingGame extends TraceGame {
         this.context.trace.push("game:start");
         if (this.context.initialPlayer) {
             const joined = this.playerManager.join(this.context.initialPlayer);
-            assert.equal(joined.allowed, true);
+            expect(joined.allowed).toBe(true);
         }
         this.resetState(FailingState);
     }
@@ -182,20 +181,20 @@ test("headless engine preserves Game/State/Component/Runner lifecycle ordering",
     const trace = [];
 
     const game = env.startGame(TraceGame, { trace });
-    assert.equal(game.lifecycle, "running");
-    assert.deepEqual(trace, ["game:start", "root:enter", "component:attach"]);
+    expect(game.lifecycle).toBe("running");
+    expect(trace).toEqual(["game:start", "root:enter", "component:attach"]);
 
     await env.advanceTicks(4);
-    assert.equal(trace.includes("runner:delay"), false);
+    expect(trace).not.toContain("runner:delay");
     await env.advanceTicks(1);
-    assert.equal(trace.at(-1), "runner:delay");
+    expect(trace.at(-1)).toBe("runner:delay");
 
     game.pushState(ChildState);
-    assert.equal(trace.at(-1), "child:enter");
+    expect(trace.at(-1)).toBe("child:enter");
 
     env.stopGame(TraceGame);
-    assert.equal(game.lifecycle, "disposed");
-    assert.deepEqual(trace.slice(-5), [
+    expect(game.lifecycle).toBe("disposed");
+    expect(trace.slice(-5)).toEqual([
         "child:enter",
         "game:stop",
         "child:exit",
@@ -204,7 +203,7 @@ test("headless engine preserves Game/State/Component/Runner lifecycle ordering",
     ]);
 
     await env.advanceTicks(100);
-    assert.equal(trace.filter((item) => item === "runner:delay").length, 1);
+    expect(trace.filter((item) => item === "runner:delay")).toHaveLength(1);
     env.reset();
 });
 
@@ -221,28 +220,28 @@ test("disconnect grace period can reconnect before timeout or leave after timeou
         stopGameWhenEmpty: true,
     });
 
-    assert.equal(game.participation.has("alice"), true);
+    expect(game.participation.has("alice")).toBe(true);
     env.disconnectPlayer("alice");
-    assert.equal(trace.at(-1), "offline:alice");
+    expect(trace.at(-1)).toBe("offline:alice");
 
     await env.advanceTicks(4);
-    assert.equal(game.participation.has("alice"), true);
+    expect(game.participation.has("alice")).toBe(true);
 
     const reconnected = env.connectPlayer("alice", "Alice");
-    assert.equal(reconnected, alice, "reconnect keeps a stable Player wrapper");
-    assert.equal(trace.at(-1), "online:alice");
+    expect(reconnected).toBe(alice);
+    expect(trace.at(-1)).toBe("online:alice");
 
     await env.advanceTicks(2);
-    assert.equal(game.participation.has("alice"), true);
-    assert.equal(trace.includes("timeout:alice"), false);
+    expect(game.participation.has("alice")).toBe(true);
+    expect(trace).not.toContain("timeout:alice");
 
     env.disconnectPlayer("alice");
     await env.advanceTicks(5);
 
-    assert.equal(trace.includes("timeout:alice"), true);
-    assert.equal(game.participation.has("alice"), false);
-    assert.equal(env.getGame(DisconnectGame), undefined);
-    assert.equal(game.lifecycle, "disposed");
+    expect(trace).toContain("timeout:alice");
+    expect(game.participation.has("alice")).toBe(false);
+    expect(env.getGame(DisconnectGame)).toBeUndefined();
+    expect(game.lifecycle).toBe("disposed");
     env.reset();
 });
 
@@ -259,7 +258,7 @@ test("reload keeps virtual world players but rebuilds game runtime from snapshot
         counter: 42,
         timeoutTicks: 5,
     });
-    assert.deepEqual(before.participation.getAll().sort(), ["alice", "bob"]);
+    expect(before.participation.getAll().sort()).toEqual(["alice", "bob"]);
 
     const after = await env.reload({
         snapshot: () => before.snapshot(),
@@ -274,20 +273,16 @@ test("reload keeps virtual world players but rebuilds game runtime from snapshot
         },
     });
 
-    assert.notEqual(after, before);
-    assert.equal(before.lifecycle, "disposed");
-    assert.equal(after.lifecycle, "running");
-    assert.equal(after.context.counter, 42);
-    assert.deepEqual(after.participation.getAll().sort(), ["alice", "bob"]);
-    assert.equal(env.getPlayer("alice"), alice);
-    assert.equal(env.getPlayer("bob"), bob);
-    assert.equal(alice.isValid, true);
-    assert.equal(bob.isValid, true);
-    assert.equal(
-        trace.includes("reload-game:stop"),
-        false,
-        "reload uses silent dispose, not normal onStop"
-    );
+    expect(after).not.toBe(before);
+    expect(before.lifecycle).toBe("disposed");
+    expect(after.lifecycle).toBe("running");
+    expect(after.context.counter).toBe(42);
+    expect(after.participation.getAll().sort()).toEqual(["alice", "bob"]);
+    expect(env.getPlayer("alice")).toBe(alice);
+    expect(env.getPlayer("bob")).toBe(bob);
+    expect(alice.isValid).toBe(true);
+    expect(bob.isValid).toBe(true);
+    expect(trace).not.toContain("reload-game:stop");
     env.reset();
 });
 
@@ -297,14 +292,13 @@ test("failed game startup rolls back state resources and participation atomicall
     const trace = [];
     const alice = env.connectPlayer("alice", "Alice");
 
-    assert.throws(
-        () => env.startGame(FailingGame, { trace, initialPlayer: alice }),
+    expect(() => env.startGame(FailingGame, { trace, initialPlayer: alice })).toThrow(
         /intentional state failure/
     );
 
-    assert.equal(env.getGame(FailingGame), undefined);
-    assert.equal(env.manager.participation.has("alice"), false);
-    assert.deepEqual(trace, [
+    expect(env.getGame(FailingGame)).toBeUndefined();
+    expect(env.manager.participation.has("alice")).toBe(false);
+    expect(trace).toEqual([
         "game:start",
         "failing:enter",
         "component:attach",
@@ -319,11 +313,11 @@ test("test reset disposes daemon games as a real script reload would", () => {
     const trace = [];
 
     const daemon = env.startGame(DaemonGame, { trace });
-    assert.equal(daemon.lifecycle, "running");
-    assert.notEqual(env.getGame(DaemonGame), undefined);
+    expect(daemon.lifecycle).toBe("running");
+    expect(env.getGame(DaemonGame)).toBeDefined();
 
     env.reset();
 
-    assert.equal(daemon.lifecycle, "disposed");
-    assert.equal(env.getGame(DaemonGame), undefined);
+    expect(daemon.lifecycle).toBe("disposed");
+    expect(env.getGame(DaemonGame)).toBeUndefined();
 });
