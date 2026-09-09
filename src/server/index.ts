@@ -37,9 +37,11 @@ export class SAPIGameServerIntegration {
     >[0];
 
     constructor(private readonly options: ServerIntegrationOptions = {}) {
-        this.players = new ServerPlayerTracker(Game.manager, {
-            onJoin: options.onJoin,
-        });
+        this.players = new ServerPlayerTracker(
+            Game.manager,
+            Game.events.connection,
+            { onJoin: options.onJoin }
+        );
         this.commandOptions = {
             hub: options.hub,
             onEnd: options.onEnd,
