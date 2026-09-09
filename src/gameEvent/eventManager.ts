@@ -14,10 +14,7 @@ export class EventManager {
     ) {
         if (!this.isActive) return;
         const [callback, options] = args;
-        const list = this.subscriptionMap.get(subscriber) ?? [];
-        this.subscriptionMap.set(subscriber, list);
 
-        // 订阅事件
         const result =
             options !== undefined
                 ? event.subscribe(callback, options)
@@ -31,7 +28,9 @@ export class EventManager {
                 : result;
 
         const record = new EventSubscription(event, subscriber, subscription);
+        const list = this.subscriptionMap.get(subscriber) ?? [];
         list.push(record);
+        this.subscriptionMap.set(subscriber, list);
         return record;
     }
 
@@ -40,56 +39,85 @@ export class EventManager {
         const subData = asInternal(subscription);
         const list = this.subscriptionMap.get(subData.subscriber);
         if (!list) return;
-        //寻找，删除列表项
         const idx = list.indexOf(subscription);
-        if (idx !== -1) {
-            list.splice(idx, 1);
-        }
-        //取消订阅
-        subData.subscription.unsubscribe();
-        //清理
+        if (idx === -1) return;
+
+        list.splice(idx, 1);
         if (list.length === 0) {
             this.subscriptionMap.delete(subData.subscriber);
         }
+        subData.subscription.unsubscribe();
     }
 
     unsubscribeByEvent(event: EventSignal<any>) {
+        const errors: unknown[] = [];
         this.subscriptionMap.forEach((list, subscriber) => {
+            const retained: EventSubscription[] = [];
             for (const subscription of list) {
                 const sub = asInternal(subscription);
-                if (sub.event === event) {
+                if (sub.event !== event) {
+                    retained.push(subscription);
+                    continue;
+                }
+                try {
                     sub.subscription.unsubscribe();
+                } catch (err) {
+                    errors.push(err);
                 }
             }
-            const filtered = list.filter(
-                (sub) => asInternal(sub).event !== event
-            );
-            if (filtered.length > 0) {
-                this.subscriptionMap.set(subscriber, filtered);
+
+            if (retained.length > 0) {
+                this.subscriptionMap.set(subscriber, retained);
             } else {
                 this.subscriptionMap.delete(subscriber);
             }
         });
+
+        if (errors.length > 0) {
+            throw new AggregateError(errors, "取消事件订阅失败");
+        }
     }
 
     /**取消订阅指定object的所有事件 */
     unsubscribeBySubscriber(subscriber: object) {
         const list = this.subscriptionMap.get(subscriber);
         if (!list) return;
-        for (const sub of list) {
-            asInternal(sub).subscription.unsubscribe();
-        }
         this.subscriptionMap.delete(subscriber);
+
+        const errors: unknown[] = [];
+        for (const sub of list) {
+            try {
+                asInternal(sub).subscription.unsubscribe();
+            } catch (err) {
+                errors.push(err);
+            }
+        }
+
+        if (errors.length > 0) {
+            throw new AggregateError(errors, "取消订阅者事件失败");
+        }
     }
 
     dispose() {
-        for (const list of this.subscriptionMap.values()) {
+        if (!this.isActive) return;
+        this.isActive = false;
+
+        const lists = [...this.subscriptionMap.values()];
+        this.subscriptionMap.clear();
+        const errors: unknown[] = [];
+        for (const list of lists) {
             for (const sub of list) {
-                asInternal(sub).subscription.unsubscribe();
+                try {
+                    asInternal(sub).subscription.unsubscribe();
+                } catch (err) {
+                    errors.push(err);
+                }
             }
         }
-        this.subscriptionMap.clear();
-        this.isActive = false;
+
+        if (errors.length > 0) {
+            throw new AggregateError(errors, "EventManager 清理失败");
+        }
     }
 
     debug() {
