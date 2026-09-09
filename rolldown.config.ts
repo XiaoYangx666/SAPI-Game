@@ -48,6 +48,7 @@ export default defineConfig([
             "@minecraft/server",
             "@minecraft/server-ui",
             "node:module",
+            "node:url",
             "vitest/config",
         ],
         output: {
