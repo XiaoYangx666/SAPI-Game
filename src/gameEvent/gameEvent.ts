@@ -3,12 +3,15 @@ import { PlayerItemInSlotEventSignal } from "./events/inSlot";
 import { IntervalEventSignal } from "./events/interval";
 import { ItemUseEventSignal } from "./events/itemUse";
 import { PlayerOnBlockEventSignal } from "./events/onBlock";
+import { PlayerConnectionEventSignal } from "./events/playerConnection";
 import { PlayerRegionEventSignal } from "./events/regionEvents";
 import { SignClickEventSignal } from "./events/signClick";
 
 export class gameEvents {
     /**间隔时间事件 */
     readonly interval: IntervalEventSignal;
+    /**玩家上线/离线事件（惰性订阅原生事件） */
+    readonly connection = new PlayerConnectionEventSignal();
     /**按钮按下事件 */
     readonly buttonPush = new ButtonPushEventSignal();
     /**木牌被点击事件 */
@@ -35,5 +38,6 @@ export * from "./events/inSlot";
 export * from "./events/interval";
 export * from "./events/itemUse";
 export * from "./events/onBlock";
+export * from "./events/playerConnection";
 export * from "./events/regionEvents";
 export * from "./events/signClick";
