@@ -1,87 +1,19 @@
 {
-    "name": "sapi-game",
+    "name": "begame-monorepo",
+    "private": true,
     "version": "0.0.2",
-    "description": "make mini game fully by sapi",
-    "main": "dist/main.js",
-    "types": "dist/main.d.ts",
+    "description": "BEGame - Minecraft Bedrock game lifecycle framework",
     "type": "module",
-    "author": {
-        "name": "XiaoYangx666",
-        "email": "2408807389@qq.com"
-    },
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/XiaoYangx666/SAPI-Game.git"
-    },
-    "files": [
-        "dist"
+    "workspaces": [
+        "packages/*"
     ],
-    "exports": {
-        ".": {
-            "types": "./dist/main.d.ts",
-            "import": "./dist/main.js"
-        },
-        "./server": {
-            "types": "./dist/server/index.d.ts",
-            "import": "./dist/server/index.js"
-        },
-        "./testing": {
-            "types": "./dist/testing/index.d.ts",
-            "import": "./dist/testing/index.js"
-        },
-        "./testing/register": {
-            "import": "./dist/testing/register.js"
-        },
-        "./participation": {
-            "types": "./dist/participation/participationManager.d.ts",
-            "import": "./dist/participation/participationManager.js"
-        },
-        "./gameComponent": {
-            "types": "./dist/gameComponent/index.d.ts",
-            "import": "./dist/gameComponent/index.js"
-        },
-        "./gameEvent": {
-            "types": "./dist/gameEvent/index.d.ts",
-            "import": "./dist/gameEvent/index.js"
-        },
-        "./gamePlayer": {
-            "types": "./dist/gamePlayer/index.d.ts",
-            "import": "./dist/gamePlayer/index.js"
-        },
-        "./gameRegion": {
-            "types": "./dist/gameRegion/index.d.ts",
-            "import": "./dist/gameRegion/index.js"
-        },
-        "./gameState": {
-            "types": "./dist/gameState/index.d.ts",
-            "import": "./dist/gameState/index.js"
-        },
-        "./utils": {
-            "types": "./dist/utils/index.d.ts",
-            "import": "./dist/utils/index.js"
-        },
-        "./gameStructure": {
-            "types": "./dist/gameStructure/gameStructure.d.ts",
-            "import": "./dist/gameStructure/gameStructure.js"
-        },
-        "./*": {
-            "types": "./dist/*.d.ts",
-            "import": "./dist/*.js"
-        }
-    },
-    "peerDependencies": {
-        "@minecraft/server": ">=2.3.0 <3.0.0",
-        "@minecraft/server-ui": ">=2.0.0 <3.0.0"
-    },
     "scripts": {
-        "clean": "rimraf dist || true",
+        "clean": "rimraf packages/core/dist packages/test/dist || true",
         "build": "npm run clean && tsc --noEmit && rolldown -c",
         "test": "vitest run",
         "test:unit": "vitest run",
         "test:headless": "vitest run tests/lifecycle.test.mjs",
-        "test:watch": "vitest",
-        "prepare": "npm run build"
+        "test:watch": "vitest"
     },
     "devDependencies": {
         "rimraf": "^6.1.2",
@@ -90,13 +22,5 @@
         "tinyglobby": "^0.2.17",
         "typescript": "^7.0.2",
         "vitest": "^5.0.0"
-    },
-    "keywords": [
-        "minecraft",
-        "bedrock",
-        "bedrock-edition",
-        "ScriptApi",
-        "library",
-        "miniGame"
-    ]
+    }
 }
