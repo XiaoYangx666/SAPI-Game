@@ -1,15 +1,14 @@
 declare const setImmediate: (callback: () => void) => unknown;
 
 type Callback<T = any> = (event: T) => void;
-
 type Vector3 = { x: number; y: number; z: number };
 
 const DEFAULT_TICK_DURATION_MS = 50;
 const DEFAULT_VIRTUAL_EPOCH_MS = 1_700_000_000_000;
 let virtualNowMs = DEFAULT_VIRTUAL_EPOCH_MS;
 
-// Timer / StopWatch in BEGame use Date.now(). In the headless runtime time must
-// advance with virtual ticks instead of wall-clock time.
+// Headless tests use tick time instead of wall-clock time so timers can be
+// advanced deterministically together with the game lifecycle.
 Date.now = () => virtualNowMs;
 
 class VirtualEventSignal<T = any> {
@@ -147,6 +146,14 @@ class VirtualSystem {
         this.jobs.delete(id);
     }
 
+    emitBeforeEvent(name: string, event: any) {
+        this.beforeSignals.get(name).emit(event);
+    }
+
+    emitAfterEvent(name: string, event: any) {
+        this.afterSignals.get(name).emit(event);
+    }
+
     async advanceTicks(ticks: number) {
         const count = Math.max(0, Math.floor(ticks));
         for (let i = 0; i < count; i++) {
@@ -171,8 +178,8 @@ class VirtualSystem {
                 waiter.resolve();
             }
 
-            // Promise adoption can add additional microtask turns. Crossing a
-            // macrotask boundary deterministically drains the whole chain before
+            // Promise adoption may add more microtasks than two Promise.resolve()
+            // turns. Crossing one macrotask boundary settles the whole tick before
             // the next virtual tick begins.
             await new Promise<void>((resolve) => setImmediate(resolve));
         }
@@ -210,6 +217,10 @@ class VirtualContainer {
     }
 }
 
+/**
+ * Lightweight ScriptAPI value shell. It intentionally does not model world
+ * block state; tests should inject the game event they want to exercise.
+ */
 export class BlockPermutation {
     constructor(
         public readonly typeName: string,
@@ -249,33 +260,21 @@ export class Player {
     private _online = true;
     private readonly tags = new Set<string>();
     private readonly equipment = new Map<any, any>();
-    private readonly dynamicProperties = new Map<string, any>();
-    private spawnPoint: any;
-    private velocity: Vector3 = { x: 0, y: 0, z: 0 };
-    private gameMode: any = "Adventure";
-
+    private gameMode: any = GameMode.Adventure;
     readonly messages: any[] = [];
     readonly commands: string[] = [];
-    readonly sounds: string[] = [];
-    readonly titles: Array<{ title: any; options?: any }> = [];
-    readonly actionbars: any[] = [];
     readonly effects: Array<{ type: any; duration: number; options?: any }> = [];
     readonly inventory = new VirtualContainer();
+    readonly onScreenDisplay = {
+        setTitle: (_title: any, _options?: any) => undefined,
+        setActionBar: (_text: any) => undefined,
+    };
     readonly camera = {
         clear: () => undefined,
         fadeIn: (_options?: any) => undefined,
         fadeOut: (_options?: any) => undefined,
         setCamera: (_preset: any, _options?: any) => undefined,
     };
-    readonly onScreenDisplay = {
-        setTitle: (title: any, options?: any) => {
-            this.titles.push({ title, options });
-        },
-        setActionBar: (text: any) => {
-            this.actionbars.push(text);
-        },
-    };
-
     location: Vector3 = { x: 0, y: 0, z: 0 };
     dimension: Dimension;
     isOnGround = true;
@@ -306,9 +305,7 @@ export class Player {
         return { successCount: 1 };
     }
 
-    playSound(soundId: string, _options?: any) {
-        this.sounds.push(soundId);
-    }
+    playSound(_soundId: string, _options?: any) {}
 
     hasTag(tag: string) {
         return this.tags.has(tag);
@@ -343,7 +340,11 @@ export class Player {
         if (type === EntityComponentTypes.Equippable || key.includes("equippable")) {
             return {
                 getEquipment: (slot: any) => this.equipment.get(slot),
-                setEquipment: (slot: any, item?: any) => this.setEquipment(slot, item),
+                setEquipment: (slot: any, item?: any) => {
+                    if (item === undefined) this.equipment.delete(slot);
+                    else this.equipment.set(slot, item);
+                    return true;
+                },
             };
         }
         return undefined;
@@ -353,18 +354,12 @@ export class Player {
         this.effects.push({ type, duration, options });
     }
 
-    teleport(location: any, options?: any) {
+    teleport(location: Vector3, options?: any) {
         this.location = { ...location };
         if (options?.dimension) this.dimension = options.dimension;
     }
 
-    setSpawnPoint(spawnPoint?: any) {
-        this.spawnPoint = spawnPoint;
-    }
-
-    getSpawnPoint() {
-        return this.spawnPoint;
-    }
+    setSpawnPoint(_spawnPoint?: any) {}
 
     setGameMode(mode: any) {
         this.gameMode = mode;
@@ -375,27 +370,14 @@ export class Player {
     }
 
     getVelocity() {
-        return { ...this.velocity };
+        return { x: 0, y: 0, z: 0 };
     }
 
-    clearVelocity() {
-        this.velocity = { x: 0, y: 0, z: 0 };
-    }
-
-    applyImpulse(impulse: Vector3) {
-        this.velocity = {
-            x: this.velocity.x + (impulse?.x ?? 0),
-            y: this.velocity.y + (impulse?.y ?? 0),
-            z: this.velocity.z + (impulse?.z ?? 0),
-        };
-    }
+    clearVelocity() {}
+    applyImpulse(_impulse: Vector3) {}
 
     getHeadLocation() {
-        return {
-            x: this.location.x,
-            y: this.location.y + 1.6,
-            z: this.location.z,
-        };
+        return { ...this.location };
     }
 
     addLevels(levels: number) {
@@ -405,29 +387,6 @@ export class Player {
 
     resetLevel() {
         this.level = 0;
-    }
-
-    setEquipment(slot: any, item?: any) {
-        if (item === undefined) this.equipment.delete(slot);
-        else this.equipment.set(slot, item);
-        return true;
-    }
-
-    setDynamicProperty(key: string, value?: any) {
-        if (value === undefined) this.dynamicProperties.delete(key);
-        else this.dynamicProperties.set(key, value);
-    }
-
-    getDynamicProperty(key: string) {
-        return this.dynamicProperties.get(key);
-    }
-
-    getDynamicPropertyIds() {
-        return [...this.dynamicProperties.keys()];
-    }
-
-    clearDynamicProperties() {
-        this.dynamicProperties.clear();
     }
 }
 
@@ -472,13 +431,14 @@ export class Block {
     }
 
     setPermutation(permutation: BlockPermutation) {
+        // Deliberately local only: the headless runtime does not maintain a
+        // persistent block world.
         this.permutation = permutation;
         this.typeId = permutation.typeName;
-        virtualMinecraft.setBlockPermutation(this.dimension.id, this.location, permutation);
     }
 
     getRedstonePower() {
-        return virtualMinecraft.getRedstonePower(this.dimension.id, this.location);
+        return 0;
     }
 }
 
@@ -499,26 +459,11 @@ export class Dimension {
         const block = new Block();
         block.location = { ...location };
         block.dimension = this;
-        const permutation = virtualMinecraft.getBlockPermutation(this.id, location);
-        if (permutation) {
-            block.permutation = permutation;
-            block.typeId = permutation.typeName;
-        }
         return block;
     }
 
-    setBlockType(location: Vector3, blockType: string | BlockType) {
-        const typeId = typeof blockType === "string" ? blockType : blockType.id;
-        virtualMinecraft.setBlockPermutation(
-            this.id,
-            location,
-            BlockPermutation.resolve(typeId)
-        );
-    }
-
-    setBlockPermutation(location: Vector3, permutation: BlockPermutation) {
-        virtualMinecraft.setBlockPermutation(this.id, location, permutation);
-    }
+    setBlockType(_location: Vector3, _blockType: string | BlockType) {}
+    setBlockPermutation(_location: Vector3, _permutation: BlockPermutation) {}
 
     fillBlocks(_volume: any, _block: any) {
         return 0;
@@ -536,68 +481,21 @@ export class Dimension {
         return { successCount: 1 };
     }
 
-    spawnEntity(_type: string, location: any) {
+    spawnEntity(_type: string, location: Vector3) {
         const entity = new Entity();
         entity.location = { ...location };
         entity.dimension = this;
         return entity;
     }
 
-    spawnItem(_item: any, location: any) {
+    spawnItem(_item: any, location: Vector3) {
         return this.spawnEntity("minecraft:item", location);
     }
 }
 
+/** Import-compatible shell only; geometry is intentionally not simulated. */
 export class BlockVolume {
     constructor(public readonly from: Vector3, public readonly to: Vector3) {}
-
-    getSpan() {
-        return {
-            x: Math.abs(this.to.x - this.from.x) + 1,
-            y: Math.abs(this.to.y - this.from.y) + 1,
-            z: Math.abs(this.to.z - this.from.z) + 1,
-        };
-    }
-
-    getBoundingBox() {
-        return {
-            min: {
-                x: Math.min(this.from.x, this.to.x),
-                y: Math.min(this.from.y, this.to.y),
-                z: Math.min(this.from.z, this.to.z),
-            },
-            max: {
-                x: Math.max(this.from.x, this.to.x),
-                y: Math.max(this.from.y, this.to.y),
-                z: Math.max(this.from.z, this.to.z),
-            },
-        };
-    }
-
-    getCapacity() {
-        const span = this.getSpan();
-        return span.x * span.y * span.z;
-    }
-
-    getMin() {
-        return this.getBoundingBox().min;
-    }
-
-    getMax() {
-        return this.getBoundingBox().max;
-    }
-
-    isInside(location: Vector3) {
-        const { min, max } = this.getBoundingBox();
-        return (
-            location.x >= min.x &&
-            location.x <= max.x &&
-            location.y >= min.y &&
-            location.y <= max.y &&
-            location.z >= min.z &&
-            location.z <= max.z
-        );
-    }
 }
 
 export class ItemStack {
@@ -706,14 +604,10 @@ class VirtualMinecraftRuntime {
     private readonly beforeSignals = new SignalCollection();
     private readonly dimensions = new Map<string, Dimension>();
     private readonly players = new Map<string, Player>();
-    private readonly blocks = new Map<string, BlockPermutation>();
-    private readonly redstonePowers = new Map<string, number>();
     private readonly dynamicProperties = new Map<string, any>();
 
     readonly scoreboard = new VirtualScoreboard();
     readonly worldCommands: string[] = [];
-    readonly particles: any[] = [];
-    readonly music: any[] = [];
     difficulty: any;
     timeOfDay: any;
     readonly gameRules: Record<string, any> = {};
@@ -760,20 +654,10 @@ class VirtualMinecraftRuntime {
         getDynamicProperty: (key: string) => this.dynamicProperties.get(key),
         getDynamicPropertyIds: () => [...this.dynamicProperties.keys()],
         clearDynamicProperties: () => this.dynamicProperties.clear(),
-        spawnParticle: (effect: any, location: any, options?: any) => {
-            this.particles.push({ effect, location, options });
-        },
-        playMusic: (id: any, options?: any) => {
-            this.music.push({ id, options });
-        },
-        stopMusic: () => {
-            this.music.push({ stop: true });
-        },
+        spawnParticle: (_effect: any, _location: any, _options?: any) => undefined,
+        playMusic: (_id: any, _options?: any) => undefined,
+        stopMusic: () => undefined,
     };
-
-    private blockKey(dimensionId: string, location: Vector3) {
-        return `${dimensionId}:${location.x},${location.y},${location.z}`;
-    }
 
     getDimension(id: string) {
         let dimension = this.dimensions.get(id);
@@ -819,28 +703,6 @@ class VirtualMinecraftRuntime {
             players = players.filter(
                 (player) => !options.excludeGameModes.includes(player.getGameMode())
             );
-        }
-        if (options.location) {
-            const origin = options.location as Vector3;
-            players = players.filter((player) => {
-                const dx = player.location.x - origin.x;
-                const dy = player.location.y - origin.y;
-                const dz = player.location.z - origin.z;
-                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (
-                    options.minDistance !== undefined &&
-                    distance < options.minDistance
-                ) {
-                    return false;
-                }
-                if (
-                    options.maxDistance !== undefined &&
-                    distance > options.maxDistance
-                ) {
-                    return false;
-                }
-                return true;
-            });
         }
         if (Array.isArray(options.scoreOptions)) {
             players = players.filter((player) =>
@@ -899,29 +761,6 @@ class VirtualMinecraftRuntime {
         return true;
     }
 
-    setBlockPermutation(
-        dimensionId: string,
-        location: Vector3,
-        permutation: BlockPermutation
-    ) {
-        this.blocks.set(this.blockKey(dimensionId, location), permutation);
-    }
-
-    getBlockPermutation(dimensionId: string, location: Vector3) {
-        return this.blocks.get(this.blockKey(dimensionId, location));
-    }
-
-    setRedstonePower(dimensionId: string, location: Vector3, power: number) {
-        this.redstonePowers.set(
-            this.blockKey(dimensionId, location),
-            Math.max(0, Math.min(15, Math.floor(power)))
-        );
-    }
-
-    getRedstonePower(dimensionId: string, location: Vector3) {
-        return this.redstonePowers.get(this.blockKey(dimensionId, location)) ?? 0;
-    }
-
     setDynamicProperty(key: string, value?: any) {
         if (value === undefined) this.dynamicProperties.delete(key);
         else this.dynamicProperties.set(key, value);
@@ -935,8 +774,12 @@ class VirtualMinecraftRuntime {
         this.beforeSignals.get(name).emit(event);
     }
 
+    emitSystemAfterEvent(name: string, event: any) {
+        this.system.emitAfterEvent(name, event);
+    }
+
     emitSystemBeforeEvent(name: string, event: any) {
-        (this.system.beforeEvents[name] as VirtualEventSignal).emit(event);
+        this.system.emitBeforeEvent(name, event);
     }
 
     emitWorldLoad() {
@@ -958,12 +801,8 @@ class VirtualMinecraftRuntime {
         this.players.clear();
         this.dimensions.clear();
         this.scoreboard.clear();
-        this.blocks.clear();
-        this.redstonePowers.clear();
         this.dynamicProperties.clear();
         this.worldCommands.length = 0;
-        this.particles.length = 0;
-        this.music.length = 0;
         this.difficulty = undefined;
         this.timeOfDay = undefined;
         for (const key of Object.keys(this.gameRules)) delete this.gameRules[key];
