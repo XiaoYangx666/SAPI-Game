@@ -6,7 +6,6 @@ on:
       - master
       - feat/ddz-support
       - experiment/runtime-host
-      - work/disconnect-timeout
   pull_request:
     branches:
       - master
