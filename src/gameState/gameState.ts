@@ -12,6 +12,7 @@ import { RunnerManager } from "../Runner/RunnerManager";
 import { Logger } from "../utils/logger";
 import {
     ComponentDeleteFailedError,
+    ComponentLoadFailedError,
     GameComponentAlreadyExistsError,
     GameComponentNotExistsError,
 } from "./types";
@@ -89,13 +90,19 @@ export abstract class GameState<
     /**进入 */
     protected abstract onEnter(): void;
 
+    /**由 GameEngine 调用，统一 State 进入生命周期。*/
+    private _onEnter() {
+        this.onEnter();
+    }
+
+    /**进入失败时只清理已创建资源，不调用用户 onExit。*/
+    private _onEnterFailed() {
+        this.cleanup(false);
+    }
+
     /**
-     * 添加组件到当前状态
-     * @param component 组件类型
-     * @param options 组件参数
-     * @param tag 组件标签(唯一)
-     * @throws {GameComponentAlreadyExistsError} 组件已存在时抛出
-     * @throws {ComponentLoadFailedError} 组件加载失败时抛出
+     * 添加组件到当前状态。
+     * 只有 onAttach 完整成功后才会写入组件表；失败组件不会残留。
      */
     addComponent<C extends GameComponentType<any, any>>(
         component: C,
@@ -107,28 +114,21 @@ export abstract class GameState<
             `添加组件:${component.name}` +
                 (tag != undefined ? `(tag=${tag})` : "")
         );
-        //判断是否重复
+
         const list = this.components.get(component) ?? [];
         if (list.some((c) => c.tag === tag)) {
             throw new GameComponentAlreadyExistsError(component, tag);
         }
-        //没有数组就设置
-        if (!this.components.has(component))
-            this.components.set(component, list);
-        //添加到数组
+
         const componentInstance = new component(this, options, tag);
-        list.push(componentInstance);
-        //加载
         try {
-            const comp = componentInstance as any as GameComponentInternal;
-            comp._onAttach();
+            (componentInstance as any as GameComponentInternal)._onAttach();
         } catch (err) {
-            this.logger.error(
-                `组件 ${component.name} tag=${tag} 加载失败`,
-                err
-            );
+            throw new ComponentLoadFailedError(component, tag, { cause: err });
         }
 
+        list.push(componentInstance);
+        this.components.set(component, list);
         return this;
     }
 
@@ -141,8 +141,6 @@ export abstract class GameState<
 
     /**
      * 获取当前状态中的组件
-     * @param type 组件类型
-     * @param tag 组件标签
      * @throws {GameComponentNotExistsError} 若组件不存在，则抛出
      */
     getComponent<C extends GameComponentType<any, any>>(
@@ -157,21 +155,20 @@ export abstract class GameState<
         return component as InstanceType<C>;
     }
 
-    /**删除当前状态中的组件
-     * @throws {ComponentDeleteFailedError} 删除失败时
-     */
+    /**删除当前状态中的组件。无论 onDetach 是否报错，组件都会从状态中移除。*/
     deleteComponent(component: GameComponentType<any>, tag?: string) {
         this.logger.debug(`删除组件:${component.name}`);
         const list = this.components.get(component);
         if (!list) return this;
-        const index = list?.findIndex((c) => c.tag === tag);
+        const index = list.findIndex((c) => c.tag === tag);
         if (index === -1) return this;
+
         const comp = list[index] as unknown as GameComponentInternal;
+        list.splice(index, 1);
+        if (list.length === 0) this.components.delete(component);
+
         try {
-            //取消订阅
             comp._onDetach();
-            list.splice(index, 1);
-            if (list.length === 0) this.components.delete(component);
         } catch (err) {
             throw new ComponentDeleteFailedError(component, comp.tag, {
                 cause: err,
@@ -180,26 +177,33 @@ export abstract class GameState<
         return this;
     }
 
-    /**删除所有组件
-     * @throws {ComponentDeleteFailedError} 删除失败时
-     */
+    /**删除所有组件；单个组件失败不会阻止其他组件继续清理。*/
     private deleteAllComponents() {
         this.logger.debug(`删除所有组件`);
-        for (let [compType, list] of this.components.entries()) {
+        const entries = [...this.components.entries()];
+        this.components.clear();
+
+        const errors: unknown[] = [];
+        for (const [compType, list] of entries) {
             for (const comp of list) {
                 const instance = comp as any as GameComponentInternal;
                 try {
                     instance._onDetach();
                 } catch (err) {
-                    throw new ComponentDeleteFailedError(
-                        compType,
-                        instance.tag,
-                        { cause: err }
+                    errors.push(
+                        new ComponentDeleteFailedError(
+                            compType,
+                            instance.tag,
+                            { cause: err }
+                        )
                     );
                 }
             }
         }
-        this.components.clear();
+
+        if (errors.length > 0) {
+            throw new AggregateError(errors, "状态组件清理失败");
+        }
     }
 
     protected subscribe<T extends EventSignal<any>>(
@@ -232,10 +236,42 @@ export abstract class GameState<
 
     private _onExit() {
         this.logger.debug(`onExit`);
-        this.onExit();
-        this.eventManager.dispose();
-        this.deleteAllComponents();
-        this.runner.dispose();
+        this.cleanup(true);
+    }
+
+    private cleanup(callOnExit: boolean) {
+        const errors: unknown[] = [];
+
+        if (callOnExit) {
+            try {
+                this.onExit();
+            } catch (err) {
+                errors.push(err);
+            }
+        }
+
+        try {
+            this.deleteAllComponents();
+        } catch (err) {
+            errors.push(err);
+        }
+        try {
+            this.eventManager.dispose();
+        } catch (err) {
+            errors.push(err);
+        }
+        try {
+            this.runner.dispose();
+        } catch (err) {
+            errors.push(err);
+        }
+
+        if (errors.length > 0) {
+            throw new AggregateError(
+                errors,
+                `State ${this.constructor.name} 清理失败`
+            );
+        }
     }
 
     protected onExit() {}
