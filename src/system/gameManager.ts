@@ -19,6 +19,11 @@ export type ManagedGameConstructor<T extends GameEngine<any, any, any>> = new (
     config?: T extends GameEngine<any, any, infer O> ? O : unknown
 ) => T;
 
+export interface DisposeAllOptions {
+    /**是否连同常驻游戏一起释放。Script reload / 测试隔离时应设为 true。*/
+    includeDaemon?: boolean;
+}
+
 export class GameManager implements GameEngineOwner {
     private games: Map<string, GameEngine<any, any>> = new Map();
     private readonly logger = new Logger(this.constructor.name);
@@ -155,13 +160,14 @@ export class GameManager implements GameEngineOwner {
     }
 
     /**
-     * 静默释放所有普通游戏实例，不调用 onStop。
-     * 宿主在服务器关闭、地图重置等场景中可自行决定是否使用。
+     * 静默释放游戏实例，不调用 onStop。
+     * 默认保持常驻游戏；Script reload、测试隔离等需要整个脚本运行时销毁的场景
+     * 可以通过 includeDaemon 显式连同常驻游戏一起释放。
      */
-    disposeAll() {
+    disposeAll(options: DisposeAllOptions = {}) {
         const errors: unknown[] = [];
         for (const [key, game] of [...this.games]) {
-            if (game.isDaemon) continue;
+            if (game.isDaemon && !options.includeDaemon) continue;
             try {
                 (game as any as GameEngineInternal)._onDispose();
             } catch (err) {
