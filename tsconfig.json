@@ -13,16 +13,15 @@
         "strict": true,
         "noImplicitAny": true,
         "noImplicitOverride": true,
-        "outDir": "dist",
-        "rootDir": "src",
         "allowJs": true,
         "paths": {
+            "@begame/core": ["./src/main.ts"],
+            "@begame/core/*": ["./src/*"],
+            "@begame/test": ["./src/testing/index.ts"],
+            "@begame/test/*": ["./src/testing/*"],
             "@sapi-game/*": ["./src/*"]
         }
     },
-    "tsc-alias": {
-        "resolveFullPaths": true
-    },
-    "include": ["./src"],
+    "include": ["./src", "./vitest.config.ts"],
     "compileOnSave": false
 }
