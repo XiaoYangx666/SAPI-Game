@@ -105,7 +105,7 @@ export class SAPIGameTestEngine {
     /**
      * 模拟 Script reload：
      * 1. 先由游戏导出权威 snapshot；
-     * 2. 静默销毁全部 Game/State/Component/Runner/Participation；
+     * 2. 静默销毁全部普通 Game/State/Component/Runner/Participation；
      * 3. 清空虚拟 ScriptAPI 的订阅和调度任务，但保留世界与在线玩家；
      * 4. 调用 restore 创建新的游戏运行时对象。
      *
@@ -115,16 +115,16 @@ export class SAPIGameTestEngine {
         scenario: ReloadScenario<TSnapshot, TResult>
     ): Promise<TResult> {
         const snapshot = await scenario.snapshot();
-        this.manager.disposeAll(true);
+        this.manager.disposeAll();
         virtualMinecraft.resetScriptResources();
         virtualMinecraftUi.clearResponses();
         this.record("reload");
         return await scenario.restore(snapshot);
     }
 
-    /**清空脚本和虚拟世界，用于测试用例之间完全隔离。*/
+    /**清空普通游戏、脚本资源和虚拟世界，用于测试用例之间完全隔离。*/
     reset() {
-        this.manager.disposeAll(true);
+        this.manager.disposeAll();
         virtualMinecraft.resetWorld();
         virtualMinecraftUi.clearResponses();
         this.trace.length = 0;
