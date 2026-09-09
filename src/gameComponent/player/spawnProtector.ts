@@ -1,8 +1,10 @@
 import { BlockVolume, Dimension, Vector3, world } from "@minecraft/server";
-import { GamePlayer, PlayerGroup } from "@sapi-game/gamePlayer";
-import { GameState } from "@sapi-game/gameState";
-import { Game } from "@sapi-game/main";
-import { Duration, Vector3Utils } from "@sapi-game/utils";
+import { GamePlayer } from "../../gamePlayer/gamePlayer";
+import { PlayerGroup } from "../../gamePlayer/playerGroup";
+import { GameState } from "../../gameState/gameState";
+import { Game } from "../../main";
+import { Duration } from "../../utils/duration";
+import { Vector3Utils } from "../../utils/vector";
 import { GameComponent } from "../gameComponent";
 
 export interface SpawnPointProtectorOptions<P extends GamePlayer> {
