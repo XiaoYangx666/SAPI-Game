@@ -216,11 +216,21 @@ export class Player {
     }
 
     getComponent(type: any) {
-        if (type === EntityComponentTypes.Inventory || String(type).includes("inventory")) {
+        if (
+            type === EntityComponentTypes.Inventory ||
+            String(type).includes("inventory")
+        ) {
             return { container: this.inventory };
         }
-        if (type === EntityComponentTypes.Health || String(type).includes("health")) {
-            return { currentValue: 20, defaultValue: 20, effectiveMax: 20 };
+        if (
+            type === EntityComponentTypes.Health ||
+            String(type).includes("health")
+        ) {
+            return {
+                currentValue: 20,
+                defaultValue: 20,
+                effectiveMax: 20,
+            };
         }
         return undefined;
     }
@@ -257,7 +267,9 @@ export class Dimension {
     constructor(public readonly id: string) {}
 
     getPlayers() {
-        return virtualMinecraft.getAllPlayers().filter((player) => player.dimension.id === this.id);
+        return virtualMinecraft
+            .getAllPlayers()
+            .filter((player) => player.dimension.id === this.id);
     }
 
     getEntities() {
@@ -269,6 +281,10 @@ export class Dimension {
         block.location = { ...location };
         block.dimension = this;
         return block;
+    }
+
+    fillBlocks(_volume: any, _block: any) {
+        return 0;
     }
 
     runCommand(_command: string) {
@@ -304,6 +320,7 @@ export class MolangVariableMap {}
 class VirtualObjective {
     private readonly scores = new Map<any, number>();
     displayName: string;
+    isValid = true;
 
     constructor(public readonly id: string, displayName?: string) {
         this.displayName = displayName ?? id;
@@ -340,9 +357,11 @@ class VirtualScoreboard {
     }
 
     removeObjective(idOrObjective: string | VirtualObjective) {
-        return this.objectives.delete(
-            typeof idOrObjective === "string" ? idOrObjective : idOrObjective.id
-        );
+        const id =
+            typeof idOrObjective === "string" ? idOrObjective : idOrObjective.id;
+        const objective = this.objectives.get(id);
+        if (objective) objective.isValid = false;
+        return this.objectives.delete(id);
     }
 
     getObjectives() {
@@ -356,6 +375,9 @@ class VirtualScoreboard {
     clearObjectiveAtDisplaySlot(_slot: any) {}
 
     clear() {
+        for (const objective of this.objectives.values()) {
+            objective.isValid = false;
+        }
         this.objectives.clear();
     }
 }
@@ -374,8 +396,19 @@ class VirtualMinecraftRuntime {
         scoreboard: this.scoreboard,
         structureManager: {
             get: (_id: string) => undefined,
-            createFromWorld: (_id: string, _dimension: Dimension, _from: any, _to: any, _options?: any) => ({}),
-            place: (_structure: any, _dimension: Dimension, _location: any, _options?: any) => undefined,
+            createFromWorld: (
+                _id: string,
+                _dimension: Dimension,
+                _from: any,
+                _to: any,
+                _options?: any
+            ) => ({}),
+            place: (
+                _structure: any,
+                _dimension: Dimension,
+                _location: any,
+                _options?: any
+            ) => undefined,
             delete: (_id: string) => false,
         },
         getAllPlayers: () => this.getAllPlayers(),
@@ -408,7 +441,9 @@ class VirtualMinecraftRuntime {
             this.players.set(id, player);
         }
         player._setOnline(true);
-        this.afterSignals.get("playerSpawn").emit({ player, initialSpawn: true });
+        this.afterSignals
+            .get("playerSpawn")
+            .emit({ player, initialSpawn: true });
         return player;
     }
 
@@ -454,15 +489,33 @@ class VirtualMinecraftRuntime {
     }
 }
 
+function registry() {
+    return {
+        get(id: string) {
+            return { id };
+        },
+        getAll() {
+            return [];
+        },
+    };
+}
+
 export const virtualMinecraft = new VirtualMinecraftRuntime();
 export const system = virtualMinecraft.system;
 export const world = virtualMinecraft.world;
+
+export const BlockTypes = registry();
+export const ItemTypes = registry();
+export const EntityTypes = registry();
+export const EffectTypes = registry();
 
 export const EntityComponentTypes = {
     Inventory: "minecraft:inventory",
     Health: "minecraft:health",
     Equippable: "minecraft:equippable",
 } as const;
+
+export const BlockComponentTypes = {} as const;
 
 export const ItemComponentTypes = {
     Durability: "minecraft:durability",
@@ -484,11 +537,30 @@ export const GameMode = {
     Spectator: "Spectator",
 } as const;
 
-export const DisplaySlotId = { Sidebar: "Sidebar", List: "List", BelowName: "BelowName" } as const;
+export const DisplaySlotId = {
+    Sidebar: "Sidebar",
+    List: "List",
+    BelowName: "BelowName",
+} as const;
 export const ObjectiveSortOrder = { Ascending: 0, Descending: 1 } as const;
 export const StructureSaveMode = { Memory: "Memory", World: "World" } as const;
-export const CommandPermissionLevel = { Any: 0, GameDirectors: 1, Admin: 2, Host: 3, Owner: 4 } as const;
-export const CustomCommandParamType = { String: "String", Integer: "Integer", Boolean: "Boolean", PlayerSelector: "PlayerSelector" } as const;
+export const StructureRotation = {} as const;
+export const StructureMirrorAxis = {} as const;
+export const Direction = {} as const;
+export const ScoreboardIdentityType = {} as const;
+export const CommandPermissionLevel = {
+    Any: 0,
+    GameDirectors: 1,
+    Admin: 2,
+    Host: 3,
+    Owner: 4,
+} as const;
+export const CustomCommandParamType = {
+    String: "String",
+    Integer: "Integer",
+    Boolean: "Boolean",
+    PlayerSelector: "PlayerSelector",
+} as const;
 export const CustomCommandStatus = { Success: 0, Failure: 1 } as const;
 export const EntityDamageCause = {} as const;
 export const EasingType = {} as const;
