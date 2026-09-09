@@ -21,7 +21,6 @@ export function registerServerGameCommands(
     options: ServerGameCommandOptions = {}
 ) {
     customCommandRegistry.registerEnum("game:opreation", [
-        "start",
         "stop",
         "stopAll",
         "status",
