@@ -30,28 +30,48 @@ export class GameManager implements GameEngineOwner {
         this.participation = new ParticipationManager(participationPolicy);
     }
 
-    private addGame(
-        map: Map<string, GameEngine<any, any>>,
-        key: string,
-        gameInstance: GameEngine<any, any>
-    ) {
-        if (map.has(key)) {
-            throw new GameManagerError(`已存在游戏: ${key}`);
-        }
-        this.logger.log(`startedGame: ${key}`);
-        (gameInstance as any as GameEngineInternal).onStart();
-        map.set(key, gameInstance);
-    }
-
     startGame<T extends GameEngine<any, any, any>>(
         game: ManagedGameConstructor<T>,
         config?: T extends GameEngine<any, any, infer O> ? O : unknown,
         tag?: string
     ): T {
         const key = this.buildKey(game, tag);
+        if (this.games.has(key)) {
+            throw new GameManagerError(`已存在游戏: ${key}`);
+        }
+
         const gameInstance = new game(this, key, config);
-        this.addGame(this.games, key, gameInstance);
-        return gameInstance;
+        const internal = gameInstance as any as GameEngineInternal;
+
+        // 先注册再 onStart：onStart 内部 stopGame()/getGameByKey() 都能看到自己。
+        this.games.set(key, gameInstance);
+        this.logger.log(`startingGame: ${key}`);
+        try {
+            internal._onStart();
+            if (gameInstance.lifecycle !== "disposed") {
+                this.logger.log(`startedGame: ${key}`);
+            }
+            return gameInstance;
+        } catch (startError) {
+            const errors: unknown[] = [startError];
+            try {
+                internal._onDispose();
+            } catch (disposeError) {
+                errors.push(disposeError);
+            } finally {
+                if (this.games.get(key) === gameInstance) {
+                    this.games.delete(key);
+                }
+            }
+
+            if (errors.length > 1) {
+                throw new AggregateError(
+                    errors,
+                    `游戏 ${key} 启动失败且回滚异常`
+                );
+            }
+            throw startError;
+        }
     }
 
     hasGame<T extends GameEngine<any, any>>(
@@ -80,18 +100,33 @@ export class GameManager implements GameEngineOwner {
     }
 
     stopGameByKey(key: string) {
-        const gameInstance = this.games.get(key) as any as
-            | GameEngineInternal
-            | undefined;
+        const gameInstance = this.games.get(key);
         if (!gameInstance) {
             this.logger.error("StopGame失败，游戏不存在:" + key);
             return;
         }
 
-        gameInstance.onStop();
-        gameInstance.onDispose();
-        this.games.delete(key);
-        this.logger.log(`stopedGame: ${key}`);
+        const internal = gameInstance as any as GameEngineInternal;
+        const errors: unknown[] = [];
+        try {
+            internal._onStop();
+        } catch (err) {
+            errors.push(err);
+        }
+        try {
+            internal._onDispose();
+        } catch (err) {
+            errors.push(err);
+        } finally {
+            if (this.games.get(key) === gameInstance) {
+                this.games.delete(key);
+            }
+            this.logger.log(`stoppedGame: ${key}`);
+        }
+
+        if (errors.length > 0) {
+            throw new AggregateError(errors, `游戏 ${key} 停止时发生异常`);
+        }
     }
 
     /**让玩家退出其当前参加的所有普通游戏。*/
@@ -105,13 +140,17 @@ export class GameManager implements GameEngineOwner {
     }
 
     stopAll() {
-        for (const [key, game] of this.games) {
+        const errors: unknown[] = [];
+        for (const [key, game] of [...this.games]) {
             if (game.isDaemon) continue;
-            const instance = game as any as GameEngineInternal;
-            instance.onStop();
-            instance.onDispose();
-            this.logger.log(`stopedGame: ${key}`);
-            this.games.delete(key);
+            try {
+                this.stopGameByKey(key);
+            } catch (err) {
+                errors.push(err);
+            }
+        }
+        if (errors.length > 0) {
+            throw new AggregateError(errors, "停止全部游戏时发生异常");
         }
     }
 
@@ -120,11 +159,20 @@ export class GameManager implements GameEngineOwner {
      * 宿主在服务器关闭、地图重置等场景中可自行决定是否使用。
      */
     disposeAll() {
-        for (const [key, game] of this.games) {
+        const errors: unknown[] = [];
+        for (const [key, game] of [...this.games]) {
             if (game.isDaemon) continue;
-            (game as any as GameEngineInternal).onDispose();
-            this.logger.log(`disposedGame: ${key}`);
-            this.games.delete(key);
+            try {
+                (game as any as GameEngineInternal)._onDispose();
+            } catch (err) {
+                errors.push(err);
+            } finally {
+                this.games.delete(key);
+                this.logger.log(`disposedGame: ${key}`);
+            }
+        }
+        if (errors.length > 0) {
+            throw new AggregateError(errors, "释放全部游戏时发生异常");
         }
     }
 
