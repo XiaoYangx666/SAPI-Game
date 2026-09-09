@@ -23,14 +23,17 @@ export class PlayerGroupBuilder<T extends GamePlayer = GamePlayer> {
         );
     }
 
-    /** 从原生 Player 创建 PlayerGroup 并映射到 playerManager */
+    /**
+     * 从原生 Player 创建 PlayerGroup。
+     * 这些玩家必须已经属于当前游戏；该方法不会隐式创建 participation。
+     */
     fromPlayers<TData = undefined>(
         players: Player[],
         ...rest: TData extends undefined ? [] : [data: TData]
     ) {
         return new PlayerGroup(
             this.playerManager.playerConstructor,
-            players.map((p) => this.playerManager.get(p)),
+            players.map((p) => this.requirePlayer(p)),
             rest[0] as TData
         );
     }
@@ -42,12 +45,12 @@ export class PlayerGroupBuilder<T extends GamePlayer = GamePlayer> {
     ) {
         return new PlayerGroup(
             this.playerManager.playerConstructor,
-            group.getAllPlayers().map((p) => this.playerManager.get(p)),
+            group.getAllPlayers().map((p) => this.requirePlayer(p)),
             rest[0] as TData
         );
     }
 
-    /**从某个区域创建 */
+    /**从某个区域中的已参与玩家创建 */
     fromRegion<TData = unknown>(
         dim: DimensionIds,
         region: GameRegion,
@@ -59,20 +62,32 @@ export class PlayerGroupBuilder<T extends GamePlayer = GamePlayer> {
             .filter((p) => p != undefined);
         return new PlayerGroup(
             this.playerManager.playerConstructor,
-            players.map((p) => this.playerManager.get(p)),
+            players.map((p) => this.requirePlayer(p)),
             rest[0] as TData
         );
     }
 
-    /**从所有玩家创建 */
+    /**从所有已参与且在线的玩家创建 */
     fromAll<TData = unknown>(
         ...rest: TData extends undefined ? [] : [data: TData]
     ) {
         const players = world.getAllPlayers().filter((p) => p != undefined);
         return new PlayerGroup(
             this.playerManager.playerConstructor,
-            players.map((p) => this.playerManager.get(p)),
+            players
+                .map((p) => this.playerManager.get(p))
+                .filter((p): p is T => p !== undefined),
             rest[0] as TData
         );
+    }
+
+    private requirePlayer(player: Player): T {
+        const gamePlayer = this.playerManager.get(player);
+        if (!gamePlayer) {
+            throw new Error(
+                `玩家 ${player.name} (${player.id}) 尚未加入当前游戏`
+            );
+        }
+        return gamePlayer;
     }
 }
