@@ -1,0 +1,65 @@
+{
+    "name": "@begame/core",
+    "version": "0.0.2",
+    "description": "Minecraft Bedrock game lifecycle framework",
+    "type": "module",
+    "main": "./dist/main.js",
+    "types": "./dist/main.d.ts",
+    "files": ["dist"],
+    "exports": {
+        ".": {
+            "types": "./dist/main.d.ts",
+            "import": "./dist/main.js"
+        },
+        "./server": {
+            "types": "./dist/server/index.d.ts",
+            "import": "./dist/server/index.js"
+        },
+        "./participation": {
+            "types": "./dist/participation/participationManager.d.ts",
+            "import": "./dist/participation/participationManager.js"
+        },
+        "./gameComponent": {
+            "types": "./dist/gameComponent/index.d.ts",
+            "import": "./dist/gameComponent/index.js"
+        },
+        "./gameEvent": {
+            "types": "./dist/gameEvent/index.d.ts",
+            "import": "./dist/gameEvent/index.js"
+        },
+        "./gamePlayer": {
+            "types": "./dist/gamePlayer/index.d.ts",
+            "import": "./dist/gamePlayer/index.js"
+        },
+        "./gameRegion": {
+            "types": "./dist/gameRegion/index.d.ts",
+            "import": "./dist/gameRegion/index.js"
+        },
+        "./gameState": {
+            "types": "./dist/gameState/index.d.ts",
+            "import": "./dist/gameState/index.js"
+        },
+        "./utils": {
+            "types": "./dist/utils/index.d.ts",
+            "import": "./dist/utils/index.js"
+        },
+        "./gameStructure": {
+            "types": "./dist/gameStructure/gameStructure.d.ts",
+            "import": "./dist/gameStructure/gameStructure.js"
+        },
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.js"
+        }
+    },
+    "peerDependencies": {
+        "@minecraft/server": ">=2.3.0 <3.0.0",
+        "@minecraft/server-ui": ">=2.0.0 <3.0.0"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/XiaoYangx666/SAPI-Game.git"
+    },
+    "keywords": ["minecraft", "bedrock", "scriptapi", "minigame", "game-framework"]
+}
