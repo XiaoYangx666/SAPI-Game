@@ -119,30 +119,6 @@ export class GamePlayer {
     }
 }
 
-/**
- * 带寿命的旧式玩家类型。
- * 新代码更推荐由游戏/组件自行决定掉线宽限策略；该类型继续保留供现有小游戏使用。
- */
-export class TTLPlayer extends GamePlayer {
-    /**初始TTL，可override */
-    readonly initialTTL: number = 30;
-    private _ttl: number = this.initialTTL;
-
-    /**剩余寿命 */
-    set ttl(value: number) {
-        this._ttl = this.isActive ? value : 0;
-    }
-
-    /**获取玩家剩余存活时间 */
-    get ttl() {
-        return this._ttl;
-    }
-
-    override get isValid(): Readonly<boolean> {
-        return super.isValid && this.ttl > 0;
-    }
-}
-
 export type ValidGamePlayer<T extends GamePlayer> = T & { player: Player };
 
 export type GamePlayerConstructor<T extends GamePlayer = GamePlayer> = new (
