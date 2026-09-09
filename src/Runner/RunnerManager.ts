@@ -60,7 +60,10 @@ export class RunnerManager {
         const runId = system.runJob(wrapped.gen);
 
         this.runners.set(id, { runId });
-        return { id, promise: wrapped.promise };
+        const promise = wrapped.promise.finally(() => {
+            this.runners.delete(id);
+        });
+        return { id, promise };
     }
 
     /**取消指定 runner 或 job */
