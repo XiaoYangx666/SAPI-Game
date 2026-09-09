@@ -1,6 +1,5 @@
-import { Game } from "../main";
-import type { GameEngine } from "../gameEngine";
-import type { ManagedGameConstructor } from "../system/gameManager";
+import { Game } from "@begame/core";
+import type { GameEngine, ManagedGameConstructor } from "@begame/core";
 import { virtualMinecraft, Player } from "./virtualMinecraft";
 import { virtualMinecraftUi } from "./virtualMinecraftUi";
 
@@ -22,13 +21,8 @@ export interface ReloadScenario<TSnapshot, TResult> {
     restore: (snapshot: TSnapshot) => TResult | Promise<TResult>;
 }
 
-/**
- * Node 环境下的 SAPIGame 无头测试驱动。
- *
- * 使用时必须先加载 `sapi-game/testing/register`，让 @minecraft/server 指向
- * virtualMinecraft。测试驱动本身调用的仍然是真实 GameManager/GameEngine。
- */
-export class SAPIGameTestEngine {
+/** Node 环境下的 BEGame 无头生命周期测试驱动。 */
+export class BEGameTestEngine {
     readonly trace: TestTraceEntry[] = [];
 
     get tick() {
@@ -102,15 +96,6 @@ export class SAPIGameTestEngine {
         virtualMinecraftUi.queueResponse(response);
     }
 
-    /**
-     * 模拟 Script reload：
-     * 1. 先由游戏导出权威 snapshot；
-     * 2. 静默销毁全部 Game/State/Component/Runner/Participation（包括 daemon）；
-     * 3. 清空虚拟 ScriptAPI 的订阅和调度任务，但保留世界与在线玩家；
-     * 4. 调用 restore 创建新的游戏运行时对象。
-     *
-     * SAPIGame 不序列化 State 栈；恢复内容由具体游戏 snapshot 决定。
-     */
     async reload<TSnapshot, TResult>(
         scenario: ReloadScenario<TSnapshot, TResult>
     ): Promise<TResult> {
@@ -122,7 +107,6 @@ export class SAPIGameTestEngine {
         return await scenario.restore(snapshot);
     }
 
-    /**清空所有游戏、脚本资源和虚拟世界，用于测试用例之间完全隔离。*/
     reset() {
         this.manager.disposeAll({ includeDaemon: true });
         virtualMinecraft.resetWorld();
@@ -135,3 +119,6 @@ export class SAPIGameTestEngine {
         this.trace.push({ tick: this.tick, type, ...(detail ? { detail } : {}) });
     }
 }
+
+/** @deprecated 使用 BEGameTestEngine。 */
+export const SAPIGameTestEngine = BEGameTestEngine;
