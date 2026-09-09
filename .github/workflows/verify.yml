@@ -5,8 +5,7 @@ on:
     branches:
       - master
       - feat/ddz-support
-      - experiment/runtime-host
-      - experiment/test-engine
+      - next
   pull_request:
     branches:
       - master
