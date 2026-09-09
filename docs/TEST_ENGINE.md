@@ -1,41 +1,50 @@
-# SAPIGame 无头测试引擎
+# BEGame 无头测试引擎
 
-`experiment/test-engine` 引入了一套可以在 **Node.js 中直接运行真实 SAPIGame 游戏代码** 的测试环境，用于在不启动 Minecraft Bedrock 的情况下回归游戏生命周期。
+`@begame/test` 用于在 **不启动 Minecraft Bedrock** 的情况下测试 BEGame 游戏的完整运行时生命周期。
 
-## 目标
+它的职责是验证：
 
-测试引擎主要验证：
+- GameEngine 从创建到销毁；
+- GameState push / pop / reset / replace 与 `onEnter/onExit`；
+- GameComponent `onAttach/onDetach`；
+- EventManager / RunnerManager 是否随 State 正确清理；
+- Participation / GamePlayer 加入、退出与在线状态；
+- 玩家掉线、重连和超时；
+- Script reload 后根据游戏自己的 snapshot 重建运行时；
+- 生命周期异常时 rollback 和资源释放。
 
-- Game `created -> starting -> running -> stopping -> disposed` 生命周期；
-- GameState 的 push / pop / reset / replace 与 `onEnter/onExit`；
-- GameComponent 的 `onAttach/onDetach`；
-- EventManager / RunnerManager 在 State 退出时是否正确清理；
-- Participation / GamePlayer 的加入、退出与在线状态；
-- 玩家掉线、重连、掉线超时；
-- Script reload 后由游戏自己的 snapshot 重建运行时；
-- 生命周期异常时的 rollback 与资源释放。
+它**不模拟** Minecraft 物理、红石、寻路、渲染、真实区块加载或客户端 UI。
 
-它的目标不是模拟 Minecraft 的完整物理、渲染、红石或实体 AI，而是提供 **确定性的 ScriptAPI 宿主**，让游戏状态机和 SAPIGame 生命周期可以在 CI 中快速运行。
-
-## Vitest
-
-SAPIGame 使用 **Vitest** 作为测试运行器和断言框架：
+## 安装
 
 ```bash
-npm test
-npm run test:unit
-npm run test:headless
-npm run test:watch
+npm i @begame/core
+npm i -D @begame/test vitest
 ```
 
-`vitest.config.ts` 会把：
+## Vitest 配置
+
+```ts
+// vitest.config.ts
+import { defineBEGameTestConfig } from "@begame/test/vitest";
+
+export default defineBEGameTestConfig({
+    test: {
+        include: ["tests/**/*.test.ts"],
+    },
+});
+```
+
+`defineBEGameTestConfig()` 会自动把：
 
 ```text
 @minecraft/server
 @minecraft/server-ui
 ```
 
-重定向到 SAPIGame 自带的虚拟 ScriptAPI 实现。因此测试加载的仍然是真实生产构建中的：
+重定向到 `@begame/test` 提供的虚拟 ScriptAPI runtime。
+
+因此测试执行的仍然是实际 `@begame/core` 中的：
 
 ```text
 GameManager
@@ -49,82 +58,72 @@ RunnerManager
 DisconnectTimeoutComponent
 ```
 
-而不是另外复制的一套 Fake GameEngine。
+而不是另一套 Fake GameEngine。
 
-`testing/register` 仍然保留，供不通过 Vitest、但希望在普通 Node 进程中加载虚拟 ScriptAPI 的外部测试场景使用。
-
-## 基本示例
+## 基本用法
 
 ```ts
 import { expect, test } from "vitest";
-import { SAPIGameTestEngine } from "sapi-game/testing";
-import { MyGame } from "../src/MyGame.js";
+import { BEGameTestEngine } from "@begame/test";
+import { MyGame } from "../src/MyGame";
+
+const env = new BEGameTestEngine();
 
 test("完整生命周期", async () => {
-    const env = new SAPIGameTestEngine();
     env.reset();
 
     const alice = env.connectPlayer("alice", "Alice");
-    const game = env.startGame(MyGame, {
-        players: [alice],
-    });
+    const game = env.startGame(MyGame, { player: alice });
 
     await env.advanceTicks(20);
 
     env.disconnectPlayer("alice");
-    await env.advanceTicks(600);
+    await env.advanceTicks(10);
+    env.connectPlayer("alice");
 
-    expect(game.lifecycle).toBe("disposed");
+    expect(game.lifecycle).toBe("running");
 });
 ```
 
-`advanceTicks()` 是确定性的虚拟时间推进。推进 600 tick 不会真的等待 30 秒。
+`advanceTicks()` 使用确定性的虚拟 tick。推进 600 tick 不需要真的等待 30 秒。
 
-## 玩家掉线与重连
+## 玩家连接模型
 
 虚拟玩家按 `playerId` 保持稳定 wrapper：
 
 ```ts
 const before = env.connectPlayer("alice");
-
 env.disconnectPlayer("alice");
-await env.advanceTicks(10);
-
 const after = env.connectPlayer("alice");
 
 expect(after).toBe(before);
 ```
 
-这与 SAPIGame 当前的玩家模型一致：
-
-- `GamePlayer.isOnline` 反映 ScriptAPI Player 当前是否有效；
-- 掉线本身不释放 Participation；
-- 是否在超时后 leave，由游戏挂载的 `DisconnectTimeoutComponent` 等策略决定。
+掉线只影响在线状态，不会自动释放 Participation。是否超时 leave 由游戏自己的策略（例如 `DisconnectTimeoutComponent`）决定。
 
 ## Script reload
 
-SAPIGame 不序列化 State 栈。游戏自己的 MatchState / GameSnapshot 才应该是权威状态。
-
-测试引擎通过：
+BEGame 不序列化 State 栈。具体游戏自己的 MatchState / GameSnapshot 才应该是权威状态。
 
 ```ts
-const restoredGame = await env.reload({
+const restored = await env.reload({
     snapshot: () => game.snapshot(),
     restore: (snapshot) => restoreGame(snapshot),
 });
 ```
 
-模拟一次脚本重载：
+`reload()` 会：
 
-1. 获取游戏权威 snapshot；
-2. 静默 dispose 所有 Game（包括 daemon），不调用正常 `onStop()`；
-3. 清空 State / Component / Event / Runner 以及虚拟 ScriptAPI 的订阅和调度任务；
-4. 保留虚拟世界和当前在线 Player wrapper；
-5. 调用游戏提供的 `restore()` 创建新的运行时对象。
+1. 获取游戏 snapshot；
+2. 静默 dispose 所有 Game，包括 daemon；
+3. 销毁 State / Component / Event / Runner / Participation；
+4. 清空虚拟 ScriptAPI 的订阅和调度任务；
+5. 保留虚拟世界与当前在线 Player wrapper；
+6. 调用 `restore(snapshot)` 创建新的游戏运行时。
 
-这可以验证“状态事实能否从 snapshot 恢复”，但不会重新加载当前 Node 进程里的 ESM 模块本身。因此如果游戏把重要可变状态放在模块级全局变量里，这类状态不应该被视为可恢复的权威状态。
+它不会真正重新加载 Node ESM 模块，所以模块级可变全局变量不应被当作可恢复的权威游戏状态。
 
-## TestEngine API
+## API
 
 ```ts
 env.connectPlayer(id, name?)
@@ -147,40 +146,26 @@ env.reload({ snapshot, restore })
 env.reset()
 ```
 
-`env.trace` 还会记录测试驱动侧的重要操作（connect / disconnect / advance / start-game / stop-game / reload）。具体游戏可以在自己的 Context 中增加更细的 trace，用于断言生命周期顺序。
+`env.trace` 记录测试驱动侧的 connect / disconnect / advance / start-game / stop-game / reload / reset。具体游戏可以在自己的 Context 中记录更细粒度生命周期 trace。
 
-## 虚拟 ScriptAPI 的边界
+## 普通 Node 环境
 
-目前虚拟实现重点覆盖 SAPIGame 自身和典型小游戏流程需要的接口：
+不使用 Vitest 时，也可以预加载：
 
-- `system.run/runTimeout/runInterval/waitTicks/runJob`；
-- world / system event signal；
-- Player 在线状态、消息、命令、效果、基础 inventory；
-- Dimension / Block / Entity 的基础占位行为；
-- scoreboard；
-- forms response queue；
-- 常用 ScriptAPI enums / registries。
+```bash
+node --import @begame/test/register your-test.js
+```
 
-以下内容不应依赖无头测试给出 Minecraft 级正确性保证：
+`@begame/test/register` 会在 Node 模块解析阶段重定向 Minecraft ScriptAPI。
 
-- 实体物理与碰撞；
-- 红石；
-- 区块真实加载行为；
-- 游戏原生寻路；
-- 方块更新链；
-- 客户端渲染/UI 表现；
-- Minecraft 引擎自身的边缘行为。
-
-这些仍需要少量真实游戏内集成测试。
-
-## 推荐的测试层级
+## 推荐测试层级
 
 ```text
 纯游戏 Core 测试
     ↓
-SAPIGame Headless Test Engine + Vitest
+@begame/test Headless lifecycle tests
     ↓
-少量 Minecraft 真机/专服集成测试
+少量 Minecraft 真机 / 专服集成测试
 ```
 
-大多数状态机、回合流程、掉线、超时、重载和资源清理问题应该在第二层就被 CI 捕获，减少每次都进入游戏人工测试的成本。
+目标是让绝大多数生命周期、状态切换、玩家进入退出、掉线、重载和资源泄漏问题在 CI 中直接暴露。
