@@ -4,40 +4,52 @@ import { Duration } from "../../utils/duration";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
 
-interface intervalEventData {
+interface IntervalEventData {
     callback: () => void;
     interval: number;
     tickCount: number;
 }
 
-/** 间隔时间事件 */
+/**按需运行的间隔时间事件。没有订阅者时不会保留 Minecraft interval。*/
 export class IntervalEventSignal implements CustomEventSignal<void> {
     private intervalId: number | null = null;
-    private items = new Set<intervalEventData>();
-    private logger = new Logger(this.constructor.name);
+    private readonly items = new Set<IntervalEventData>();
+    private readonly logger = new Logger(this.constructor.name);
 
     subscribe(callback: () => void, interval?: Duration): Subscription {
-        //启动interval
-        if (!this.intervalId) this.start();
-        //添加到set
-        const data: intervalEventData = {
-            callback: callback,
-            interval: interval?.ticks ?? 0,
-            tickCount: interval?.ticks ?? 1,
+        const ticks = Math.max(1, interval?.ticks ?? 1);
+        const data: IntervalEventData = {
+            callback,
+            interval: ticks,
+            tickCount: ticks,
         };
         this.items.add(data);
-        //返回取消订阅方法
+        if (this.intervalId === null) this.start();
+
+        let unsubscribed = false;
         return {
-            unsubscribe: () => this.items.delete(data),
+            unsubscribe: () => {
+                if (unsubscribed) return;
+                unsubscribed = true;
+                this.items.delete(data);
+                if (this.items.size === 0) this.stop();
+            },
         };
     }
 
     private start() {
+        if (this.intervalId !== null) return;
         this.intervalId = system.runInterval(() => this.tick());
     }
 
+    private stop() {
+        if (this.intervalId === null) return;
+        system.clearRun(this.intervalId);
+        this.intervalId = null;
+    }
+
     private tick() {
-        for (const item of this.items) {
+        for (const item of [...this.items]) {
             item.tickCount--;
             if (item.tickCount <= 0) {
                 try {
@@ -51,9 +63,7 @@ export class IntervalEventSignal implements CustomEventSignal<void> {
     }
 
     dispose() {
-        if (this.intervalId !== null) {
-            this.items.clear();
-            system.clearRun(this.intervalId);
-        }
+        this.items.clear();
+        this.stop();
     }
 }
