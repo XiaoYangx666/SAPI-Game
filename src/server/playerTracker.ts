@@ -1,4 +1,9 @@
-import { Player, system, world } from "@minecraft/server";
+import { Player, world } from "@minecraft/server";
+import {
+    PlayerConnectionEventSignal,
+    type PlayerConnectionEvent,
+} from "../gameEvent/events/playerConnection";
+import type { Subscription } from "../gameEvent/subscription";
 import { GameManager } from "../system/gameManager";
 
 export interface ServerPlayerTrackerOptions {
@@ -8,38 +13,39 @@ export interface ServerPlayerTrackerOptions {
 /**
  * 小游戏服务器/地图层的在线玩家追踪。
  *
- * 它不保存游戏 membership；“玩家正在参加哪些游戏”只由
- * GameManager.participation 维护。
+ * 启动时只扫描一次当前在线玩家，之后复用 SAPIGame 的连接事件；
+ * 它不保存游戏 membership。
  */
 export class ServerPlayerTracker {
     private onlineIds = new Set<string>();
-    private bootstrapRun?: number;
-    private intervalRun?: number;
+    private connectionSubscription?: Subscription;
     private started = false;
 
     constructor(
         private readonly games: GameManager,
+        private readonly connection: PlayerConnectionEventSignal,
         private readonly options: ServerPlayerTrackerOptions = {}
     ) {}
 
     start() {
         if (this.started) return this;
         this.started = true;
-        this.bootstrapRun = system.run(() => {
-            if (!this.started) return;
-            this.scan();
-            this.intervalRun = system.runInterval(() => this.scan());
-        });
+
+        // 先订阅再扫描，避免启动窗口内刚好有玩家进入时漏事件。
+        this.connectionSubscription = this.connection.subscribe((event) =>
+            this.handleConnection(event)
+        );
+        for (const player of world.getAllPlayers()) {
+            this.handleOnline(player);
+        }
         return this;
     }
 
     stop() {
         if (!this.started) return;
         this.started = false;
-        if (this.bootstrapRun !== undefined) system.clearRun(this.bootstrapRun);
-        if (this.intervalRun !== undefined) system.clearRun(this.intervalRun);
-        this.bootstrapRun = undefined;
-        this.intervalRun = undefined;
+        this.connectionSubscription?.unsubscribe();
+        this.connectionSubscription = undefined;
         this.onlineIds.clear();
     }
 
@@ -57,17 +63,18 @@ export class ServerPlayerTracker {
         return `在线: ${online.length}, 参与游戏: ${participating}, 空闲: ${online.length - participating}`;
     }
 
-    private scan() {
-        const players = world.getAllPlayers();
-        const nextOnlineIds = new Set<string>();
-
-        for (const player of players) {
-            nextOnlineIds.add(player.id);
-            if (!this.onlineIds.has(player.id)) {
-                this.options.onJoin?.(player);
-            }
+    private handleConnection(event: PlayerConnectionEvent) {
+        if (!this.started) return;
+        if (event.type === "online") {
+            this.handleOnline(event.player);
+        } else {
+            this.onlineIds.delete(event.playerId);
         }
+    }
 
-        this.onlineIds = nextOnlineIds;
+    private handleOnline(player: Player) {
+        if (this.onlineIds.has(player.id)) return;
+        this.onlineIds.add(player.id);
+        this.options.onJoin?.(player);
     }
 }
