@@ -21,7 +21,7 @@ const input = Object.fromEntries(
 export default defineConfig({
     input,
 
-    external: ["@minecraft/server", "@minecraft/server-ui"],
+    external: ["@minecraft/server", "@minecraft/server-ui", "node:module"],
 
     output: {
         dir: "dist",
