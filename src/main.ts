@@ -11,14 +11,11 @@ export interface SAPIGameInitOptions extends SAPIGameConfigOptions {
     participationPolicy?: ParticipationPolicy;
 }
 
+export type BEGameInitOptions = SAPIGameInitOptions;
+
 const manager = new GameManager();
 
-/**
- * SAPIGame 核心全局入口。
- *
- * 这里只包含游戏本身需要的能力；Hub、全服玩家追踪、管理命令等
- * 服务器级能力需要显式启用 `sapi-game/server`。
- */
+/** BEGame 核心全局入口。服务器级能力需要显式启用 `@begame/core/server`。 */
 export const Game = {
     events: new gameEvents(),
     manager,
@@ -27,17 +24,18 @@ export const Game = {
     config: SAPIGameConfig,
 } as const;
 
-/**初始化 SAPIGame 核心。该函数本身不会注册服务器命令或玩家轮询。*/
-export function initSAPIGame(options: SAPIGameInitOptions = {}) {
+/** 初始化 BEGame Core；不会注册服务器命令或玩家轮询。 */
+export function initBEGame(options: BEGameInitOptions = {}) {
     const { participationPolicy, ...config } = options;
     SAPIGameConfig.update(config);
-    if (participationPolicy) {
-        manager.participation.setPolicy(participationPolicy);
-    }
+    if (participationPolicy) manager.participation.setPolicy(participationPolicy);
 }
 
-export * from "@sapi-game/gameRegion/index";
-export * as Utils from "@sapi-game/utils";
+/** @deprecated 使用 initBEGame。 */
+export const initSAPIGame = initBEGame;
+
+export * from "./gameRegion/index";
+export * as Utils from "./utils/index";
 export * from "./gameComponent/index";
 export * from "./gameState/index";
 export * from "./gamePlayer/index";
