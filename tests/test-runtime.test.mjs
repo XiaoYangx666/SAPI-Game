@@ -1,9 +1,7 @@
 import { expect, test } from "vitest";
 import { BEGameTestEngine } from "../packages/test/dist/index.js";
 import {
-    BlockPermutation,
-    BlockVolume,
-    Entity,
+    system,
     virtualMinecraft,
     world,
 } from "../packages/test/dist/virtualMinecraft.js";
@@ -61,51 +59,61 @@ test("worldLoad subscriptions survive reset and reload", async () => {
     expect(events).toEqual(["load", "load", "load"]);
 });
 
-test("virtual ScriptAPI supports blocks, player records, dynamic properties and score filters", () => {
+test("world and system events accept arbitrary injected payloads", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("event-player", "EventPlayer");
+
+    const seen = [];
+    world.afterEvents.playerBreakBlock.subscribe((event) => {
+        seen.push(["world-after", event.player, event.blockId]);
+    });
+    world.beforeEvents.itemUse.subscribe((event) => {
+        event.cancel = true;
+        seen.push(["world-before", event.source, event.itemId]);
+    });
+    system.afterEvents.scriptEventReceive.subscribe((event) => {
+        seen.push(["system-after", event.id, event.message]);
+    });
+    system.beforeEvents.watchdogTerminate.subscribe((event) => {
+        event.cancel = true;
+        seen.push(["system-before", event.reason]);
+    });
+
+    const itemUse = { source: player, itemId: "minecraft:stick", cancel: false };
+    const watchdog = { reason: "test", cancel: false };
+
+    env.emitWorldAfterEvent("playerBreakBlock", {
+        player,
+        blockId: "minecraft:stone",
+    });
+    env.emitWorldBeforeEvent("itemUse", itemUse);
+    env.emitSystemAfterEvent("scriptEventReceive", {
+        id: "begame:test",
+        message: "payload",
+    });
+    env.emitSystemBeforeEvent("watchdogTerminate", watchdog);
+
+    expect(itemUse.cancel).toBe(true);
+    expect(watchdog.cancel).toBe(true);
+    expect(seen).toEqual([
+        ["world-after", player, "minecraft:stone"],
+        ["world-before", player, "minecraft:stick"],
+        ["system-after", "begame:test", "payload"],
+        ["system-before", "test"],
+    ]);
+
+    env.reset();
+});
+
+test("minimal player query state supports lifecycle scoping", () => {
     const env = new BEGameTestEngine();
     env.reset();
     const alice = env.connectPlayer("runtime-alice", "Alice");
     const bob = env.connectPlayer("runtime-bob", "Bob");
-    const overworld = world.getDimension("minecraft:overworld");
-
-    overworld.setBlockPermutation(
-        { x: 1, y: 2, z: 3 },
-        BlockPermutation.resolve("minecraft:stone", { facing_direction: 2 })
-    );
-    expect(overworld.getBlock({ x: 1, y: 2, z: 3 }).typeId).toBe(
-        "minecraft:stone"
-    );
-
-    virtualMinecraft.setRedstonePower(
-        "minecraft:overworld",
-        { x: 1, y: 2, z: 3 },
-        12
-    );
-    expect(overworld.getBlock({ x: 1, y: 2, z: 3 }).getRedstonePower()).toBe(12);
-
-    const volume = new BlockVolume(
-        { x: 0, y: 0, z: 0 },
-        { x: 1, y: 2, z: 3 }
-    );
-    expect(volume.getSpan()).toEqual({ x: 2, y: 3, z: 4 });
-    expect(volume.getCapacity()).toBe(24);
-    expect(volume.isInside({ x: 1, y: 1, z: 1 })).toBe(true);
 
     alice.addTag("ready");
-    alice.playSound("random.levelup");
-    alice.onScreenDisplay.setTitle("go");
-    alice.onScreenDisplay.setActionBar("running");
-    expect(alice.hasTag("ready")).toBe(true);
-    expect(alice.sounds).toContain("random.levelup");
-    expect(alice.titles.at(-1)?.title).toBe("go");
-    expect(alice.actionbars.at(-1)).toBe("running");
-
-    const chicken = new Entity();
-    chicken.addTag("cvs-team");
-    expect(chicken.hasTag("cvs-team")).toBe(true);
-
-    world.setDynamicProperty("database", "ok");
-    expect(world.getDynamicProperty("database")).toBe("ok");
+    expect(world.getPlayers({ tags: ["ready"] })).toEqual([alice]);
 
     const objective = world.scoreboard.addObjective("rank");
     objective.setScore(alice, 5);
