@@ -7,7 +7,6 @@ on:
       - feat/ddz-support
       - experiment/runtime-host
       - experiment/test-engine
-      - work/begame-packages
   pull_request:
     branches:
       - master
