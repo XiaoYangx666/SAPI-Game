@@ -2,6 +2,7 @@ export * from "./view/infoScoreboard";
 export * from "./common/lazyLoader";
 export * from "./common/timer/timer";
 export * from "./common/stopWatch/stopWatch";
+export * from "./common/disconnectTimeout";
 export { GameComponent } from "./gameComponent";
 export * from "./player/blockInteractionBlocker";
 export * from "./player/entityInteractionBlocker";
