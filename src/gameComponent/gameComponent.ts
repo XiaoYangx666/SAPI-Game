@@ -30,11 +30,16 @@ export abstract class GameComponent<
     }
 
     private _onAttach() {
+        if (this._isAttached) return;
+        this._isAttached = true;
         try {
-            this._isAttached = true;
             this.onAttach();
         } catch (err) {
-            this._isAttached = false;
+            try {
+                this.state.eventManager.unsubscribeBySubscriber(this);
+            } finally {
+                this._isAttached = false;
+            }
             throw err;
         }
     }
@@ -42,9 +47,24 @@ export abstract class GameComponent<
     protected abstract onAttach(): void;
 
     private _onDetach() {
-        this.state.eventManager.unsubscribeBySubscriber(this);
-        this.onDetach();
-        this._isAttached = false;
+        if (!this._isAttached) return;
+        const errors: unknown[] = [];
+        try {
+            this.state.eventManager.unsubscribeBySubscriber(this);
+        } catch (err) {
+            errors.push(err);
+        }
+        try {
+            this.onDetach();
+        } catch (err) {
+            errors.push(err);
+        } finally {
+            this._isAttached = false;
+        }
+
+        if (errors.length > 0) {
+            throw new AggregateError(errors, `组件 ${this.constructor.name} 卸载失败`);
+        }
     }
 
     /**随便重写 */
