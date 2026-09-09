@@ -22,6 +22,6 @@
             "@sapi-game/*": ["./src/*"]
         }
     },
-    "include": ["./src", "./vitest.config.ts"],
+    "include": ["./src"],
     "compileOnSave": false
 }
