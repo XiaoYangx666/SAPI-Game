@@ -78,6 +78,11 @@ export abstract class GameState<
         return this.engine.key;
     }
 
+    /**停止当前游戏实例。主要供长期 State/Component 生命周期策略调用。*/
+    stopGame() {
+        this.engine.stopGame();
+    }
+
     /**获取子状态 */
     get nextState() {
         return this.engine.getNextState(this);
