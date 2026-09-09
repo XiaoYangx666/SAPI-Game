@@ -9,19 +9,17 @@ export default defineConfig({
         alias: [
             {
                 find: /^@minecraft\/server$/,
-                replacement: path.resolve(root, "dist/testing/virtualMinecraft.js"),
+                replacement: path.resolve(root, "packages/test/dist/virtualMinecraft.js"),
             },
             {
                 find: /^@minecraft\/server-ui$/,
-                replacement: path.resolve(root, "dist/testing/virtualMinecraftUi.js"),
+                replacement: path.resolve(root, "packages/test/dist/virtualMinecraftUi.js"),
             },
         ],
     },
     test: {
         environment: "node",
         include: ["tests/**/*.test.mjs"],
-        sequence: {
-            concurrent: false,
-        },
+        sequence: { concurrent: false },
     },
 });
