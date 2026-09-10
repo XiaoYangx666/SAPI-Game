@@ -15,9 +15,26 @@ export interface BeginTraceSessionOptions {
     readonly packVersion?: string;
 }
 
+export interface TraceConnectionEvent {
+    readonly type: "online" | "offline";
+    readonly playerId: string;
+    readonly playerName?: string;
+}
+
+export interface TraceConnectionSubscription {
+    unsubscribe(): void;
+}
+
+export interface TraceConnectionSource {
+    subscribe(callback: (event: TraceConnectionEvent) => void): TraceConnectionSubscription;
+}
+
 export class TraceManager {
     private sink?: TraceSink;
+    private connectionSource?: TraceConnectionSource;
+    private connectionSubscription?: TraceConnectionSubscription;
     private readonly sessions = new Map<string, TraceSession>();
+    private readonly completedSessions = new Set<TraceSession>();
     private sessionCounter = 0;
 
     constructor(
@@ -27,6 +44,15 @@ export class TraceManager {
 
     setSink(sink?: TraceSink) {
         this.sink = sink;
+        this.refreshConnectionSubscription();
+    }
+
+    bindConnectionSource(source?: TraceConnectionSource) {
+        if (this.connectionSource === source) return;
+        this.connectionSubscription?.unsubscribe();
+        this.connectionSubscription = undefined;
+        this.connectionSource = source;
+        this.refreshConnectionSubscription();
     }
 
     get enabled() {
@@ -43,6 +69,8 @@ export class TraceManager {
         const startTick = this.safeTick();
         const sessionId = this.buildSessionId(startTick);
         const initialConfig = snapshotTraceValue(options.initialConfig);
+        const begameVersion = options.begameVersion ?? this.options.begameVersion;
+        const packVersion = options.packVersion ?? this.options.packVersion;
         const session = new TraceSession(
             {
                 sessionId,
@@ -51,19 +79,16 @@ export class TraceManager {
                 gameInstanceId: sessionId,
                 startTick,
                 startWallTime: Date.now(),
-                ...(options.begameVersion ?? this.options.begameVersion
-                    ? { begameVersion: options.begameVersion ?? this.options.begameVersion }
-                    : {}),
-                ...(options.packVersion ?? this.options.packVersion
-                    ? { packVersion: options.packVersion ?? this.options.packVersion }
-                    : {}),
-                ...(initialConfig !== null ? { initialConfig } : {}),
+                ...(begameVersion === undefined ? {} : { begameVersion }),
+                ...(packVersion === undefined ? {} : { packVersion }),
+                ...(initialConfig === null ? {} : { initialConfig }),
             },
             this.tick,
             this.sink,
             this.options
         );
         this.sessions.set(options.gameKey, session);
+        this.refreshConnectionSubscription();
         return session;
     }
 
@@ -85,11 +110,35 @@ export class TraceManager {
         const session = this.sessions.get(gameKey);
         if (!session) return undefined;
         this.sessions.delete(gameKey);
-        return session.end(status, reason, this.safeTick());
+        const end = session.end(status, reason, this.safeTick());
+        this.completedSessions.add(session);
+        this.refreshConnectionSubscription();
+        return end;
     }
 
     async settled() {
-        await Promise.all([...this.sessions.values()].map((session) => session.settled()));
+        await Promise.all(
+            [...this.sessions.values(), ...this.completedSessions].map((session) =>
+                session.settled()
+            )
+        );
+        this.completedSessions.clear();
+    }
+
+    private refreshConnectionSubscription() {
+        const shouldSubscribe = this.sink !== undefined && this.sessions.size > 0;
+        if (shouldSubscribe && !this.connectionSubscription && this.connectionSource) {
+            this.connectionSubscription = this.connectionSource.subscribe((event) =>
+                this.noteConnection(
+                    event.playerId,
+                    event.playerName,
+                    event.type === "online"
+                )
+            );
+        } else if (!shouldSubscribe && this.connectionSubscription) {
+            this.connectionSubscription.unsubscribe();
+            this.connectionSubscription = undefined;
+        }
     }
 
     private buildSessionId(tick: number) {
