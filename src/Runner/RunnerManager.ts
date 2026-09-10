@@ -1,5 +1,7 @@
 import { system } from "@minecraft/server";
 import { Logger } from "@sapi-game/utils";
+import { traceError, type TraceScope } from "../trace/session";
+import { BuiltinTraceEventType } from "../trace/types";
 import { ScriptRunner } from "./scriptRunner";
 
 export class RunnerManager {
@@ -7,7 +9,10 @@ export class RunnerManager {
     private idCounter = 0;
     private readonly logger: Logger;
 
-    constructor(stateName: string) {
+    constructor(
+        stateName: string,
+        private readonly trace?: TraceScope
+    ) {
         this.logger = new Logger(stateName + "-runner");
     }
 
@@ -27,6 +32,10 @@ export class RunnerManager {
         const { id, runner } = this.new();
 
         runner.run(script).catch((e) => {
+            this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
+                runnerId: id,
+                error: traceError(e),
+            });
             this.logger.error(`runner ${id} 出错了:`, e);
         });
         return id;
@@ -44,6 +53,10 @@ export class RunnerManager {
                 await script(r);
             })
             .catch((e) => {
+                this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
+                    runnerId: id,
+                    error: traceError(e),
+                });
                 this.logger.error(`runner ${id} 出错了:`, e);
             });
 
@@ -60,14 +73,22 @@ export class RunnerManager {
         const runId = system.runJob(wrapped.gen);
 
         this.runners.set(id, { runId });
-        const promise = wrapped.promise.finally(() => {
-            this.runners.delete(id);
-        });
+        const promise = wrapped.promise
+            .catch((error) => {
+                this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
+                    runnerId: id,
+                    error: traceError(error),
+                });
+                throw error;
+            })
+            .finally(() => {
+                this.runners.delete(id);
+            });
         return { id, promise };
     }
 
     /**取消指定 runner 或 job */
-    cancel(id: string): boolean {
+    cancel(id: string, reason = "cancel"): boolean {
         const entry = this.runners.get(id);
         if (!entry) return false;
 
@@ -78,17 +99,25 @@ export class RunnerManager {
         }
 
         this.runners.delete(id);
+        this.trace?.builtin(BuiltinTraceEventType.RunnerCancelled, {
+            runnerId: id,
+            reason,
+        });
         return true;
     }
 
     /**取消所有 runner/job */
     dispose() {
-        for (const entry of this.runners.values()) {
+        for (const [id, entry] of this.runners) {
             if (entry instanceof ScriptRunner) {
                 entry.cancel();
             } else {
                 system.clearJob(entry.runId);
             }
+            this.trace?.builtin(BuiltinTraceEventType.RunnerCancelled, {
+                runnerId: id,
+                reason: "state-dispose",
+            });
         }
         this.runners.clear();
     }
