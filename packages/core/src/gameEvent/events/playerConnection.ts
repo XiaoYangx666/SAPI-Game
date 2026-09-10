@@ -2,6 +2,7 @@ import {
     Player,
     PlayerLeaveAfterEvent,
     PlayerSpawnAfterEvent,
+    system,
     world,
 } from "@minecraft/server";
 import { CustomEventSignal } from "../eventSignal";
@@ -26,8 +27,8 @@ export type PlayerConnectionEvent =
  * 只有出现第一个订阅者时才连接 Minecraft 原生事件；最后一个订阅者离开后
  * 自动 unsubscribe，因此仅 import SAPIGame Core 不会产生连接追踪副作用。
  *
- * Signal 启动时会抓取一次当前在线玩家快照，供长期生命周期组件判断
- * “组件挂载之前就已经掉线/在线”的玩家状态。
+ * Signal 启动后会在下一 tick 抓取一次当前在线玩家快照，避免在模块加载的
+ * early-execution 阶段调用 world.getAllPlayers()。
  */
 export class PlayerConnectionEventSignal
     implements CustomEventSignal<PlayerConnectionEvent>
@@ -37,6 +38,7 @@ export class PlayerConnectionEventSignal
     >();
     private readonly onlinePlayers = new Map<string, Player>();
     private started = false;
+    private snapshotRunId?: number;
 
     private readonly spawnHandler = (event: PlayerSpawnAfterEvent) => {
         if (!event.initialSpawn) return;
@@ -95,16 +97,25 @@ export class PlayerConnectionEventSignal
         if (this.started) return;
         this.started = true;
         this.onlinePlayers.clear();
-        for (const player of world.getAllPlayers()) {
-            if (player.isValid) this.onlinePlayers.set(player.id, player);
-        }
         world.afterEvents.playerSpawn.subscribe(this.spawnHandler);
         world.afterEvents.playerLeave.subscribe(this.leaveHandler);
+
+        this.snapshotRunId = system.run(() => {
+            this.snapshotRunId = undefined;
+            if (!this.started) return;
+            for (const player of world.getAllPlayers()) {
+                if (player.isValid) this.onlinePlayers.set(player.id, player);
+            }
+        });
     }
 
     private stop() {
         if (!this.started) return;
         this.started = false;
+        if (this.snapshotRunId !== undefined) {
+            system.clearRun(this.snapshotRunId);
+            this.snapshotRunId = undefined;
+        }
         world.afterEvents.playerSpawn.unsubscribe(this.spawnHandler);
         world.afterEvents.playerLeave.unsubscribe(this.leaveHandler);
         this.onlinePlayers.clear();
