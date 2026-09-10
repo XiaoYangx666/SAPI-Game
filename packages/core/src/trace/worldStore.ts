@@ -62,6 +62,8 @@ export class WorldTraceStore implements TraceSink {
     };
     private _enabled = false;
     private cleanupRunId?: number;
+    private maintenanceRunId?: number;
+    private recoverOnMaintenance = false;
     /** Sessions that were accepted while storage was enabled must finish atomically. */
     private readonly activeSessions = new Set<string>();
 
@@ -107,9 +109,8 @@ export class WorldTraceStore implements TraceSink {
             previousInterval !== this.options.cleanupIntervalTicks
         ) {
             this.stopCleanupTimer();
-            this.startCleanupTimer();
         }
-        if (this._enabled) this.safeMaintenance(() => this.cleanup());
+        if (this._enabled) this.scheduleMaintenance();
         return this;
     }
 
@@ -121,9 +122,10 @@ export class WorldTraceStore implements TraceSink {
     enable() {
         if (this._enabled) return this;
         this._enabled = true;
-        this.safeMaintenance(() => this.recoverInterruptedSessions());
-        this.safeMaintenance(() => this.cleanup());
-        this.startCleanupTimer();
+        this.recoverOnMaintenance = true;
+        // Dynamic Property APIs are unavailable during early execution. Delay the
+        // first recovery/cleanup pass and periodic timer setup until the next tick.
+        this.scheduleMaintenance();
         return this;
     }
 
@@ -134,6 +136,11 @@ export class WorldTraceStore implements TraceSink {
     disable() {
         if (!this._enabled) return this;
         this._enabled = false;
+        this.recoverOnMaintenance = false;
+        if (this.maintenanceRunId !== undefined) {
+            system.clearRun(this.maintenanceRunId);
+            this.maintenanceRunId = undefined;
+        }
         this.stopCleanupTimer();
         return this;
     }
@@ -323,8 +330,22 @@ export class WorldTraceStore implements TraceSink {
         }
     }
 
+    private scheduleMaintenance() {
+        if (this.maintenanceRunId !== undefined) return;
+        this.maintenanceRunId = system.run(() => {
+            this.maintenanceRunId = undefined;
+            if (!this._enabled) return;
+            if (this.recoverOnMaintenance) {
+                this.recoverOnMaintenance = false;
+                this.safeMaintenance(() => this.recoverInterruptedSessions());
+            }
+            this.safeMaintenance(() => this.cleanup());
+            this.startCleanupTimer();
+        });
+    }
+
     private startCleanupTimer() {
-        if (this.cleanupRunId !== undefined) return;
+        if (!this._enabled || this.cleanupRunId !== undefined) return;
         this.cleanupRunId = system.runInterval(
             () => this.safeMaintenance(() => this.cleanup()),
             this.options.cleanupIntervalTicks
