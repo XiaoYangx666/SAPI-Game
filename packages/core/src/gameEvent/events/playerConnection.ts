@@ -4,6 +4,7 @@ import {
     PlayerSpawnAfterEvent,
     world,
 } from "@minecraft/server";
+import { isWorldLoaded, runAfterWorldLoad } from "../../system/worldReady";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
 
@@ -26,8 +27,8 @@ export type PlayerConnectionEvent =
  * 只有出现第一个订阅者时才连接 Minecraft 原生事件；最后一个订阅者离开后
  * 自动 unsubscribe，因此仅 import SAPIGame Core 不会产生连接追踪副作用。
  *
- * Signal 启动时会抓取一次当前在线玩家快照，供长期生命周期组件判断
- * “组件挂载之前就已经掉线/在线”的玩家状态。
+ * worldLoad 之后订阅时会同步抓取当前在线玩家快照；如果在 early execution
+ * 阶段提前出现订阅者，则只延后首次快照，不改变 worldLoad 后的同步语义。
  */
 export class PlayerConnectionEventSignal
     implements CustomEventSignal<PlayerConnectionEvent>
@@ -37,6 +38,7 @@ export class PlayerConnectionEventSignal
     >();
     private readonly onlinePlayers = new Map<string, Player>();
     private started = false;
+    private cancelInitialSnapshot?: () => void;
 
     private readonly spawnHandler = (event: PlayerSpawnAfterEvent) => {
         if (!event.initialSpawn) return;
@@ -95,16 +97,31 @@ export class PlayerConnectionEventSignal
         if (this.started) return;
         this.started = true;
         this.onlinePlayers.clear();
+        world.afterEvents.playerSpawn.subscribe(this.spawnHandler);
+        world.afterEvents.playerLeave.subscribe(this.leaveHandler);
+
+        if (isWorldLoaded()) {
+            this.captureOnlineSnapshot();
+        } else {
+            this.cancelInitialSnapshot = runAfterWorldLoad(() => {
+                this.cancelInitialSnapshot = undefined;
+                if (!this.started) return;
+                this.captureOnlineSnapshot();
+            });
+        }
+    }
+
+    private captureOnlineSnapshot() {
         for (const player of world.getAllPlayers()) {
             if (player.isValid) this.onlinePlayers.set(player.id, player);
         }
-        world.afterEvents.playerSpawn.subscribe(this.spawnHandler);
-        world.afterEvents.playerLeave.subscribe(this.leaveHandler);
     }
 
     private stop() {
         if (!this.started) return;
         this.started = false;
+        this.cancelInitialSnapshot?.();
+        this.cancelInitialSnapshot = undefined;
         world.afterEvents.playerSpawn.unsubscribe(this.spawnHandler);
         world.afterEvents.playerLeave.unsubscribe(this.leaveHandler);
         this.onlinePlayers.clear();
