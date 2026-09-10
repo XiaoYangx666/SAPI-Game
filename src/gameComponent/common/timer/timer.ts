@@ -1,5 +1,6 @@
 import { GameState } from "@sapi-game/gameState/gameState";
 import { Game } from "@sapi-game/main";
+import { BuiltinTraceEventType } from "@sapi-game/trace/types";
 import { GameComponent } from "../../gameComponent";
 import { TimerOnTimeEventSignal } from "./onTimeEvent";
 import { TimerTickEventSignal } from "./tickEvent";
@@ -56,6 +57,9 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
             if (diff >= 1000) {
                 if (this.remainingTime <= 0) {
                     this._isRunning = false;
+                    this.trace.builtin(BuiltinTraceEventType.TimerExpired, {
+                        remainingTime: 0,
+                    });
                     return;
                 }
                 if (this.options?.compensate) {
@@ -82,6 +86,12 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
     }
 
     override onDetach(): void {
+        if (this._isRunning) {
+            this.trace.builtin(BuiltinTraceEventType.TimerCancelled, {
+                reason: "component-detach",
+                remainingTime: this.remainingTime,
+            });
+        }
         this._isRunning = false;
         super.onDetach();
         this.state.eventManager.unsubscribeByEvent(this.events.onTime);
@@ -95,7 +105,13 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
     }
 
     /**停止计时器 */
-    public stop(): void {
+    public stop(reason = "manual"): void {
+        if (this._isRunning) {
+            this.trace.builtin(BuiltinTraceEventType.TimerCancelled, {
+                reason,
+                remainingTime: this.remainingTime,
+            });
+        }
         this._isRunning = false;
     }
 
@@ -104,6 +120,10 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
         if (this.remainingTime > 0 && !this._isRunning && this.isAttached) {
             this._isRunning = true;
             this.lastTime = Date.now();
+            this.trace.builtin(BuiltinTraceEventType.TimerStarted, {
+                remainingTime: this.remainingTime,
+                compensate: this.options?.compensate ?? false,
+            });
             this.events.tick.publish(this.remainingTime);
             this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
         }
