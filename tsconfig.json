@@ -15,13 +15,16 @@
         "noImplicitOverride": true,
         "allowJs": true,
         "paths": {
-            "@begame/core": ["./src/main.ts"],
-            "@begame/core/*": ["./src/*"],
-            "@begame/test": ["./src/testing/index.ts"],
-            "@begame/test/*": ["./src/testing/*"],
-            "@sapi-game/*": ["./src/*"]
+            "@begame/core": ["./packages/core/src/main.ts"],
+            "@begame/core/*": ["./packages/core/src/*"],
+            "@begame/test": ["./packages/test/src/index.ts"],
+            "@begame/test/*": ["./packages/test/src/*"],
+            "@sapi-game/*": ["./packages/core/src/*"]
         }
     },
-    "include": ["./src"],
+    "include": [
+        "./packages/core/src",
+        "./packages/test/src"
+    ],
     "compileOnSave": false
 }

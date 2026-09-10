@@ -15,18 +15,21 @@ function buildInput(files: string[], base: string) {
     );
 }
 
+const coreRoot = "packages/core/src";
+const testRoot = "packages/test/src";
+
 const coreInput = buildInput(
-    globSync("src/**/*.ts", {
-        ignore: ["src/**/*.d.ts", "src/testing/**"],
+    globSync(`${coreRoot}/**/*.ts`, {
+        ignore: [`${coreRoot}/**/*.d.ts`],
     }),
-    "src"
+    coreRoot
 );
 
 const testInput = buildInput(
-    globSync("src/testing/**/*.ts", {
-        ignore: ["src/testing/**/*.d.ts"],
+    globSync(`${testRoot}/**/*.ts`, {
+        ignore: [`${testRoot}/**/*.d.ts`],
     }),
-    "src/testing"
+    testRoot
 );
 
 export default defineConfig([
@@ -37,7 +40,7 @@ export default defineConfig([
             dir: "packages/core/dist",
             format: "esm",
             preserveModules: true,
-            preserveModulesRoot: "src",
+            preserveModulesRoot: coreRoot,
             entryFileNames: "[name].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
@@ -48,6 +51,7 @@ export default defineConfig([
             "@begame/core",
             "@minecraft/server",
             "@minecraft/server-ui",
+            "node:fs",
             "node:module",
             "node:url",
             "vitest/config",
@@ -56,7 +60,7 @@ export default defineConfig([
             dir: "packages/test/dist",
             format: "esm",
             preserveModules: true,
-            preserveModulesRoot: "src/testing",
+            preserveModulesRoot: testRoot,
             entryFileNames: "[name].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
