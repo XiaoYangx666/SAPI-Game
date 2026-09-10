@@ -1,5 +1,6 @@
 import { Game } from "@begame/core";
 import type { GameEngine, ManagedGameConstructor } from "@begame/core";
+import { TestTraceSink } from "./traceSink";
 import { virtualMinecraft, Player } from "./virtualMinecraft";
 import { virtualMinecraftUi } from "./virtualMinecraftUi";
 
@@ -23,9 +24,13 @@ export interface ReloadScenario<TSnapshot, TResult> {
 
 /** Node 环境下的 BEGame 无头生命周期测试驱动。 */
 export class BEGameTestEngine {
+    /** Test harness actions. This is intentionally separate from Game Trace. */
     readonly trace: TestTraceEntry[] = [];
+    /** Structured per-game Trace Sessions emitted by BEGame Core. */
+    readonly gameTrace = new TestTraceSink();
 
     constructor() {
+        Game.trace.setSink(this.gameTrace);
         // Core / SAPI-Pro modules subscribe during import. Creating a test
         // environment represents a loaded world, so finish that initialization.
         virtualMinecraft.emitWorldLoad();
@@ -71,7 +76,7 @@ export class BEGameTestEngine {
 
     stopGame<T extends GameEngine<any, any>>(game: Function, tag?: string) {
         const key = this.manager.buildKey(game, tag);
-        this.manager.stopGameByKey(key);
+        this.manager.stopGameByKey(key, "test-engine-stop");
         this.record("stop-game", key);
     }
 
@@ -128,7 +133,11 @@ export class BEGameTestEngine {
         scenario: ReloadScenario<TSnapshot, TResult>
     ): Promise<TResult> {
         const snapshot = await scenario.snapshot();
-        this.manager.disposeAll({ includeDaemon: true });
+        this.manager.disposeAll({
+            includeDaemon: true,
+            reason: "test-reload",
+            traceStatus: "reloaded",
+        });
         virtualMinecraft.resetScriptResources();
         virtualMinecraftUi.clearResponses();
         virtualMinecraft.emitWorldLoad();
@@ -137,11 +146,16 @@ export class BEGameTestEngine {
     }
 
     reset() {
-        this.manager.disposeAll({ includeDaemon: true });
+        this.manager.disposeAll({
+            includeDaemon: true,
+            reason: "test-reset",
+            traceStatus: "interrupted",
+        });
         virtualMinecraft.resetWorld();
         virtualMinecraftUi.clearResponses();
         virtualMinecraft.emitWorldLoad();
         this.trace.length = 0;
+        this.gameTrace.clear();
         this.record("reset");
     }
 
