@@ -61,35 +61,40 @@ export class TraceManager {
 
     beginSession(options: BeginTraceSessionOptions): TraceSession | undefined {
         if (!this.sink) return undefined;
-        if (this.sessions.has(options.gameKey)) {
-            this.reportInternalError(new Error(`Trace session already exists for ${options.gameKey}`));
-            return this.sessions.get(options.gameKey);
-        }
+        try {
+            if (this.sessions.has(options.gameKey)) {
+                this.reportInternalError(new Error(`Trace session already exists for ${options.gameKey}`));
+                return this.sessions.get(options.gameKey);
+            }
 
-        const startTick = this.safeTick();
-        const sessionId = this.buildSessionId(startTick);
-        const initialConfig = snapshotTraceValue(options.initialConfig);
-        const begameVersion = options.begameVersion ?? this.options.begameVersion;
-        const packVersion = options.packVersion ?? this.options.packVersion;
-        const session = new TraceSession(
-            {
-                sessionId,
-                gameType: options.gameType,
-                gameKey: options.gameKey,
-                gameInstanceId: sessionId,
-                startTick,
-                startWallTime: Date.now(),
-                ...(begameVersion === undefined ? {} : { begameVersion }),
-                ...(packVersion === undefined ? {} : { packVersion }),
-                ...(initialConfig === null ? {} : { initialConfig }),
-            },
-            this.tick,
-            this.sink,
-            this.options
-        );
-        this.sessions.set(options.gameKey, session);
-        this.refreshConnectionSubscription();
-        return session;
+            const startTick = this.safeTick();
+            const sessionId = this.buildSessionId(startTick);
+            const initialConfig = snapshotTraceValue(options.initialConfig);
+            const begameVersion = options.begameVersion ?? this.options.begameVersion;
+            const packVersion = options.packVersion ?? this.options.packVersion;
+            const session = new TraceSession(
+                {
+                    sessionId,
+                    gameType: options.gameType,
+                    gameKey: options.gameKey,
+                    gameInstanceId: sessionId,
+                    startTick,
+                    startWallTime: Date.now(),
+                    ...(begameVersion === undefined ? {} : { begameVersion }),
+                    ...(packVersion === undefined ? {} : { packVersion }),
+                    ...(initialConfig === null ? {} : { initialConfig }),
+                },
+                this.tick,
+                this.sink,
+                this.options
+            );
+            this.sessions.set(options.gameKey, session);
+            this.refreshConnectionSubscription();
+            return session;
+        } catch (error) {
+            this.reportInternalError(error);
+            return undefined;
+        }
     }
 
     getSession(gameKey: string) {
