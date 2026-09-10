@@ -24,6 +24,7 @@ export class BEGameServerIntegration {
     public readonly players: ServerPlayerTracker;
     private readonly commandOptions: ServerGameCommandOptions;
     private started = false;
+    private playerStartRunId?: number;
     private readonly startupHandler: Parameters<
         typeof system.beforeEvents.startup.subscribe
     >[0];
@@ -47,16 +48,28 @@ export class BEGameServerIntegration {
     start() {
         if (this.started) return this;
         this.started = true;
-        this.players.start();
+
+        // Custom commands must subscribe during early execution so they receive the
+        // startup registry. Player tracking, however, touches world.getAllPlayers(),
+        // which is forbidden in early execution. Start only that part next tick.
         if (this.options.registerCommands ?? true) {
             system.beforeEvents.startup.subscribe(this.startupHandler);
         }
+        this.playerStartRunId = system.run(() => {
+            this.playerStartRunId = undefined;
+            if (!this.started) return;
+            this.players.start();
+        });
         return this;
     }
 
     stop() {
         if (!this.started) return;
         this.started = false;
+        if (this.playerStartRunId !== undefined) {
+            system.clearRun(this.playerStartRunId);
+            this.playerStartRunId = undefined;
+        }
         this.players.stop();
         if (this.options.registerCommands ?? true) {
             system.beforeEvents.startup.unsubscribe(this.startupHandler);
