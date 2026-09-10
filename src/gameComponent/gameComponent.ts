@@ -1,6 +1,7 @@
 import { EventSubscription } from "../gameEvent/eventManager";
 import { EventSignal } from "../gameEvent/eventSignal";
 import { GameState } from "../gameState/gameState";
+import { TraceScope } from "../trace/session";
 
 type InferContext<S> = S extends GameState<any, infer C, any> ? C : never;
 
@@ -14,6 +15,8 @@ export abstract class GameComponent<
         return this._isAttached;
     }
     protected readonly state: S;
+    /**当前 Component 的结构化 Trace scope。*/
+    public readonly trace: TraceScope;
     /**tag */
     readonly tag?: string;
     protected get context(): InferContext<S> {
@@ -27,6 +30,11 @@ export abstract class GameComponent<
     constructor(state: S, protected options?: O, tag?: string) {
         this.state = state;
         this.tag = tag;
+        this.trace = state.createComponentTraceScope(
+            this,
+            this.constructor.name,
+            tag
+        );
     }
 
     private _onAttach() {
