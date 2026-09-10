@@ -1,7 +1,7 @@
 // @ts-expect-error 测试包在 Node/Vitest 中运行，主 tsconfig 不加载 @types/node。
 import { fileURLToPath } from "node:url";
 
-const server = fileURLToPath(new URL("./virtualMinecraft.js", import.meta.url));
+const server = fileURLToPath(new URL("./scriptApiShell.js", import.meta.url));
 const serverUi = fileURLToPath(new URL("./virtualMinecraftUi.js", import.meta.url));
 
 type LooseConfig = Record<string, any>;
