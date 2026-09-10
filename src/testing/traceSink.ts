@@ -6,7 +6,7 @@ import {
     type TraceSessionEnd,
     type TraceSessionHeader,
     type TraceSink,
-} from "@begame/core/trace";
+} from "@begame/core";
 // @ts-expect-error @begame/test is Node-only, while the shared tsconfig intentionally omits Node types.
 import { writeFileSync } from "node:fs";
 
