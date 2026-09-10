@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const server = fileURLToPath(new URL("./scriptApiShell.js", import.meta.url));
 const serverUi = fileURLToPath(new URL("./virtualMinecraftUi.js", import.meta.url));
+const begamePackagePattern = /@begame[\\/]/;
 
 type LooseConfig = Record<string, any>;
 
@@ -16,14 +17,27 @@ function normalizeAlias(alias: unknown): any[] {
     return [];
 }
 
+function normalizeInline(inline: unknown): unknown {
+    if (inline === true) return true;
+    if (Array.isArray(inline)) return [begamePackagePattern, ...inline];
+    if (inline === undefined) return [begamePackagePattern];
+    return [begamePackagePattern, inline];
+}
+
 /**
  * 返回可直接作为 Vitest config 使用的配置对象。
  * @begame/test 本身不依赖 Vitest，只负责注入虚拟 ScriptAPI runtime。
+ *
+ * BEGame packages are inlined automatically so their @minecraft/* imports pass
+ * through the virtual ScriptAPI aliases even when BEGame is installed from a
+ * real npm tarball instead of a workspace/link dependency.
  */
 export function defineBEGameTestConfig(config: LooseConfig = {}) {
     const resolve = (config.resolve ?? {}) as LooseConfig;
     const test = (config.test ?? {}) as LooseConfig;
     const sequence = (test.sequence ?? {}) as LooseConfig;
+    const testServer = (test.server ?? {}) as LooseConfig;
+    const deps = (testServer.deps ?? {}) as LooseConfig;
 
     return {
         ...config,
@@ -38,6 +52,13 @@ export function defineBEGameTestConfig(config: LooseConfig = {}) {
         test: {
             environment: "node",
             ...test,
+            server: {
+                ...testServer,
+                deps: {
+                    ...deps,
+                    inline: normalizeInline(deps.inline),
+                },
+            },
             sequence: {
                 concurrent: false,
                 ...sequence,
