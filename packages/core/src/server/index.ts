@@ -1,5 +1,6 @@
 import { Player, system } from "@minecraft/server";
 import { Game, initBEGame, BEGameInitOptions } from "../main";
+import { isWorldLoaded, runAfterWorldLoad } from "../system/worldReady";
 import {
     registerServerGameCommands,
     ServerGameCommandOptions,
@@ -24,7 +25,7 @@ export class BEGameServerIntegration {
     public readonly players: ServerPlayerTracker;
     private readonly commandOptions: ServerGameCommandOptions;
     private started = false;
-    private playerStartRunId?: number;
+    private cancelPlayerStart?: () => void;
     private readonly startupHandler: Parameters<
         typeof system.beforeEvents.startup.subscribe
     >[0];
@@ -50,26 +51,29 @@ export class BEGameServerIntegration {
         this.started = true;
 
         // Custom commands must subscribe during early execution so they receive the
-        // startup registry. Player tracking, however, touches world.getAllPlayers(),
-        // which is forbidden in early execution. Start only that part next tick.
+        // startup registry. Player tracking touches World APIs and therefore starts
+        // only after world.afterEvents.worldLoad.
         if (this.options.registerCommands ?? true) {
             system.beforeEvents.startup.subscribe(this.startupHandler);
         }
-        this.playerStartRunId = system.run(() => {
-            this.playerStartRunId = undefined;
-            if (!this.started) return;
+
+        if (isWorldLoaded()) {
             this.players.start();
-        });
+        } else {
+            this.cancelPlayerStart = runAfterWorldLoad(() => {
+                this.cancelPlayerStart = undefined;
+                if (!this.started) return;
+                this.players.start();
+            });
+        }
         return this;
     }
 
     stop() {
         if (!this.started) return;
         this.started = false;
-        if (this.playerStartRunId !== undefined) {
-            system.clearRun(this.playerStartRunId);
-            this.playerStartRunId = undefined;
-        }
+        this.cancelPlayerStart?.();
+        this.cancelPlayerStart = undefined;
         this.players.stop();
         if (this.options.registerCommands ?? true) {
             system.beforeEvents.startup.unsubscribe(this.startupHandler);
