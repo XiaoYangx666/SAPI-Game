@@ -9,6 +9,8 @@ import { EventSignal } from "../gameEvent/eventSignal";
 import { GamePlayer } from "../gamePlayer/gamePlayer";
 import { GamePlayerManager } from "../gamePlayer/playerManager";
 import { RunnerManager } from "../Runner/RunnerManager";
+import { traceError, TraceScope } from "../trace/session";
+import { BuiltinTraceEventType } from "../trace/types";
 import { Logger } from "../utils/logger";
 import {
     ComponentDeleteFailedError,
@@ -56,12 +58,23 @@ export abstract class GameState<
         GameComponent<any>[]
     > = new Map();
     public readonly eventManager = new EventManager();
-    public readonly runner = new RunnerManager(this.constructor.name);
+    public readonly runner: RunnerManager;
+    /**当前 State 的结构化 Trace scope。*/
+    public readonly trace: TraceScope;
     public readonly config?: TConfig;
 
     constructor(engine: E, config?: TConfig) {
         this.engine = engine;
         this.config = config;
+        this.trace = engine.createStateTraceScope(this, this.constructor.name);
+        this.runner = new RunnerManager(
+            this.constructor.name,
+            engine.createNamedTraceScope(
+                "runner",
+                this.constructor.name,
+                this.trace.source.ref
+            )
+        );
     }
 
     /**全局上下文 */
@@ -79,8 +92,8 @@ export abstract class GameState<
     }
 
     /**停止当前游戏实例。主要供长期 State/Component 生命周期策略调用。*/
-    stopGame() {
-        this.engine.stopGame();
+    stopGame(reason?: string) {
+        this.engine.stopGame(reason);
     }
 
     /**获取子状态 */
@@ -90,6 +103,21 @@ export abstract class GameState<
 
     get lastState() {
         return this.engine.getLastState(this);
+    }
+
+    /** @internal GameComponent constructor obtains its stable component ref here. */
+    createComponentTraceScope(component: object, name: string, tag?: string) {
+        return this.engine.createComponentTraceScope(
+            component,
+            this,
+            name,
+            tag
+        );
+    }
+
+    /** @internal Common components can create a named timer scope. */
+    createNamedTraceScope(kind: "runner" | "timer" | "system", name: string) {
+        return this.engine.createNamedTraceScope(kind, name, this.trace.source.ref);
     }
 
     /**进入 */
@@ -109,9 +137,9 @@ export abstract class GameState<
      * 添加组件到当前状态。
      * 只有 onAttach 完整成功后才会写入组件表；失败组件不会残留。
      */
-    addComponent<C extends GameComponentType<any, any>>(
-        component: C,
-        options?: ConstructorParameters<C>[1],
+    addComponent<Cmp extends GameComponentType<any, any>>(
+        component: Cmp,
+        options?: ConstructorParameters<Cmp>[1],
         tag?: string
     ) {
         if (!this.engine.isActive) return this;
@@ -126,9 +154,25 @@ export abstract class GameState<
         }
 
         const componentInstance = new component(this, options, tag);
+        componentInstance.trace.builtin(
+            BuiltinTraceEventType.ComponentAttachStarted,
+            { component: component.name, ...(tag === undefined ? {} : { tag }) }
+        );
         try {
             (componentInstance as any as GameComponentInternal)._onAttach();
+            componentInstance.trace.builtin(BuiltinTraceEventType.ComponentAttached, {
+                component: component.name,
+                ...(tag === undefined ? {} : { tag }),
+            });
         } catch (err) {
+            componentInstance.trace.builtin(
+                BuiltinTraceEventType.ComponentAttachFailed,
+                {
+                    component: component.name,
+                    ...(tag === undefined ? {} : { tag }),
+                    error: traceError(err),
+                }
+            );
             throw new ComponentLoadFailedError(component, tag, { cause: err });
         }
 
@@ -148,16 +192,16 @@ export abstract class GameState<
      * 获取当前状态中的组件
      * @throws {GameComponentNotExistsError} 若组件不存在，则抛出
      */
-    getComponent<C extends GameComponentType<any, any>>(
-        type: C,
+    getComponent<Cmp extends GameComponentType<any, any>>(
+        type: Cmp,
         tag?: string
-    ): InstanceType<C> {
+    ): InstanceType<Cmp> {
         const list = this.components.get(type);
         const component = list?.find((c) => c.tag === tag);
         if (!component) {
             throw new GameComponentNotExistsError(type, tag);
         }
-        return component as InstanceType<C>;
+        return component as InstanceType<Cmp>;
     }
 
     /**删除当前状态中的组件。无论 onDetach 是否报错，组件都会从状态中移除。*/
@@ -168,13 +212,28 @@ export abstract class GameState<
         const index = list.findIndex((c) => c.tag === tag);
         if (index === -1) return this;
 
-        const comp = list[index] as unknown as GameComponentInternal;
+        const componentInstance = list[index];
+        const comp = componentInstance as unknown as GameComponentInternal;
         list.splice(index, 1);
         if (list.length === 0) this.components.delete(component);
 
         try {
             comp._onDetach();
+            componentInstance.trace.builtin(BuiltinTraceEventType.ComponentDetached, {
+                component: component.name,
+                ...(tag === undefined ? {} : { tag }),
+                success: true,
+            });
         } catch (err) {
+            componentInstance.trace.builtin(BuiltinTraceEventType.ComponentError, {
+                phase: "detach",
+                error: traceError(err),
+            });
+            componentInstance.trace.builtin(BuiltinTraceEventType.ComponentDetached, {
+                component: component.name,
+                ...(tag === undefined ? {} : { tag }),
+                success: false,
+            });
             throw new ComponentDeleteFailedError(component, comp.tag, {
                 cause: err,
             });
@@ -194,7 +253,21 @@ export abstract class GameState<
                 const instance = comp as any as GameComponentInternal;
                 try {
                     instance._onDetach();
+                    comp.trace.builtin(BuiltinTraceEventType.ComponentDetached, {
+                        component: compType.name,
+                        ...(instance.tag === undefined ? {} : { tag: instance.tag }),
+                        success: true,
+                    });
                 } catch (err) {
+                    comp.trace.builtin(BuiltinTraceEventType.ComponentError, {
+                        phase: "detach",
+                        error: traceError(err),
+                    });
+                    comp.trace.builtin(BuiltinTraceEventType.ComponentDetached, {
+                        component: compType.name,
+                        ...(instance.tag === undefined ? {} : { tag: instance.tag }),
+                        success: false,
+                    });
                     errors.push(
                         new ComponentDeleteFailedError(
                             compType,
@@ -263,6 +336,9 @@ export abstract class GameState<
         try {
             this.eventManager.dispose();
         } catch (err) {
+            this.trace.debug("event manager cleanup failed", {
+                error: traceError(err),
+            });
             errors.push(err);
         }
         try {
