@@ -23,7 +23,7 @@ class StoreGame extends GameEngine {
     onStop() {}
 }
 
-test("WorldTraceStore can be configured and toggled at runtime without truncating an accepted session", () => {
+test("WorldTraceStore can be configured and toggled at runtime without truncating an accepted session", async () => {
     const env = new BEGameTestEngine();
     Game.trace.store.disable();
     env.reset();
@@ -65,8 +65,11 @@ test("WorldTraceStore can be configured and toggled at runtime without truncatin
             .find((entry) => entry.gameKey === "trace-store-test:third");
         expect(thirdSummary?.status).toBe("completed");
 
-        // Retention can be changed live and cleanup runs immediately.
+        // Maintenance is deliberately deferred one tick so the same API is safe
+        // when traceStore is enabled during Bedrock early execution.
         Game.trace.store.configure({ maxSessions: 1 });
+        expect(Game.trace.store.list()).toHaveLength(2);
+        await env.advanceTicks(1);
         expect(Game.trace.store.list()).toHaveLength(1);
 
         const stored = Game.trace.store.list()[0];
