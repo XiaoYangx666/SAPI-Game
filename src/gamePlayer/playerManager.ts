@@ -18,6 +18,7 @@ export type GamePlayerBatchJoinDecision<T extends GamePlayer> =
 /**游戏实例内的 GamePlayer wrapper 管理器。*/
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
+    private readonly tracedOnlinePlayers = new Set<string>();
     public readonly playerConstructor: GamePlayerConstructor<T>;
 
     /**玩家组构建器 */
@@ -251,6 +252,11 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private traceOnlinePlayer(player: Player) {
         if (!this.traceSession) return;
         this.traceSession.registerPlayer(player.id, player.name);
+        // Repeated get()/join() calls describe participation/wrapper access, not a
+        // new network connection. Real disconnect/reconnect events are traced by
+        // PlayerConnectionEventSignal, so only declare the initial online state once.
+        if (this.tracedOnlinePlayers.has(player.id)) return;
+        this.tracedOnlinePlayers.add(player.id);
         this.traceSession.noteConnection(player.id, player.name, true);
     }
 }
