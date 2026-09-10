@@ -1,4 +1,4 @@
-import { Player, system, world } from "@minecraft/server";
+import { Player, world } from "@minecraft/server";
 import {
     PlayerConnectionEventSignal,
     type PlayerConnectionEvent,
@@ -13,13 +13,12 @@ export interface ServerPlayerTrackerOptions {
 /**
  * 小游戏服务器/地图层的在线玩家追踪。
  *
- * 启动时订阅连接事件，并在下一 tick 扫描一次当前在线玩家；
- * 这样 initBEGameServer() 可以安全地在模块加载的 early-execution 阶段调用。
+ * 启动时只扫描一次当前在线玩家，之后复用 SAPIGame 的连接事件；
+ * 它不保存游戏 membership。
  */
 export class ServerPlayerTracker {
     private onlineIds = new Set<string>();
     private connectionSubscription?: Subscription;
-    private initialScanRunId?: number;
     private started = false;
 
     constructor(
@@ -32,28 +31,19 @@ export class ServerPlayerTracker {
         if (this.started) return this;
         this.started = true;
 
-        // 先订阅，避免启动窗口内刚好有玩家进入时漏事件。
+        // 先订阅再扫描，避免启动窗口内刚好有玩家进入时漏事件。
         this.connectionSubscription = this.connection.subscribe((event) =>
             this.handleConnection(event)
         );
-        // world.getAllPlayers() 不能在 early execution 使用，延后一 tick 扫描。
-        this.initialScanRunId = system.run(() => {
-            this.initialScanRunId = undefined;
-            if (!this.started) return;
-            for (const player of world.getAllPlayers()) {
-                this.handleOnline(player);
-            }
-        });
+        for (const player of world.getAllPlayers()) {
+            this.handleOnline(player);
+        }
         return this;
     }
 
     stop() {
         if (!this.started) return;
         this.started = false;
-        if (this.initialScanRunId !== undefined) {
-            system.clearRun(this.initialScanRunId);
-            this.initialScanRunId = undefined;
-        }
         this.connectionSubscription?.unsubscribe();
         this.connectionSubscription = undefined;
         this.onlineIds.clear();
