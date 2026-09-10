@@ -1,7 +1,15 @@
+import * as utf8 from "@protobufjs/utf8";
 import type { TraceValue } from "./types";
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
+function encodeUtf8(value: string) {
+    const bytes = new Uint8Array(utf8.length(value));
+    utf8.write(value, bytes, 0);
+    return bytes;
+}
+
+function decodeUtf8(bytes: Uint8Array) {
+    return utf8.read(bytes, 0, bytes.length);
+}
 
 export class BinaryWriter {
     private readonly data: number[] = [];
@@ -44,7 +52,7 @@ export class BinaryWriter {
     }
 
     writeString(value: string) {
-        const bytes = textEncoder.encode(value);
+        const bytes = encodeUtf8(value);
         this.writeVarUint(bytes.length);
         this.writeBytes(bytes);
     }
@@ -108,7 +116,7 @@ export class BinaryReader {
 
     readString() {
         const length = this.readVarUint();
-        return textDecoder.decode(this.readBytes(length));
+        return decodeUtf8(this.readBytes(length));
     }
 }
 
