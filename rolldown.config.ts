@@ -36,8 +36,9 @@ export default defineConfig([
         output: {
             dir: "packages/core/dist",
             format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: "src",
             entryFileNames: "[name].js",
-            chunkFileNames: "_chunks/[name]-[hash].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
@@ -54,8 +55,9 @@ export default defineConfig([
         output: {
             dir: "packages/test/dist",
             format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: "src/testing",
             entryFileNames: "[name].js",
-            chunkFileNames: "_chunks/[name]-[hash].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
