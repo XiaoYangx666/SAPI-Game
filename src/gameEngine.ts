@@ -10,6 +10,14 @@ import {
     GameParticipation,
     ParticipationManager,
 } from "./participation/participationManager";
+import type { TraceManager } from "./trace/manager";
+import {
+    NOOP_TRACE_SCOPE,
+    TraceScope,
+    traceError,
+    type TraceSession,
+} from "./trace/session";
+import { BuiltinTraceEventType } from "./trace/types";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
@@ -27,10 +35,11 @@ export type GameLifecycleState =
     | "stopping"
     | "disposed";
 
-/**GameEngine 的创建者只需要提供停止能力与共享的 participation 服务。*/
+/**GameEngine 的创建者只需要提供停止能力、共享 participation 与 trace 服务。*/
 export interface GameEngineOwner {
     readonly participation: ParticipationManager;
-    stopGameByKey(key: string): void;
+    readonly trace: TraceManager;
+    stopGameByKey(key: string, reason?: string): void;
 }
 
 export abstract class GameEngine<
@@ -39,12 +48,15 @@ export abstract class GameEngine<
     O = unknown
 > {
     private readonly stateStack: GameState<P, C>[] = [];
+    private readonly traceSession?: TraceSession;
     protected readonly logger: Logger;
     protected readonly owner: GameEngineOwner;
     public readonly context: C;
     public readonly playerManager: GamePlayerManager<P>;
     /**当前游戏实例自己的 participation 视图，可仅凭稳定 playerId 建立参与关系。*/
     public readonly participation: GameParticipation;
+    /**当前 Game 的结构化 Trace scope；未配置 Sink 时为零开销 no-op。*/
+    public readonly trace: TraceScope;
     public readonly key: string;
     private _lifecycle: GameLifecycleState = "created";
 
@@ -76,6 +88,8 @@ export abstract class GameEngine<
         this.owner = owner;
         this.key = key;
         this.logger = new Logger(this.constructor.name);
+        this.traceSession = owner.trace.getSession(key);
+        this.trace = this.traceSession?.game ?? NOOP_TRACE_SCOPE;
         this.participation = new GameParticipation(
             owner.participation,
             key,
@@ -83,7 +97,8 @@ export abstract class GameEngine<
         );
         this.playerManager = new GamePlayerManager(
             playerClass,
-            this.participation
+            this.participation,
+            this.traceSession
         );
 
         try {
@@ -111,6 +126,35 @@ export abstract class GameEngine<
     /**游戏结束(dispose前调用) */
     protected abstract onStop(): void;
 
+    /** @internal GameState constructor uses this to get a stable state ref. */
+    createStateTraceScope(state: object, name: string) {
+        return this.traceSession?.createStateScope(state, name) ?? NOOP_TRACE_SCOPE;
+    }
+
+    /** @internal GameState uses this before component attach. */
+    createComponentTraceScope(
+        component: object,
+        state: object,
+        name: string,
+        tag?: string
+    ) {
+        return (
+            this.traceSession?.createComponentScope(component, state, name, tag) ??
+            NOOP_TRACE_SCOPE
+        );
+    }
+
+    /** @internal State/Component helpers that need a named runner/timer scope. */
+    createNamedTraceScope(
+        kind: "runner" | "timer" | "system",
+        name: string,
+        ref?: number
+    ) {
+        return (
+            this.traceSession?.createNamedScope(kind, name, ref) ?? NOOP_TRACE_SCOPE
+        );
+    }
+
     /**
      * 在栈顶添加新的子状态。
      * 若 onEnter 失败，会回滚该状态在进入期间创建的整个子状态树。
@@ -125,17 +169,32 @@ export abstract class GameEngine<
         const startIndex = this.stateStack.length;
         const stateInstance = new stateType(this, config);
         this.stateStack.push(stateInstance);
+        stateInstance.trace.builtin(BuiltinTraceEventType.StatePush, {
+            depth: startIndex,
+            state: stateType.name,
+        });
 
         try {
             (stateInstance as any as GameStateInternal)._onEnter();
+            stateInstance.trace.builtin(BuiltinTraceEventType.StateEnter, {
+                depth: startIndex,
+            });
+            if (startIndex === 0) {
+                stateInstance.trace.builtin(BuiltinTraceEventType.StateRootChanged, {
+                    to: stateType.name,
+                });
+            }
         } catch (enterError) {
+            stateInstance.trace.builtin(BuiltinTraceEventType.StateEnterFailed, {
+                error: traceError(enterError),
+            });
             const rollbackStates = this.stateStack.splice(startIndex);
             const cleanupErrors: unknown[] = [];
 
             // 子状态已经完整进入，按正常退出语义从栈顶向下清理。
             for (let i = rollbackStates.length - 1; i >= 1; i--) {
                 try {
-                    this.removeState(rollbackStates[i]);
+                    this.removeState(rollbackStates[i], "parent-enter-rollback");
                 } catch (err) {
                     cleanupErrors.push(err);
                 }
@@ -162,7 +221,7 @@ export abstract class GameEngine<
     /** 移除栈顶的状态，返回到父状态 */
     popState() {
         const topState = this.stateStack.pop();
-        if (topState) this.removeState(topState);
+        if (topState) this.removeState(topState, "pop");
     }
 
     /** 清空所有状态，并设置一个新的根状态 */
@@ -172,7 +231,13 @@ export abstract class GameEngine<
     ) {
         if (!this.isActive) return this;
         this.logger.debug(`Setting root state to: ${stateType.name}`);
-        this.clearStateStack();
+        const previousRoot = this.stateStack[0]?.constructor.name;
+        this.trace.builtin(BuiltinTraceEventType.StateTransition, {
+            operation: "resetState",
+            ...(previousRoot ? { from: previousRoot } : {}),
+            to: stateType.name,
+        });
+        this.clearStateStack("reset");
         this.pushState(stateType, config);
         return this;
     }
@@ -196,11 +261,17 @@ export abstract class GameEngine<
             throw new GameEngineError("State to replace not found in stack.");
         }
 
+        stateToReplace.trace.builtin(BuiltinTraceEventType.StateTransition, {
+            operation: "replaceFrom",
+            from: stateToReplace.constructor.name,
+            to: newStateType.name,
+            depth: index,
+        });
         const errors: unknown[] = [];
         while (this.stateStack.length > index) {
             const removed = this.stateStack.pop()!;
             try {
-                this.removeState(removed);
+                this.removeState(removed, "replace");
             } catch (err) {
                 errors.push(err);
             }
@@ -212,24 +283,46 @@ export abstract class GameEngine<
         return this;
     }
 
-    private clearStateStack() {
+    private clearStateStack(reason = "clear") {
+        const previousRoot = this.stateStack[0]?.constructor.name;
         const errors: unknown[] = [];
         while (this.stateStack.length > 0) {
             const state = this.stateStack.pop()!;
             try {
-                this.removeState(state);
+                this.removeState(state, reason);
             } catch (err) {
                 errors.push(err);
             }
+        }
+        if (previousRoot) {
+            this.trace.builtin(BuiltinTraceEventType.StateRootChanged, {
+                from: previousRoot,
+                to: "<none>",
+                reason,
+            });
         }
         if (errors.length > 0) {
             throw new AggregateError(errors, "State 栈清理失败");
         }
     }
 
-    private removeState(state: GameState<P, C>) {
+    private removeState(state: GameState<P, C>, reason: string) {
         this.logger.debug(`Removing state: ${state.constructor.name}`);
-        (state as any as GameStateInternal)._onExit();
+        state.trace.builtin(BuiltinTraceEventType.StateExit, { reason });
+        try {
+            (state as any as GameStateInternal)._onExit();
+            state.trace.builtin(BuiltinTraceEventType.StateRemove, {
+                reason,
+                success: true,
+            });
+        } catch (error) {
+            state.trace.builtin(BuiltinTraceEventType.StateRemove, {
+                reason,
+                success: false,
+                error: traceError(error),
+            });
+            throw error;
+        }
     }
 
     getNextState(state: GameState<P, C>): GameState<P, C> | undefined {
@@ -255,7 +348,14 @@ export abstract class GameEngine<
         );
         if (idx != -1) {
             const [removed] = this.stateStack.splice(idx, 1);
-            this.removeState(removed);
+            this.removeState(removed, "delete");
+            if (idx === 0) {
+                this.trace.builtin(BuiltinTraceEventType.StateRootChanged, {
+                    from: removed.constructor.name,
+                    to: this.stateStack[0]?.constructor.name ?? "<none>",
+                    reason: "delete",
+                });
+            }
         }
     }
 
@@ -280,11 +380,11 @@ export abstract class GameEngine<
         return ["", playersLine, stateLine].join("\n  ");
     }
 
-    stopGame() {
+    stopGame(reason = "game.stopGame") {
         if (this._lifecycle === "stopping" || this._lifecycle === "disposed") {
             return;
         }
-        this.owner.stopGameByKey(this.key);
+        this.owner.stopGameByKey(this.key, reason);
     }
 
     /** @internal */
@@ -317,7 +417,7 @@ export abstract class GameEngine<
 
         const errors: unknown[] = [];
         try {
-            this.clearStateStack();
+            this.clearStateStack("game-dispose");
         } catch (err) {
             errors.push(err);
         }
