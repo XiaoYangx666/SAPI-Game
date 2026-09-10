@@ -19,12 +19,15 @@
             "@begame/core/*": ["./packages/core/src/*"],
             "@begame/test": ["./packages/test/src/index.ts"],
             "@begame/test/*": ["./packages/test/src/*"],
+            "@begame/trace-tools": ["./packages/trace-tools/src/index.ts"],
+            "@begame/trace-tools/*": ["./packages/trace-tools/src/*"],
             "@sapi-game/*": ["./packages/core/src/*"]
         }
     },
     "include": [
         "./packages/core/src",
-        "./packages/test/src"
+        "./packages/test/src",
+        "./packages/trace-tools/src"
     ],
     "compileOnSave": false
 }

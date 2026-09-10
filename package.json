@@ -8,7 +8,7 @@
         "packages/*"
     ],
     "scripts": {
-        "clean": "rimraf packages/core/dist packages/test/dist || true",
+        "clean": "rimraf packages/core/dist packages/test/dist packages/trace-tools/dist || true",
         "build": "npm run clean && tsc --noEmit && rolldown -c",
         "test": "vitest run",
         "test:unit": "vitest run",

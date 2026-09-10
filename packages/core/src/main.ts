@@ -3,12 +3,24 @@ import { Constants } from "./constants";
 import { gameEvents } from "./gameEvent/gameEvent";
 import { ParticipationPolicy } from "./participation/participationManager";
 import { GameManager } from "./system/gameManager";
+import type { WorldTraceStoreOptions } from "./trace/worldStore";
 
 export { BEGameConfig, SAPIGameConfig } from "./config";
 export type { BEGameConfigOptions, SAPIGameConfigOptions } from "./config";
 
+export interface BEGameTraceStoreInitOptions extends WorldTraceStoreOptions {
+    /** Whether World Dynamic Property history storage is enabled. Defaults to true when this object is provided. */
+    enabled?: boolean;
+}
+
 export interface BEGameInitOptions extends BEGameConfigOptions {
     participationPolicy?: ParticipationPolicy;
+    /**
+     * Persistent Game Trace history in World Dynamic Properties.
+     * Omit to leave the current runtime setting unchanged; boolean toggles storage,
+     * or provide retention options plus `enabled`.
+     */
+    traceStore?: boolean | BEGameTraceStoreInitOptions;
 }
 
 /** @deprecated 使用 BEGameInitOptions。 */
@@ -30,9 +42,20 @@ export const Game = {
 
 /** 初始化 BEGame Core；不会注册服务器命令或玩家轮询。 */
 export function initBEGame(options: BEGameInitOptions = {}) {
-    const { participationPolicy, ...config } = options;
+    const { participationPolicy, traceStore, ...config } = options;
     BEGameConfig.update(config);
-    if (participationPolicy) manager.participation.setPolicy(participationPolicy);
+    if (participationPolicy) {
+        manager.participation.setPolicy(participationPolicy);
+    }
+    if (traceStore !== undefined) {
+        if (typeof traceStore === "boolean") {
+            manager.trace.setStoreEnabled(traceStore);
+        } else {
+            const { enabled = true, ...storeOptions } = traceStore;
+            manager.trace.configureStore(storeOptions);
+            manager.trace.setStoreEnabled(enabled);
+        }
+    }
 }
 
 /** @deprecated 使用 initBEGame。 */

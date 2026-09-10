@@ -7,7 +7,10 @@ function buildInput(files: string[], base: string) {
     return Object.fromEntries(
         files.map((file) => {
             const name = path
-                .relative(base, file.slice(0, file.length - path.extname(file).length))
+                .relative(
+                    base,
+                    file.slice(0, file.length - path.extname(file).length)
+                )
                 .split(path.sep)
                 .join("/");
             return [name, path.resolve(file)];
@@ -17,6 +20,7 @@ function buildInput(files: string[], base: string) {
 
 const coreRoot = "packages/core/src";
 const testRoot = "packages/test/src";
+const traceToolsRoot = "packages/trace-tools/src";
 
 const coreInput = buildInput(
     globSync(`${coreRoot}/**/*.ts`, {
@@ -30,6 +34,13 @@ const testInput = buildInput(
         ignore: [`${testRoot}/**/*.d.ts`],
     }),
     testRoot
+);
+
+const traceToolsInput = buildInput(
+    globSync(`${traceToolsRoot}/**/*.ts`, {
+        ignore: [`${traceToolsRoot}/**/*.d.ts`],
+    }),
+    traceToolsRoot
 );
 
 export default defineConfig([
@@ -61,6 +72,18 @@ export default defineConfig([
             format: "esm",
             preserveModules: true,
             preserveModulesRoot: testRoot,
+            entryFileNames: "[name].js",
+        },
+        plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
+        input: traceToolsInput,
+        external: ["@begame/core/trace"],
+        output: {
+            dir: "packages/trace-tools/dist",
+            format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: traceToolsRoot,
             entryFileNames: "[name].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],

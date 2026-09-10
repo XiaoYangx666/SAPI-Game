@@ -4,3 +4,6 @@ export * from "./session";
 export * from "./manager";
 export * from "./container";
 export * from "./decoder";
+export * from "./base64";
+export * from "./worldStore";
+export * from "./consoleExporter";
