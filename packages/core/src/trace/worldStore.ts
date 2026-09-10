@@ -1,4 +1,5 @@
 import { system, world } from "@minecraft/server";
+import { isWorldLoaded, runAfterWorldLoad } from "../system/worldReady";
 import { decodeBase64, encodeBase64 } from "./base64";
 import { encodeBegTrace, type BegTraceContainer } from "./container";
 import {
@@ -62,7 +63,7 @@ export class WorldTraceStore implements TraceSink {
     };
     private _enabled = false;
     private cleanupRunId?: number;
-    private maintenanceRunId?: number;
+    private cancelMaintenanceWait?: () => void;
     private recoverOnMaintenance = false;
     /** Sessions that were accepted while storage was enabled must finish atomically. */
     private readonly activeSessions = new Set<string>();
@@ -76,6 +77,11 @@ export class WorldTraceStore implements TraceSink {
 
     get enabled() {
         return this._enabled;
+    }
+
+    /** Whether new sessions can safely be persisted right now. */
+    get acceptingSessions() {
+        return this._enabled && isWorldLoaded();
     }
 
     get config(): Readonly<Required<WorldTraceStoreOptions>> {
@@ -123,8 +129,8 @@ export class WorldTraceStore implements TraceSink {
         if (this._enabled) return this;
         this._enabled = true;
         this.recoverOnMaintenance = true;
-        // Dynamic Property APIs are unavailable during early execution. Delay the
-        // first recovery/cleanup pass and periodic timer setup until the next tick.
+        // Dynamic Property APIs are World APIs. Initial recovery, cleanup and
+        // periodic maintenance start only after world.afterEvents.worldLoad.
         this.scheduleMaintenance();
         return this;
     }
@@ -137,16 +143,14 @@ export class WorldTraceStore implements TraceSink {
         if (!this._enabled) return this;
         this._enabled = false;
         this.recoverOnMaintenance = false;
-        if (this.maintenanceRunId !== undefined) {
-            system.clearRun(this.maintenanceRunId);
-            this.maintenanceRunId = undefined;
-        }
+        this.cancelMaintenanceWait?.();
+        this.cancelMaintenanceWait = undefined;
         this.stopCleanupTimer();
         return this;
     }
 
     onSessionStart(header: TraceSessionHeader) {
-        if (!this._enabled) return;
+        if (!this.acceptingSessions) return;
         const meta: WorldTraceStoreMetaV1 = {
             storageVersion: 1,
             header,
@@ -331,21 +335,36 @@ export class WorldTraceStore implements TraceSink {
     }
 
     private scheduleMaintenance() {
-        if (this.maintenanceRunId !== undefined) return;
-        this.maintenanceRunId = system.run(() => {
-            this.maintenanceRunId = undefined;
+        if (!this._enabled) return;
+        if (isWorldLoaded()) {
+            this.runMaintenance();
+            return;
+        }
+        if (this.cancelMaintenanceWait) return;
+        this.cancelMaintenanceWait = runAfterWorldLoad(() => {
+            this.cancelMaintenanceWait = undefined;
             if (!this._enabled) return;
-            if (this.recoverOnMaintenance) {
-                this.recoverOnMaintenance = false;
-                this.safeMaintenance(() => this.recoverInterruptedSessions());
-            }
-            this.safeMaintenance(() => this.cleanup());
-            this.startCleanupTimer();
+            this.runMaintenance();
         });
     }
 
+    private runMaintenance() {
+        if (this.recoverOnMaintenance) {
+            this.recoverOnMaintenance = false;
+            this.safeMaintenance(() => this.recoverInterruptedSessions());
+        }
+        this.safeMaintenance(() => this.cleanup());
+        this.startCleanupTimer();
+    }
+
     private startCleanupTimer() {
-        if (!this._enabled || this.cleanupRunId !== undefined) return;
+        if (
+            !this._enabled ||
+            !isWorldLoaded() ||
+            this.cleanupRunId !== undefined
+        ) {
+            return;
+        }
         this.cleanupRunId = system.runInterval(
             () => this.safeMaintenance(() => this.cleanup()),
             this.options.cleanupIntervalTicks
