@@ -183,12 +183,13 @@ export class TraceManager {
      * Sink membership is snapshotted when a session begins. This is deliberate:
      * disabling DP storage at runtime stops new sessions from being persisted but
      * allows already-started stored sessions to receive all remaining chunks/footer.
+     * World storage only becomes an eligible sink after worldLoad.
      */
     private createSessionSink(): TraceSink | undefined {
         const sinks = [
             ...new Set<TraceSink>([
                 ...(this.sink ? [this.sink] : []),
-                ...(this.store.enabled ? [this.store] : []),
+                ...(this.store.acceptingSessions ? [this.store] : []),
             ]),
         ];
         if (sinks.length === 0) return undefined;
