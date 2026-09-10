@@ -3,6 +3,7 @@ import { Game } from "../../main";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
 import type { PlayerGroupSet } from "../../gamePlayer/groupSet";
 import { GameState } from "../../gameState/gameState";
+import { BuiltinTraceEventType } from "../../trace/types";
 import { Duration } from "../../utils/duration";
 import { GameComponent } from "../gameComponent";
 
@@ -82,7 +83,7 @@ export class DisconnectTimeoutComponent<
         if (!this.state.playerManager.hasParticipant(playerId)) return;
 
         // 即使 scope 在掉线期间发生变化，也应先清理之前已经启动的 timer。
-        this.cancelTimeout(playerId);
+        this.cancelTimeout(playerId, "reconnected");
 
         const gamePlayer = this.state.playerManager.get(player);
         if (!gamePlayer || !this.isInScope(playerId, gamePlayer)) return;
@@ -102,6 +103,13 @@ export class DisconnectTimeoutComponent<
         if (this.timers.has(playerId)) return;
 
         const timeout = this.options?.timeout ?? Duration.fromSeconds(30);
+        this.trace.builtin(BuiltinTraceEventType.DisconnectTimeoutStarted, {
+            player: this.trace.player(
+                playerId,
+                this.state.playerManager.getById(playerId)?.name
+            ),
+            timeoutTicks: timeout.ticks,
+        });
         if (timeout.ticks <= 0) {
             this.handleTimeout(playerId);
             return;
@@ -114,11 +122,18 @@ export class DisconnectTimeoutComponent<
         this.timers.set(playerId, runnerId);
     }
 
-    private cancelTimeout(playerId: string) {
+    private cancelTimeout(playerId: string, reason = "cancelled") {
         const runnerId = this.timers.get(playerId);
         if (!runnerId) return;
-        this.runner.cancel(runnerId);
+        this.runner.cancel(runnerId, "disconnect-timeout-cancelled");
         this.timers.delete(playerId);
+        this.trace.builtin(BuiltinTraceEventType.DisconnectTimeoutCancelled, {
+            player: this.trace.player(
+                playerId,
+                this.state.playerManager.getById(playerId)?.name
+            ),
+            reason,
+        });
     }
 
     private handleTimeout(playerId: string) {
@@ -128,6 +143,9 @@ export class DisconnectTimeoutComponent<
         if (Game.events.connection.isOnline(playerId)) return;
 
         const gamePlayer = this.state.playerManager.getById(playerId);
+        this.trace.builtin(BuiltinTraceEventType.DisconnectTimeoutExpired, {
+            player: this.trace.player(playerId, gamePlayer?.name),
+        });
         this.options?.onTimeout?.(playerId, gamePlayer);
 
         const releaseOnTimeout =
@@ -135,14 +153,14 @@ export class DisconnectTimeoutComponent<
             this.options?.shouldRelease ??
             false;
         if (releaseOnTimeout) {
-            this.state.playerManager.leave(playerId);
+            this.state.playerManager.leave(playerId, "disconnect-timeout");
         }
 
         if (
             (this.options?.stopGameWhenEmpty ?? false) &&
             this.getScopedParticipantIds().length === 0
         ) {
-            this.state.stopGame();
+            this.state.stopGame("disconnect-timeout-empty");
         }
     }
 
@@ -169,9 +187,8 @@ export class DisconnectTimeoutComponent<
     }
 
     protected override onDetach(): void {
-        for (const runnerId of this.timers.values()) {
-            this.runner.cancel(runnerId);
+        for (const playerId of [...this.timers.keys()]) {
+            this.cancelTimeout(playerId, "component-detach");
         }
-        this.timers.clear();
     }
 }
