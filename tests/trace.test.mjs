@@ -7,6 +7,10 @@ import {
     GameState,
     defineTraceEvent,
 } from "../packages/core/dist/main.js";
+import {
+    BinaryReader,
+    BinaryWriter,
+} from "../packages/core/dist/trace/binary.js";
 import { BEGameTestEngine } from "../packages/test/dist/index.js";
 
 const businessEvent = defineTraceEvent("test.player.scored", {
@@ -109,4 +113,20 @@ test("Game Trace encodes and decodes a complete structured session", () => {
         expect(event.sequence).toBe(index + 1);
         if (index > 0) expect(event.tick).toBeGreaterThanOrEqual(decoded.events[index - 1].tick);
     });
+});
+
+test("Trace binary strings round-trip UTF-8 without TextEncoder/TextDecoder", () => {
+    const samples = [
+        "ASCII trace",
+        "溪枫境·小游戏追踪",
+        "玩家😀获胜 🎮",
+        "混合 UTF-8 / 日本語 / 한국어 / emoji 🧪",
+    ];
+
+    const writer = new BinaryWriter();
+    for (const sample of samples) writer.writeString(sample);
+
+    const reader = new BinaryReader(writer.toUint8Array());
+    for (const sample of samples) expect(reader.readString()).toBe(sample);
+    expect(reader.remaining).toBe(0);
 });
