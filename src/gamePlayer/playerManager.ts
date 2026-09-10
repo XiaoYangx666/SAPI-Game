@@ -1,9 +1,9 @@
 import { Player } from "@minecraft/server";
 import { GameParticipation } from "../participation/gameParticipation";
-import type {
-    ParticipationBatchDecision,
-} from "../participation/gameParticipation";
+import type { ParticipationBatchDecision } from "../participation/gameParticipation";
 import type { ParticipationDecision } from "../participation/policy";
+import { BuiltinTraceEventType } from "../trace/types";
+import type { TraceSession } from "../trace/session";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
 
@@ -25,7 +25,8 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
 
     constructor(
         playerConstructor: GamePlayerConstructor<T>,
-        private readonly participation: GameParticipation
+        private readonly participation: GameParticipation,
+        private readonly traceSession?: TraceSession
     ) {
         this.playerConstructor = playerConstructor;
         this.groupBuilder = new PlayerGroupBuilder(this);
@@ -39,7 +40,9 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
      */
     get(p: Player): T | undefined {
         if (!this.participation.has(p.id)) return undefined;
-        return this.ensurePlayer(p);
+        const result = this.ensurePlayer(p);
+        this.traceOnlinePlayer(p);
+        return result;
     }
 
     /**
@@ -56,15 +59,30 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
      * 与 get() 不同，此方法会申请 participation membership。
      */
     join(p: Player): GamePlayerJoinDecision<T> {
+        this.traceSession?.participation.builtin(BuiltinTraceEventType.ParticipationAcquire, {
+            player: this.traceSession.player(p.id, p.name),
+        });
         const decision: ParticipationDecision = this.participation.join(p.id);
         if (!decision.allowed) {
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationAcquireRejected,
+                {
+                    player: this.traceSession.player(p.id, p.name),
+                    ...(decision.reason ? { reason: decision.reason } : {}),
+                }
+            );
             return {
                 allowed: false,
                 ...(decision.reason ? { reason: decision.reason } : {}),
             };
         }
 
-        return { allowed: true, player: this.ensurePlayer(p) };
+        const player = this.ensurePlayer(p);
+        this.traceOnlinePlayer(p);
+        this.traceSession?.participation.builtin(BuiltinTraceEventType.ParticipationJoined, {
+            player: this.traceSession.player(p.id, p.name),
+        });
+        return { allowed: true, player };
     }
 
     /**
@@ -74,14 +92,32 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
      * 也不会创建新的 GamePlayer wrapper。
      */
     joinAll(players: readonly Player[]): GamePlayerBatchJoinDecision<T> {
+        for (const player of players) {
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationAcquire,
+                { player: this.traceSession.player(player.id, player.name), batch: true }
+            );
+        }
+
         const playerIds = players.map((player) => player.id);
         const previousMemberships = new Set(
             playerIds.filter((playerId) => this.participation.has(playerId))
         );
-        const decision: ParticipationBatchDecision =
-            this.participation.joinAll(playerIds);
+        const decision: ParticipationBatchDecision = this.participation.joinAll(playerIds);
 
         if (!decision.allowed) {
+            const rejected = players.find((player) => player.id === decision.playerId);
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationAcquireRejected,
+                {
+                    player: this.traceSession.player(
+                        decision.playerId,
+                        rejected?.name
+                    ),
+                    batch: true,
+                    ...(decision.reason ? { reason: decision.reason } : {}),
+                }
+            );
             return {
                 allowed: false,
                 playerId: decision.playerId,
@@ -95,8 +131,16 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
                 if (!this.players.has(player.id)) {
                     createdPlayerIds.add(player.id);
                 }
-                return this.ensurePlayer(player);
+                const wrapper = this.ensurePlayer(player);
+                this.traceOnlinePlayer(player);
+                return wrapper;
             });
+            for (const player of players) {
+                this.traceSession?.participation.builtin(
+                    BuiltinTraceEventType.ParticipationJoined,
+                    { player: this.traceSession.player(player.id, player.name), batch: true }
+                );
+            }
             return { allowed: true, players: wrappers };
         } catch (error) {
             // wrapper 构造异常时，仅回滚本次新建的 wrapper 和 membership，
@@ -109,6 +153,13 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
             for (const playerId of new Set(playerIds)) {
                 if (!previousMemberships.has(playerId)) {
                     this.participation.leave(playerId);
+                    this.traceSession?.participation.builtin(
+                        BuiltinTraceEventType.ParticipationReleased,
+                        {
+                            player: this.traceSession.player(playerId),
+                            reason: "join-wrapper-rollback",
+                        }
+                    );
                 }
             }
             throw error;
@@ -133,15 +184,24 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     /**让玩家退出当前游戏，并释放 participation。*/
-    leave(playerId: string): boolean {
+    leave(playerId: string, reason = "leave"): boolean {
         const gamePlayer = this.players.get(playerId);
         if (gamePlayer) gamePlayer._setActive(false);
         const released = this.participation.leave(playerId);
+        if (released) {
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationReleased,
+                {
+                    player: this.traceSession.player(playerId, gamePlayer?.name),
+                    reason,
+                }
+            );
+        }
         return gamePlayer !== undefined || released;
     }
 
     deactivate(p: Player) {
-        this.leave(p.id);
+        this.leave(p.id, "deactivate");
     }
 
     get size() {
@@ -159,10 +219,23 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     dispose() {
+        const participantIds = [...this.participation.getAll()];
         for (const player of this.players.values()) {
             player._setActive(false);
         }
         this.participation.clear();
+        for (const playerId of participantIds) {
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationReleased,
+                {
+                    player: this.traceSession.player(
+                        playerId,
+                        this.players.get(playerId)?.name
+                    ),
+                    reason: "game-dispose",
+                }
+            );
+        }
     }
 
     private ensurePlayer(p: Player): T {
@@ -173,5 +246,11 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         }
         gamePlayer._setActive(true);
         return gamePlayer;
+    }
+
+    private traceOnlinePlayer(player: Player) {
+        if (!this.traceSession) return;
+        this.traceSession.registerPlayer(player.id, player.name);
+        this.traceSession.noteConnection(player.id, player.name, true);
     }
 }
