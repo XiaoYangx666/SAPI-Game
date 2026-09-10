@@ -15,12 +15,15 @@ export interface BEGameInitOptions extends BEGameConfigOptions {
 export type SAPIGameInitOptions = BEGameInitOptions;
 
 const manager = new GameManager();
+const events = new gameEvents();
+manager.trace.bindConnectionSource(events.connection);
 
 /** BEGame 核心全局入口。服务器级能力需要显式启用 `@begame/core/server`。 */
 export const Game = {
-    events: new gameEvents(),
+    events,
     manager,
     participation: manager.participation,
+    trace: manager.trace,
     constants: Constants,
     config: BEGameConfig,
 } as const;
@@ -49,4 +52,5 @@ export { ScriptRunner, ScriptCancelledError } from "./Runner/scriptRunner";
 export { RunnerManager } from "./Runner/RunnerManager";
 export * from "./gameEvent/index";
 export * from "./system/gameManager";
+export * from "./trace/index";
 export { createGameModule } from "./createGameModule";
