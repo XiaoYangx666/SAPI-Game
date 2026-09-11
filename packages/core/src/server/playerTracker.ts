@@ -1,10 +1,11 @@
-import { Player, world } from "@minecraft/server";
+import { Player } from "@minecraft/server";
 import {
     PlayerConnectionEventSignal,
     type PlayerConnectionEvent,
 } from "../gameEvent/events/playerConnection";
 import type { Subscription } from "../gameEvent/subscription";
 import { GameManager } from "../system/gameManager";
+import { gameServer } from "../system/server";
 
 export interface ServerPlayerTrackerOptions {
     onJoin?: (player: Player) => void;
@@ -13,8 +14,9 @@ export interface ServerPlayerTrackerOptions {
 /**
  * 小游戏服务器/地图层的在线玩家追踪。
  *
- * 启动时只扫描一次当前在线玩家，之后复用 SAPIGame 的连接事件；
- * 它不保存游戏 membership。
+ * 启动时只扫描一次当前在线玩家，之后复用 BEGame 的连接事件；
+ * 它不保存游戏 membership。当前在线玩家查询统一通过 Game.server 完成，
+ * onlineIds 只用于避免同一在线会话重复触发 onJoin。
  */
 export class ServerPlayerTracker {
     private onlineIds = new Set<string>();
@@ -35,7 +37,7 @@ export class ServerPlayerTracker {
         this.connectionSubscription = this.connection.subscribe((event) =>
             this.handleConnection(event)
         );
-        for (const player of world.getAllPlayers()) {
+        for (const player of gameServer.getAllPlayers()) {
             this.handleOnline(player);
         }
         return this;
@@ -50,13 +52,13 @@ export class ServerPlayerTracker {
     }
 
     getFreePlayers(): Player[] {
-        return world
+        return gameServer
             .getAllPlayers()
             .filter((player) => !this.games.participation.has(player.id));
     }
 
     status(): string {
-        const online = world.getAllPlayers();
+        const online = gameServer.getAllPlayers();
         const participating = online.filter((player) =>
             this.games.participation.has(player.id)
         ).length;

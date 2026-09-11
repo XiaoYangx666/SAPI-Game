@@ -67,10 +67,12 @@ export class DisconnectTimeoutComponent<
             }
         });
 
-        // connection signal 在第一个订阅者出现时会建立当前在线玩家快照。
-        // 因此组件即使在游戏恢复后才挂载，也能正确处理此前已离线的 participant。
+        // connection 只负责后续状态变化；当前在线状态以服务器查询为准。
+        const onlinePlayers = new Map(
+            Game.server.getAllPlayers().map((player) => [player.id, player])
+        );
         for (const playerId of this.getScopedParticipantIds()) {
-            const onlinePlayer = Game.events.connection.getOnlinePlayer(playerId);
+            const onlinePlayer = onlinePlayers.get(playerId);
             if (onlinePlayer) {
                 this.state.playerManager.get(onlinePlayer);
             } else {
@@ -139,8 +141,10 @@ export class DisconnectTimeoutComponent<
     private handleTimeout(playerId: string) {
         if (!this.isInScope(playerId)) return;
 
-        // online 事件与 timeout 落在同一 tick 时，以在线状态为准。
-        if (Game.events.connection.isOnline(playerId)) return;
+        // online 事件与 timeout 落在同一 tick 时，以服务器当前状态为准。
+        if (Game.server.getAllPlayers().some((player) => player.id === playerId)) {
+            return;
+        }
 
         const gamePlayer = this.state.playerManager.getById(playerId);
         this.trace.builtin(BuiltinTraceEventType.DisconnectTimeoutExpired, {

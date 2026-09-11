@@ -3,9 +3,9 @@ import {
     EquipmentSlot,
     ItemStack,
     Player,
-    world,
 } from "@minecraft/server";
 import { PlayerGroup } from "@sapi-game/gamePlayer/playerGroup";
+import { gameServer } from "@sapi-game/system/server";
 import { Logger } from "@sapi-game/utils";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
@@ -80,8 +80,8 @@ export class PlayerItemInSlotEventSignal
     }
 
     tick() {
-        for (let player of world.getAllPlayers()) {
-            if (!player || !player.isValid) continue;
+        for (const player of gameServer.getAllPlayers()) {
+            if (!player.isValid) continue;
             const equipComponent = player.getComponent(
                 EntityComponentTypes.Equippable
             );

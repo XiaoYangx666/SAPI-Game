@@ -1,5 +1,6 @@
-import { Player, world } from "@minecraft/server";
+import { Player } from "@minecraft/server";
 import { GameRegion } from "@sapi-game/gameRegion/gameRegion";
+import { gameServer } from "@sapi-game/system/server";
 import { difference } from "@sapi-game/utils/func";
 import { Logger } from "@sapi-game/utils/logger";
 import { DimensionIds } from "@sapi-game/utils/vanila-data";
@@ -87,8 +88,8 @@ export class PlayerRegionEventSignal
     }
 
     private checkAllRegions(): void {
-        // 1. 按维度收集所有玩家
-        const players = world.getAllPlayers().filter((p) => p != undefined);
+        // 1. 按维度收集所有在线玩家
+        const players = gameServer.getAllPlayers();
         const playersByDimension: Record<string, Player[]> = {};
         const dimensions = Object.values(DimensionIds);
 
@@ -98,12 +99,14 @@ export class PlayerRegionEventSignal
             );
         }
 
-        // 2. 遍历所有订阅区域
-        for (const sub of this.allSubscriptions) {
-            const region = sub.region;
+        // 2. 每个 region 只计算一次状态变化，再广播给该 region 的全部订阅者。
+        //    regionStates 是 region 级状态，不能在逐 subscription 循环里提前更新。
+        const regions = new Set(
+            [...this.allSubscriptions].map((sub) => sub.region)
+        );
+        for (const region of regions) {
             const prevPlayers =
                 this.regionStates.get(region) ?? new Set<string>();
-
             const dimensionPlayers =
                 playersByDimension[region.dimensionId] ?? [];
             const currPlayers = new Set(
@@ -111,20 +114,26 @@ export class PlayerRegionEventSignal
                     .filter((p) => region.isInside(p.location))
                     .map((p) => p.id)
             );
+            const subscriptions = [...this.allSubscriptions].filter(
+                (sub) => sub.region === region
+            );
 
-            // 进入事件
             for (const playerId of difference(currPlayers, prevPlayers)) {
-                const player = dimensionPlayers.find((p) => p.id === playerId)!;
-                this.publish(player, RegionEventType.Enter, sub);
+                const player = dimensionPlayers.find((p) => p.id === playerId);
+                if (!player) continue;
+                for (const sub of subscriptions) {
+                    this.publish(player, RegionEventType.Enter, sub);
+                }
             }
 
-            //离开事件
             for (const playerId of difference(prevPlayers, currPlayers)) {
                 const player = players.find((p) => p.id === playerId);
-                if (player) this.publish(player, RegionEventType.Leave, sub);
+                if (!player) continue;
+                for (const sub of subscriptions) {
+                    this.publish(player, RegionEventType.Leave, sub);
+                }
             }
 
-            // 更新状态
             this.regionStates.set(region, currPlayers);
         }
     }

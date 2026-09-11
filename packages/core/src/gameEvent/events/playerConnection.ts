@@ -4,7 +4,6 @@ import {
     PlayerSpawnAfterEvent,
     world,
 } from "@minecraft/server";
-import { isWorldLoaded, runAfterWorldLoad } from "../../system/worldReady";
 import { CustomEventSignal } from "../eventSignal";
 import { Subscription } from "../subscription";
 
@@ -25,10 +24,10 @@ export type PlayerConnectionEvent =
  * 玩家连接生命周期事件。
  *
  * 只有出现第一个订阅者时才连接 Minecraft 原生事件；最后一个订阅者离开后
- * 自动 unsubscribe，因此仅 import SAPIGame Core 不会产生连接追踪副作用。
+ * 自动 unsubscribe，因此仅 import BEGame Core 不会产生连接追踪副作用。
  *
- * worldLoad 之后订阅时会同步抓取当前在线玩家快照；如果在 early execution
- * 阶段提前出现订阅者，则只延后首次快照，不改变 worldLoad 后的同步语义。
+ * 该 Signal 只描述连接状态变化，不保存或暴露当前在线玩家快照。
+ * 当前玩家状态统一通过 Game.server.getAllPlayers() 查询。
  */
 export class PlayerConnectionEventSignal
     implements CustomEventSignal<PlayerConnectionEvent>
@@ -36,13 +35,10 @@ export class PlayerConnectionEventSignal
     private readonly callbacks = new Set<
         (event: PlayerConnectionEvent) => void
     >();
-    private readonly onlinePlayers = new Map<string, Player>();
     private started = false;
-    private cancelInitialSnapshot?: () => void;
 
     private readonly spawnHandler = (event: PlayerSpawnAfterEvent) => {
         if (!event.initialSpawn) return;
-        this.onlinePlayers.set(event.player.id, event.player);
         this.publish({
             type: "online",
             playerId: event.player.id,
@@ -52,7 +48,6 @@ export class PlayerConnectionEventSignal
     };
 
     private readonly leaveHandler = (event: PlayerLeaveAfterEvent) => {
-        this.onlinePlayers.delete(event.playerId);
         this.publish({
             type: "offline",
             playerId: event.playerId,
@@ -77,54 +72,18 @@ export class PlayerConnectionEventSignal
         };
     }
 
-    /**当前是否有该 playerId 对应的在线 Player。*/
-    isOnline(playerId: string): boolean {
-        return this.getOnlinePlayer(playerId) !== undefined;
-    }
-
-    /**获取当前在线 Player；若已失效会顺便从快照清理。*/
-    getOnlinePlayer(playerId: string): Player | undefined {
-        const player = this.onlinePlayers.get(playerId);
-        if (!player) return;
-        if (!player.isValid) {
-            this.onlinePlayers.delete(playerId);
-            return;
-        }
-        return player;
-    }
-
     private start() {
         if (this.started) return;
         this.started = true;
-        this.onlinePlayers.clear();
         world.afterEvents.playerSpawn.subscribe(this.spawnHandler);
         world.afterEvents.playerLeave.subscribe(this.leaveHandler);
-
-        if (isWorldLoaded()) {
-            this.captureOnlineSnapshot();
-        } else {
-            this.cancelInitialSnapshot = runAfterWorldLoad(() => {
-                this.cancelInitialSnapshot = undefined;
-                if (!this.started) return;
-                this.captureOnlineSnapshot();
-            });
-        }
-    }
-
-    private captureOnlineSnapshot() {
-        for (const player of world.getAllPlayers()) {
-            if (player.isValid) this.onlinePlayers.set(player.id, player);
-        }
     }
 
     private stop() {
         if (!this.started) return;
         this.started = false;
-        this.cancelInitialSnapshot?.();
-        this.cancelInitialSnapshot = undefined;
         world.afterEvents.playerSpawn.unsubscribe(this.spawnHandler);
         world.afterEvents.playerLeave.unsubscribe(this.leaveHandler);
-        this.onlinePlayers.clear();
     }
 
     private publish(event: PlayerConnectionEvent) {

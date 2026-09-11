@@ -6,6 +6,7 @@ import {
     Vector3,
     world,
 } from "@minecraft/server";
+import { gameServer } from "../system/server";
 import { DimensionIds } from "../utils/vanila-data";
 import { Vector3Utils } from "../utils/vector";
 
@@ -23,10 +24,9 @@ export abstract class GameRegion {
 
     /**获取区域内的玩家 */
     getPlayersInRegion() {
-        const result = [];
-        const players = world.getAllPlayers();
+        const result: Player[] = [];
+        const players = gameServer.getAllPlayers();
         for (const player of players) {
-            if (player == undefined) continue;
             if (
                 player.dimension.id == this.dimensionId &&
                 this.isInside(player.location)

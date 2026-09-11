@@ -3,6 +3,7 @@ import { Constants } from "./constants";
 import { gameEvents } from "./gameEvent/gameEvent";
 import { ParticipationPolicy } from "./participation/participationManager";
 import { GameManager } from "./system/gameManager";
+import { gameServer } from "./system/server";
 import type { WorldTraceStoreOptions } from "./trace/worldStore";
 
 export { BEGameConfig, SAPIGameConfig } from "./config";
@@ -30,9 +31,10 @@ const manager = new GameManager();
 const events = new gameEvents();
 manager.trace.bindConnectionSource(events.connection);
 
-/** BEGame 核心全局入口。服务器级能力需要显式启用 `@begame/core/server`。 */
+/** BEGame 核心全局入口。命令/onJoin 等服务器集成能力仍需显式启用 `@begame/core/server`。 */
 export const Game = {
     events,
+    server: gameServer,
     manager,
     participation: manager.participation,
     trace: manager.trace,

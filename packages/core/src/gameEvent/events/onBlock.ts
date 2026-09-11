@@ -1,5 +1,6 @@
-import { Block, Player, world } from "@minecraft/server";
+import { Block, Player } from "@minecraft/server";
 import { PlayerGroup } from "@sapi-game/gamePlayer/playerGroup";
+import { gameServer } from "@sapi-game/system/server";
 import { Logger, Vector3Utils } from "@sapi-game/utils";
 import { CustomEventSignal } from "../eventSignal";
 import { SubscriptionData } from "../mapEventSignal";
@@ -95,8 +96,8 @@ export class PlayerOnBlockEventSignal
     }
 
     private tick() {
-        for (const p of world.getAllPlayers()) {
-            if (p == undefined || !p.isValid) continue;
+        for (const p of gameServer.getAllPlayers()) {
+            if (!p.isValid) continue;
             //如果超过高度范围，跳过
             if (
                 p.location.y < p.dimension.heightRange.min ||

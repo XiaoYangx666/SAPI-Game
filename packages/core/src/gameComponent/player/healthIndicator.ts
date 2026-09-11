@@ -60,8 +60,7 @@ export class PlayerHealthIndicator extends GameComponent<
     /**刷新计分板 */
     refresh() {
         const obj = this.getObj();
-        world.getAllPlayers().forEach((p) => {
-            if (!p) return;
+        Game.server.getAllPlayers().forEach((p) => {
             const comp = p.getComponent(EntityComponentTypes.Health);
             if (!comp) return;
             const cur = comp.currentValue;
