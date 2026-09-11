@@ -1,0 +1,4 @@
+# Store and check out all text files with LF, regardless of platform.
+# Prevents core.autocrlf from creating CRLF working copies that tools
+# later rewrite as LF (which would show a "modified" file with an empty diff).
+* text=auto eol=lf
