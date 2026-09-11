@@ -3,7 +3,7 @@ import { Game } from "../../main";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
 import type { PlayerGroupSet } from "../../gamePlayer/groupSet";
 import { GameState } from "../../gameState/gameState";
-import { BuiltinTraceEventType } from "../../trace/types";
+import { BuiltinTraceEventType } from "@begame/trace-core";
 import { Duration } from "../../utils/duration";
 import { GameComponent } from "../gameComponent";
 

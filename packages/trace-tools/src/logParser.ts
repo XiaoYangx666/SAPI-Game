@@ -2,7 +2,7 @@ import {
     decodeBase64,
     decodeBegTrace,
     type DecodedTraceSession,
-} from "@begame/core/trace";
+} from "@begame/trace-core";
 
 export const TRACE_LOG_MARKER = "BEGAME_TRACE";
 

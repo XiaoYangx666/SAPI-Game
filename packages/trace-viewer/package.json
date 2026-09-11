@@ -1,0 +1,25 @@
+{
+    "name": "@begame/trace-viewer",
+    "version": "0.0.2",
+    "private": true,
+    "description": "Local web viewer for BEGame Trace Content Log exports",
+    "type": "module",
+    "main": "./dist/server.js",
+    "scripts": {
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "@begame/trace-core": "0.0.2",
+        "@begame/trace-tools": "0.0.2",
+        "@hono/node-server": "^2.1.1",
+        "hono": "^4.13.7",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^22.20.2",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0"
+    }
+}

@@ -1,15 +1,17 @@
 import { system, world } from "@minecraft/server";
 import { isWorldLoaded, runAfterWorldLoad } from "../system/worldReady";
-import { decodeBase64, encodeBase64 } from "./base64";
-import { encodeBegTrace, type BegTraceContainer } from "./container";
 import {
+    decodeBase64,
+    encodeBase64,
+    encodeBegTrace,
     TRACE_FORMAT_VERSION,
+    type BegTraceContainer,
     type TraceChunk,
     type TraceSessionEnd,
     type TraceSessionHeader,
     type TraceSessionStatus,
     type TraceSink,
-} from "./types";
+} from "@begame/trace-core";
 
 const STORE_PREFIX = `begame.trace.v${TRACE_FORMAT_VERSION}.`;
 const DEFAULT_MAX_SESSIONS = 50;

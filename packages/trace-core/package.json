@@ -1,0 +1,25 @@
+{
+    "name": "@begame/trace-core",
+    "version": "0.0.2",
+    "description": "Platform-independent BEGame Trace format, codec and session primitives",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": ["dist"],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.js"
+        }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/XiaoYangx666/SAPI-Game.git"
+    },
+    "keywords": ["minecraft", "bedrock", "trace", "codec"]
+}

@@ -9,8 +9,11 @@ import { EventSignal } from "../gameEvent/eventSignal";
 import { GamePlayer } from "../gamePlayer/gamePlayer";
 import { GamePlayerManager } from "../gamePlayer/playerManager";
 import { RunnerManager } from "../Runner/RunnerManager";
-import { traceError, TraceScope } from "../trace/session";
-import { BuiltinTraceEventType } from "../trace/types";
+import {
+    BuiltinTraceEventType,
+    traceError,
+    TraceScope,
+} from "@begame/trace-core";
 import { Logger } from "../utils/logger";
 import {
     ComponentDeleteFailedError,

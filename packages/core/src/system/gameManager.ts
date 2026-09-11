@@ -10,8 +10,7 @@ import {
     ParticipationPolicy,
 } from "../participation/participationManager";
 import { TraceManager } from "../trace/manager";
-import { traceError } from "../trace/session";
-import { BuiltinTraceEventType } from "../trace/types";
+import { BuiltinTraceEventType, traceError } from "@begame/trace-core";
 import { GameManagerError } from "../utils/GameError";
 import { classConstructor } from "../utils/interfaces";
 import { Logger } from "../utils/logger";

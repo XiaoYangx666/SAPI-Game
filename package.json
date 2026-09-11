@@ -8,13 +8,14 @@
         "packages/*"
     ],
     "scripts": {
-        "clean": "rimraf packages/core/dist packages/test/dist packages/trace-tools/dist || true",
-        "build": "npm run clean && tsc --noEmit && rolldown -c",
+        "clean": "rimraf packages/core/dist packages/test/dist packages/trace-core/dist packages/trace-tools/dist packages/trace-viewer/dist packages/trace-viewer/public/build || true",
+        "build": "npm run clean && tsc --noEmit && tsc -p packages/trace-viewer/server && rolldown -c",
         "pack": "node scripts/pack.mjs",
         "test": "vitest run",
         "test:unit": "vitest run",
         "test:headless": "vitest run tests/lifecycle.test.mjs",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "viewer": "npm run build && node packages/trace-viewer/dist/server.js"
     },
     "devDependencies": {
         "rimraf": "^6.1.2",

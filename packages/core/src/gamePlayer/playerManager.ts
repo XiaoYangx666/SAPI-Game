@@ -2,8 +2,10 @@ import { Player } from "@minecraft/server";
 import { GameParticipation } from "../participation/gameParticipation";
 import type { ParticipationBatchDecision } from "../participation/gameParticipation";
 import type { ParticipationDecision } from "../participation/policy";
-import { BuiltinTraceEventType } from "../trace/types";
-import type { TraceSession } from "../trace/session";
+import {
+    BuiltinTraceEventType,
+    type TraceSession,
+} from "@begame/trace-core";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
 

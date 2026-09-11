@@ -20,7 +20,12 @@ function buildInput(files: string[], base: string) {
 
 const coreRoot = "packages/core/src";
 const testRoot = "packages/test/src";
+const traceCoreRoot = "packages/trace-core/src";
 const traceToolsRoot = "packages/trace-tools/src";
+const viewerEntry = path.resolve("packages/trace-viewer/src/main.tsx");
+const viewerServerEntry = path.resolve("packages/trace-viewer/server/index.ts");
+
+const traceCoreExternal = /^@begame\/trace-core(\/|$)/;
 
 const coreInput = buildInput(
     globSync(`${coreRoot}/**/*.ts`, {
@@ -36,6 +41,13 @@ const testInput = buildInput(
     testRoot
 );
 
+const traceCoreInput = buildInput(
+    globSync(`${traceCoreRoot}/**/*.ts`, {
+        ignore: [`${traceCoreRoot}/**/*.d.ts`],
+    }),
+    traceCoreRoot
+);
+
 const traceToolsInput = buildInput(
     globSync(`${traceToolsRoot}/**/*.ts`, {
         ignore: [`${traceToolsRoot}/**/*.d.ts`],
@@ -45,8 +57,23 @@ const traceToolsInput = buildInput(
 
 export default defineConfig([
     {
+        input: traceCoreInput,
+        output: {
+            dir: "packages/trace-core/dist",
+            format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: traceCoreRoot,
+            entryFileNames: "[name].js",
+        },
+        plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
         input: coreInput,
-        external: ["@minecraft/server", "@minecraft/server-ui"],
+        external: [
+            traceCoreExternal,
+            "@minecraft/server",
+            "@minecraft/server-ui",
+        ],
         output: {
             dir: "packages/core/dist",
             format: "esm",
@@ -78,7 +105,7 @@ export default defineConfig([
     },
     {
         input: traceToolsInput,
-        external: ["@begame/core/trace"],
+        external: [traceCoreExternal],
         output: {
             dir: "packages/trace-tools/dist",
             format: "esm",
@@ -87,5 +114,27 @@ export default defineConfig([
             entryFileNames: "[name].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
+        input: { app: viewerEntry },
+        platform: "browser",
+        define: {
+            "process.env.NODE_ENV": JSON.stringify("production"),
+        },
+        output: {
+            dir: "packages/trace-viewer/public/build",
+            format: "esm",
+            entryFileNames: "[name].js",
+            minify: true,
+        },
+    },
+    {
+        input: { server: viewerServerEntry },
+        platform: "node",
+        output: {
+            dir: "packages/trace-viewer/dist",
+            format: "esm",
+            entryFileNames: "[name].js",
+        },
     },
 ]);

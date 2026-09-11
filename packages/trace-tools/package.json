@@ -13,7 +13,7 @@
         }
     },
     "dependencies": {
-        "@begame/core": "0.0.2"
+        "@begame/trace-core": "0.0.2"
     },
     "license": "MIT",
     "repository": {

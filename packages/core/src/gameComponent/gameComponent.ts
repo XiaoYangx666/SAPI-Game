@@ -1,7 +1,7 @@
 import { EventSubscription } from "../gameEvent/eventManager";
 import { EventSignal } from "../gameEvent/eventSignal";
 import { GameState } from "../gameState/gameState";
-import { TraceScope } from "../trace/session";
+import { TraceScope } from "@begame/trace-core";
 
 type InferContext<S> = S extends GameState<any, infer C, any> ? C : never;
 

@@ -12,12 +12,12 @@ import {
 } from "./participation/participationManager";
 import type { TraceManager } from "./trace/manager";
 import {
+    BuiltinTraceEventType,
     NOOP_TRACE_SCOPE,
     TraceScope,
     traceError,
     type TraceSession,
-} from "./trace/session";
-import { BuiltinTraceEventType } from "./trace/types";
+} from "@begame/trace-core";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";

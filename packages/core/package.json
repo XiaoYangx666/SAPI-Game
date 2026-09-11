@@ -57,7 +57,7 @@
         }
     },
     "dependencies": {
-        "@protobufjs/utf8": "^1.1.2"
+        "@begame/trace-core": "0.0.2"
     },
     "peerDependencies": {
         "@minecraft/server": ">=2.9.0",

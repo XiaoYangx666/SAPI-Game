@@ -1,7 +1,10 @@
 import { system } from "@minecraft/server";
 import { Logger } from "@sapi-game/utils";
-import { traceError, type TraceScope } from "../trace/session";
-import { BuiltinTraceEventType } from "../trace/types";
+import {
+    BuiltinTraceEventType,
+    traceError,
+    type TraceScope,
+} from "@begame/trace-core";
 import { ScriptRunner } from "./scriptRunner";
 
 export class RunnerManager {

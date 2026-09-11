@@ -42,7 +42,7 @@ Game / State / Component / Participation / Runner / Timer
 
 `TraceSession` owns ordering and encoding. Gameplay code emits logical events through `TraceScope`. Sink membership is snapshotted when the session starts, so a runtime storage toggle cannot create a deliberately truncated stored session. Sink failures are isolated from game execution.
 
-`WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package.
+`@begame/trace-core` holds the platform-independent part of the subsystem: vocabulary, binary codec, chunk container, decoder, schema/session primitives and the console exporter. `@begame/core` adds the Minecraft adapters (`WorldTraceStore`, `TraceManager`) and re-exports trace-core through `@begame/core/trace`, so existing deep imports keep working. `WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
 
 ## Session model
 
@@ -244,9 +244,21 @@ Minecraft Content Log normally wraps that as, for example:
 
 The marker deliberately does not depend on Minecraft's surrounding log prefix, because Content Log can contain Localization, Sound and unrelated Scripting messages around it.
 
+## @begame/trace-core
+
+`@begame/trace-core` is the platform-independent Trace package shared by the runtime and tooling:
+
+- vocabulary and constants: session header/end/chunk types, built-in event ids, source kinds;
+- codec: varint/zigzag, UTF-8, `BinaryReader`/`BinaryWriter`, `.begtrace` container, chunk encoder/decoder;
+- session primitives: `TraceScope`, `TraceSession`, `defineTraceEvent`, `ConsoleTraceExporter`.
+
+It has no `@minecraft/server` dependency and no runtime dependencies at all. `@begame/core` owns the Minecraft adapters (`WorldTraceStore`, `TraceManager`) and re-exports trace-core from `@begame/core/trace`, so `@begame/core/trace/*` deep imports remain valid.
+
+Consumers that install `@begame/core` from a local checkout (`"@begame/core": "file:../begame/packages/core"`) must also declare `@begame/trace-core` with the same version (`file:../begame/packages/trace-core` or the packed tarball). Like all npm `file:` dependencies, the packages are copied into `node_modules`, so re-run `npm install` after rebuilding BEGame.
+
 ## @begame/trace-tools
 
-`@begame/trace-tools` is the offline parsing/diagnostic package. Its first feature is extracting Console Trace exports from raw Minecraft Content Log text.
+`@begame/trace-tools` is the offline parsing/diagnostic package. Its first feature is extracting Console Trace exports from raw Minecraft Content Log text. It depends only on `@begame/trace-core`, so plain Node.js can import it without installing `@minecraft/server`.
 
 ```ts
 import {
@@ -273,13 +285,46 @@ The parser:
 
 Future viewer, summary, timeline, comparison and Agent-facing analysis helpers belong in this package rather than in the Minecraft runtime package.
 
+## Trace Viewer
+
+`packages/trace-viewer` is a local web viewer with a built-in HTTP server. One command starts both:
+
+```shell
+npm run viewer
+```
+
+Then open `http://127.0.0.1:8787` (override with `PORT=xxxx npm run viewer`). It currently provides decoding and preview only. The UI is a React app (React 19, bundled by rolldown into `packages/trace-viewer/public/build/app.js`). The API is a Hono app (`packages/trace-viewer/server/`, TypeScript) bundled by rolldown into `packages/trace-viewer/dist/server.js` with Hono inlined, so running it still needs no installed dependencies:
+
+- **故事线** (default): the decoded session is grouped into consecutive state phases; events are translated into readable titles, seat/player ids are resolved to names with stable colors, component attach pairs are merged, and times are shown relative to session start.
+- **概览**: session cards, participant/seat cards with change history, failure/error events, state timeline and event-type histogram.
+- **原始事件**: the full event table with owning-state scope, text filter, source-kind filter and payload inspector.
+- paste a Content Log, or drop a `.log` / `.txt` / raw `.begtrace` file; multiple exports in the same log can be switched with missing parts reported;
+- every view can be exported as JSON.
+
+Server API:
+
+```text
+GET  /api/health            → { ok, name, version }
+POST /api/decode            → decoded session JSON; body is log text or raw .begtrace bytes
+POST /api/decode?session=ID → select a specific export
+```
+
+Routes reserved for the future live pipeline are marked in `server/app.ts`:
+
+```text
+POST /api/ingest            → Minecraft pushes trace data
+GET  /api/live              → browser subscribes via SSE
+```
+
+Real-time Minecraft connections, live streaming and analysis are intentionally not implemented yet. The viewer imports only `@begame/trace-tools` and `@begame/trace-core`, so the future live adapter can feed the same decode endpoint without changing the UI.
+
 ## Deferred adapters / tools
 
 Still deferred:
 
 - `/connect` development bridge
 - `@minecraft/server-net` HTTP/WebSocket upload adapter
-- Trace Viewer UI
+- live/real-time Trace Viewer updates
 - diagnostic high-frequency mode
 - rich Agent analyzer/query API
 - pin/bug-report retention policy

@@ -1,12 +1,13 @@
-import { ConsoleTraceExporter } from "./consoleExporter";
-import { snapshotTraceValue, TraceSession } from "./session";
 import {
+    ConsoleTraceExporter,
+    snapshotTraceValue,
+    TraceSession,
     TRACE_FORMAT_VERSION,
     type TraceSessionEnd,
     type TraceSessionOptions,
     type TraceSink,
     type TraceValue,
-} from "./types";
+} from "@begame/trace-core";
 import {
     WorldTraceStore,
     type WorldTraceStoreOptions,
