@@ -14,14 +14,25 @@
         "noImplicitAny": true,
         "noImplicitOverride": true,
         "allowJs": true,
+        "jsx": "react-jsx",
         "paths": {
-            "@begame/core": ["./src/main.ts"],
-            "@begame/core/*": ["./src/*"],
-            "@begame/test": ["./src/testing/index.ts"],
-            "@begame/test/*": ["./src/testing/*"],
-            "@sapi-game/*": ["./src/*"]
+            "@begame/core": ["./packages/core/src/main.ts"],
+            "@begame/core/*": ["./packages/core/src/*"],
+            "@begame/test": ["./packages/test/src/index.ts"],
+            "@begame/test/*": ["./packages/test/src/*"],
+            "@begame/trace-core": ["./packages/trace-core/src/index.ts"],
+            "@begame/trace-core/*": ["./packages/trace-core/src/*"],
+            "@begame/trace-tools": ["./packages/trace-tools/src/index.ts"],
+            "@begame/trace-tools/*": ["./packages/trace-tools/src/*"],
+            "@sapi-game/*": ["./packages/core/src/*"]
         }
     },
-    "include": ["./src"],
+    "include": [
+        "./packages/core/src",
+        "./packages/test/src",
+        "./packages/trace-core/src",
+        "./packages/trace-tools/src",
+        "./packages/trace-viewer/src"
+    ],
     "compileOnSave": false
 }

@@ -1,0 +1,24 @@
+{
+    "name": "@begame/trace-tools",
+    "version": "0.0.2",
+    "description": "Offline parser and tools for BEGame Trace exports",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": ["dist"],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "dependencies": {
+        "@begame/trace-core": "0.0.2"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/XiaoYangx666/SAPI-Game.git"
+    },
+    "keywords": ["minecraft", "bedrock", "trace", "parser", "diagnostics"]
+}

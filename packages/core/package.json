@@ -39,6 +39,10 @@
             "types": "./dist/gameState/index.d.ts",
             "import": "./dist/gameState/index.js"
         },
+        "./trace": {
+            "types": "./dist/trace/index.d.ts",
+            "import": "./dist/trace/index.js"
+        },
         "./utils": {
             "types": "./dist/utils/index.d.ts",
             "import": "./dist/utils/index.js"
@@ -52,9 +56,12 @@
             "import": "./dist/*.js"
         }
     },
+    "dependencies": {
+        "@begame/trace-core": "0.0.2"
+    },
     "peerDependencies": {
-        "@minecraft/server": ">=2.3.0 <3.0.0",
-        "@minecraft/server-ui": ">=2.0.0 <3.0.0"
+        "@minecraft/server": ">=2.9.0",
+        "@minecraft/server-ui": ">=2.1.0"
     },
     "license": "MIT",
     "repository": {

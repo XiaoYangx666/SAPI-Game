@@ -7,7 +7,10 @@ function buildInput(files: string[], base: string) {
     return Object.fromEntries(
         files.map((file) => {
             const name = path
-                .relative(base, file.slice(0, file.length - path.extname(file).length))
+                .relative(
+                    base,
+                    file.slice(0, file.length - path.extname(file).length)
+                )
                 .split(path.sep)
                 .join("/");
             return [name, path.resolve(file)];
@@ -15,29 +18,68 @@ function buildInput(files: string[], base: string) {
     );
 }
 
+const coreRoot = "packages/core/src";
+const testRoot = "packages/test/src";
+const traceCoreRoot = "packages/trace-core/src";
+const traceToolsRoot = "packages/trace-tools/src";
+const viewerEntry = path.resolve("packages/trace-viewer/src/main.tsx");
+const viewerServerEntry = path.resolve("packages/trace-viewer/server/index.ts");
+
+const traceCoreExternal = /^@begame\/trace-core(\/|$)/;
+
 const coreInput = buildInput(
-    globSync("src/**/*.ts", {
-        ignore: ["src/**/*.d.ts", "src/testing/**"],
+    globSync(`${coreRoot}/**/*.ts`, {
+        ignore: [`${coreRoot}/**/*.d.ts`],
     }),
-    "src"
+    coreRoot
 );
 
 const testInput = buildInput(
-    globSync("src/testing/**/*.ts", {
-        ignore: ["src/testing/**/*.d.ts"],
+    globSync(`${testRoot}/**/*.ts`, {
+        ignore: [`${testRoot}/**/*.d.ts`],
     }),
-    "src/testing"
+    testRoot
+);
+
+const traceCoreInput = buildInput(
+    globSync(`${traceCoreRoot}/**/*.ts`, {
+        ignore: [`${traceCoreRoot}/**/*.d.ts`],
+    }),
+    traceCoreRoot
+);
+
+const traceToolsInput = buildInput(
+    globSync(`${traceToolsRoot}/**/*.ts`, {
+        ignore: [`${traceToolsRoot}/**/*.d.ts`],
+    }),
+    traceToolsRoot
 );
 
 export default defineConfig([
     {
+        input: traceCoreInput,
+        output: {
+            dir: "packages/trace-core/dist",
+            format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: traceCoreRoot,
+            entryFileNames: "[name].js",
+        },
+        plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
         input: coreInput,
-        external: ["@minecraft/server", "@minecraft/server-ui"],
+        external: [
+            traceCoreExternal,
+            "@minecraft/server",
+            "@minecraft/server-ui",
+        ],
         output: {
             dir: "packages/core/dist",
             format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: coreRoot,
             entryFileNames: "[name].js",
-            chunkFileNames: "_chunks/[name]-[hash].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
@@ -47,6 +89,7 @@ export default defineConfig([
             "@begame/core",
             "@minecraft/server",
             "@minecraft/server-ui",
+            "node:fs",
             "node:module",
             "node:url",
             "vitest/config",
@@ -54,9 +97,44 @@ export default defineConfig([
         output: {
             dir: "packages/test/dist",
             format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: testRoot,
             entryFileNames: "[name].js",
-            chunkFileNames: "_chunks/[name]-[hash].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
+        input: traceToolsInput,
+        external: [traceCoreExternal],
+        output: {
+            dir: "packages/trace-tools/dist",
+            format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: traceToolsRoot,
+            entryFileNames: "[name].js",
+        },
+        plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
+        input: { app: viewerEntry },
+        platform: "browser",
+        define: {
+            "process.env.NODE_ENV": JSON.stringify("production"),
+        },
+        output: {
+            dir: "packages/trace-viewer/public/build",
+            format: "esm",
+            entryFileNames: "[name].js",
+            minify: true,
+        },
+    },
+    {
+        input: { server: viewerServerEntry },
+        platform: "node",
+        output: {
+            dir: "packages/trace-viewer/dist",
+            format: "esm",
+            entryFileNames: "[name].js",
+        },
     },
 ]);

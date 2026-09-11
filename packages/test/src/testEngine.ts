@@ -1,0 +1,168 @@
+import { Game } from "@begame/core";
+import type { GameEngine, ManagedGameConstructor } from "@begame/core";
+import { TestTraceSink } from "./traceSink";
+import { virtualMinecraft, Player } from "./virtualMinecraft";
+import { virtualMinecraftUi } from "./virtualMinecraftUi";
+
+export interface TestTraceEntry {
+    readonly tick: number;
+    readonly type:
+        | "connect"
+        | "disconnect"
+        | "advance"
+        | "start-game"
+        | "stop-game"
+        | "reload"
+        | "reset";
+    readonly detail?: string;
+}
+
+export interface ReloadScenario<TSnapshot, TResult> {
+    snapshot: () => TSnapshot | Promise<TSnapshot>;
+    restore: (snapshot: TSnapshot) => TResult | Promise<TResult>;
+}
+
+/** Node 环境下的 BEGame 无头生命周期测试驱动。 */
+export class BEGameTestEngine {
+    /** Test harness actions. This is intentionally separate from Game Trace. */
+    readonly trace: TestTraceEntry[] = [];
+    /** Structured per-game Trace Sessions emitted by BEGame Core. */
+    readonly gameTrace = new TestTraceSink();
+
+    constructor() {
+        Game.trace.setSink(this.gameTrace);
+        // Core / SAPI-Pro modules subscribe during import. Creating a test
+        // environment represents a loaded world, so finish that initialization.
+        virtualMinecraft.emitWorldLoad();
+    }
+
+    get tick() {
+        return virtualMinecraft.system.currentTick;
+    }
+
+    get nowMs() {
+        return virtualMinecraft.system.currentTimeMs;
+    }
+
+    get manager() {
+        return Game.manager;
+    }
+
+    connectPlayer(id: string, name = id): Player {
+        const player = virtualMinecraft.connectPlayer(id, name);
+        this.record("connect", id);
+        return player;
+    }
+
+    disconnectPlayer(id: string) {
+        const disconnected = virtualMinecraft.disconnectPlayer(id);
+        if (disconnected) this.record("disconnect", id);
+        return disconnected;
+    }
+
+    getPlayer(id: string) {
+        return virtualMinecraft.getPlayer(id);
+    }
+
+    startGame<T extends GameEngine<any, any, any>>(
+        game: ManagedGameConstructor<T>,
+        config?: T extends GameEngine<any, any, infer O> ? O : unknown,
+        tag?: string
+    ): T {
+        const instance = this.manager.startGame(game, config as any, tag);
+        this.record("start-game", instance.key);
+        return instance;
+    }
+
+    stopGame<T extends GameEngine<any, any>>(game: Function, tag?: string) {
+        const key = this.manager.buildKey(game, tag);
+        this.manager.stopGameByKey(key, "test-engine-stop");
+        this.record("stop-game", key);
+    }
+
+    getGame<T extends GameEngine<any, any>>(game: Function, tag?: string) {
+        return this.manager.getGameByKey(this.manager.buildKey(game, tag)) as
+            | T
+            | undefined;
+    }
+
+    async advanceTicks(ticks: number) {
+        await virtualMinecraft.advanceTicks(ticks);
+        this.record("advance", String(ticks));
+    }
+
+    /** Emit any Minecraft world after-event with an arbitrary test payload. */
+    emitAfterEvent(name: string, event: unknown) {
+        virtualMinecraft.emitAfterEvent(name, event);
+    }
+
+    /** Explicit alias for emitAfterEvent when a test mixes world/system events. */
+    emitWorldAfterEvent(name: string, event: unknown) {
+        virtualMinecraft.emitAfterEvent(name, event);
+    }
+
+    /** Emit any Minecraft world before-event with an arbitrary mutable payload. */
+    emitBeforeEvent(name: string, event: unknown) {
+        virtualMinecraft.emitBeforeEvent(name, event);
+    }
+
+    /** Explicit alias for emitBeforeEvent when a test mixes world/system events. */
+    emitWorldBeforeEvent(name: string, event: unknown) {
+        virtualMinecraft.emitBeforeEvent(name, event);
+    }
+
+    /** Emit any Minecraft system after-event with an arbitrary test payload. */
+    emitSystemAfterEvent(name: string, event: unknown) {
+        virtualMinecraft.emitSystemAfterEvent(name, event);
+    }
+
+    /** Emit any Minecraft system before-event with an arbitrary mutable payload. */
+    emitSystemBeforeEvent(name: string, event: unknown) {
+        virtualMinecraft.emitSystemBeforeEvent(name, event);
+    }
+
+    queueFormResponse(response: {
+        canceled?: boolean;
+        selection?: number;
+        formValues?: unknown[];
+    }) {
+        virtualMinecraftUi.queueResponse(response);
+    }
+
+    async reload<TSnapshot, TResult>(
+        scenario: ReloadScenario<TSnapshot, TResult>
+    ): Promise<TResult> {
+        const snapshot = await scenario.snapshot();
+        this.manager.disposeAll({
+            includeDaemon: true,
+            reason: "test-reload",
+            traceStatus: "reloaded",
+        });
+        virtualMinecraft.resetScriptResources();
+        virtualMinecraftUi.clearResponses();
+        virtualMinecraft.emitWorldLoad();
+        this.record("reload");
+        return await scenario.restore(snapshot);
+    }
+
+    reset() {
+        this.manager.disposeAll({
+            includeDaemon: true,
+            reason: "test-reset",
+            traceStatus: "interrupted",
+        });
+        virtualMinecraft.resetWorld();
+        virtualMinecraftUi.clearResponses();
+        virtualMinecraft.emitWorldLoad();
+        this.trace.length = 0;
+        this.gameTrace.clear();
+        this.record("reset");
+    }
+
+    private record(type: TestTraceEntry["type"], detail?: string) {
+        this.trace.push({ tick: this.tick, type, ...(detail ? { detail } : {}) });
+    }
+}
+
+/** @deprecated 使用 BEGameTestEngine。 */
+export const SAPIGameTestEngine = BEGameTestEngine;

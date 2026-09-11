@@ -1,16 +1,25 @@
 import { expect, test } from "vitest";
 import {
     BEGameConfig,
+    CubeRegion,
     DisconnectTimeoutComponent,
+    Game,
     GameContext,
     GameEngine,
     GamePlayer,
     GameState,
     PlayerGroupSet,
+    RegionEventType,
     SAPIGameConfig,
 } from "../packages/core/dist/main.js";
-import { Duration } from "../packages/core/dist/utils/index.js";
-import { BEGameTestEngine } from "../packages/test/dist/index.js";
+import {
+    Duration,
+    vanilaData,
+} from "../packages/core/dist/utils/index.js";
+import {
+    BEGameTestEngine,
+    virtualMinecraft,
+} from "../packages/test/dist/index.js";
 
 class HardeningPlayer extends GamePlayer {}
 
@@ -183,6 +192,69 @@ test("DisconnectTimeout keeps participation by default", async () => {
 
     expect(trace).toContain(`timeout:${alice.id}`);
     expect(game.participation.has(alice.id)).toBe(true);
+    env.reset();
+});
+
+test("Game.server.getAllPlayers filters undefined ScriptAPI entries", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("server-query-alice", "Alice");
+    const originalGetAllPlayers = virtualMinecraft.world.getAllPlayers;
+
+    virtualMinecraft.world.getAllPlayers = () => [alice, undefined];
+    try {
+        expect(Game.server.getAllPlayers()).toEqual([alice]);
+    } finally {
+        virtualMinecraft.world.getAllPlayers = originalGetAllPlayers;
+        env.reset();
+    }
+});
+
+test("connection is event-only and current player state lives under Game.server", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("connection-api-alice", "Alice");
+
+    expect(Game.server.getAllPlayers().map((player) => player.id)).toContain(alice.id);
+    expect(Game.events.connection.isOnline).toBeUndefined();
+    expect(Game.events.connection.getOnlinePlayer).toBeUndefined();
+    env.reset();
+});
+
+test("region transitions are broadcast to every subscriber of the same region", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const region = new CubeRegion(
+        vanilaData.DimensionIds.Overworld,
+        { x: 0, y: 0, z: 0 },
+        { x: 2, y: 2, z: 2 }
+    );
+    const first = [];
+    const second = [];
+    const firstSub = Game.events.region.subscribe(
+        (event) => first.push(event.type),
+        region
+    );
+    const secondSub = Game.events.region.subscribe(
+        (event) => second.push(event.type),
+        region
+    );
+
+    const alice = env.connectPlayer("region-broadcast-alice", "Alice");
+    alice.location = { x: 1, y: 1, z: 1 };
+    await env.advanceTicks(1);
+
+    expect(first).toEqual([RegionEventType.Enter]);
+    expect(second).toEqual([RegionEventType.Enter]);
+
+    alice.location = { x: 10, y: 1, z: 10 };
+    await env.advanceTicks(1);
+
+    expect(first).toEqual([RegionEventType.Enter, RegionEventType.Leave]);
+    expect(second).toEqual([RegionEventType.Enter, RegionEventType.Leave]);
+
+    firstSub.unsubscribe();
+    secondSub.unsubscribe();
     env.reset();
 });
 
