@@ -2,14 +2,14 @@ name: Verify
 
 on:
   push:
-    branches:
-      - master
-      - feat/ddz-support
-      - next
   pull_request:
     branches:
       - master
       - next
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
