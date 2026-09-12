@@ -64,6 +64,7 @@ const BUILTIN_TITLES: Record<string, string> = {
     "disconnect_timeout.cancelled": "断线超时取消",
     "disconnect_timeout.expired": "断线超时到期",
     "runner.uncaught_error": "异步任务未捕获错误",
+    "event.callback_error": "事件回调错误",
     "runner.cancelled": "异步任务取消",
     "timer.started": "计时器启动",
     "timer.expired": "计时器到期",
@@ -134,6 +135,11 @@ const FIELD_LABELS: Record<string, string> = {
     success: "成功",
     message: "消息",
     stack: "堆栈",
+    cause: "原因链",
+    errors: "子错误",
+    omitted: "省略错误数",
+    truncated: "已截断",
+    signal: "事件信号",
     eventCount: "事件数",
     aliveCount: "存活",
     score: "得分",
@@ -163,6 +169,7 @@ const ERROR_TYPES = new Set([
     "runner.uncaught_error",
     "game.start_failed",
     "state.enter_failed",
+    "event.callback_error",
 ]);
 
 const MUTED_TYPES = new Set([

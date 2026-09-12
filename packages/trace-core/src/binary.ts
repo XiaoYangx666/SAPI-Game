@@ -39,6 +39,62 @@ function encodeUtf8(value: string) {
     return Uint8Array.from(bytes);
 }
 
+/** UTF-8 byte length of a string, matching {@link encodeUtf8} exactly. */
+export function utf8ByteLength(value: string): number {
+    let bytes = 0;
+    for (let index = 0; index < value.length; index++) {
+        const code = value.charCodeAt(index);
+        if (code < 0x80) {
+            bytes += 1;
+        } else if (code < 0x800) {
+            bytes += 2;
+        } else if (
+            code >= 0xd800 &&
+            code <= 0xdbff &&
+            index + 1 < value.length &&
+            (value.charCodeAt(index + 1) & 0xfc00) === 0xdc00
+        ) {
+            bytes += 4;
+            index++;
+        } else {
+            bytes += 3;
+        }
+    }
+    return bytes;
+}
+
+/**
+ * Longest prefix of `value` whose UTF-8 encoding fits in `maxBytes`.
+ * Never splits a surrogate pair; unpaired surrogates count as 3 bytes,
+ * same as {@link encodeUtf8}.
+ */
+export function truncateUtf8(value: string, maxBytes: number): string {
+    if (maxBytes <= 0) return "";
+    let bytes = 0;
+    for (let index = 0; index < value.length; index++) {
+        const code = value.charCodeAt(index);
+        let width: number;
+        if (code < 0x80) {
+            width = 1;
+        } else if (code < 0x800) {
+            width = 2;
+        } else if (
+            code >= 0xd800 &&
+            code <= 0xdbff &&
+            index + 1 < value.length &&
+            (value.charCodeAt(index + 1) & 0xfc00) === 0xdc00
+        ) {
+            width = 4;
+        } else {
+            width = 3;
+        }
+        if (bytes + width > maxBytes) return value.slice(0, index);
+        bytes += width;
+        if (width === 4) index++;
+    }
+    return value;
+}
+
 /** Bedrock-safe UTF-8 decoder. Strictly validates the byte stream. */
 function decodeUtf8(bytes: Uint8Array) {
     const codeUnits: number[] = [];

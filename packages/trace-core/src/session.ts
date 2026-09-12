@@ -1,4 +1,4 @@
-import { BinaryWriter, concatBytes } from "./binary";
+import { BinaryWriter, concatBytes, truncateUtf8, utf8ByteLength } from "./binary";
 import {
     TraceFieldTypeCode,
     TraceRecordTag,
@@ -25,7 +25,17 @@ import {
 
 const DEFAULT_MAX_CHUNK_BYTES = 20 * 1024;
 const DEFAULT_MAX_CHUNK_TICK_SPAN = 1200;
-const MAX_ERROR_STACK_LENGTH = 4096;
+// Error payloads end up in Minecraft Dynamic Properties, so traceError enforces
+// byte budgets rather than serializing whole stacks/aggregate trees.
+const MAX_ERROR_STACK_BYTES = 4096;
+const MAX_ERROR_NESTED_STACK_BYTES = 256;
+const MAX_ERROR_MESSAGE_BYTES = 512;
+const MAX_ERROR_NESTED_MESSAGE_BYTES = 256;
+const MAX_ERROR_NAME_BYTES = 128;
+const MAX_ERROR_DEPTH = 6;
+const MAX_ERROR_ENTRIES = 16;
+/** UTF-8 byte budget shared by all messages/stacks in one traceError() value. */
+const MAX_ERROR_TEXT_BYTES = 8 * 1024;
 const playerMarker = Symbol("begame.trace.player");
 
 interface TracePlayerMarker {
@@ -102,18 +112,199 @@ function fieldTypeCode(type: ReturnType<typeof normalizeTraceField>["type"]) {
     }
 }
 
+interface ErrorSerializationState {
+    /** Remaining error objects (root, causes, aggregate entries) for this traceError() call. */
+    entries: number;
+    /** Remaining UTF-8 bytes shared by all messages and stacks in this call. */
+    textBytes: number;
+    seen: Set<object>;
+}
+
+interface BudgetedText {
+    readonly text?: string;
+    readonly truncated: boolean;
+}
+
+/**
+ * Convert any thrown value into a bounded Trace value.
+ *
+ * This is a total function: it must never throw, because callers invoke it on
+ * catch boundaries (`catch (error) { traceError(error); ...; throw error; }`).
+ * A throwing getter, proxy trap or `toString` must not replace the original
+ * exception. Every property access is guarded and a final catch-all covers the
+ * rest.
+ */
 export function traceError(error: unknown): TraceValue {
-    if (error instanceof Error) {
-        const result: Record<string, TraceValue> = {
-            name: error.name,
-            message: error.message,
-        };
-        if (error.stack) result.stack = error.stack.slice(0, MAX_ERROR_STACK_LENGTH);
-        if (error.cause !== undefined) result.cause = traceError(error.cause);
-        return result;
+    try {
+        return traceErrorEntry(error, 0, {
+            entries: MAX_ERROR_ENTRIES,
+            textBytes: MAX_ERROR_TEXT_BYTES,
+            seen: new Set(),
+        });
+    } catch {
+        return { message: "[Unserializable error]" };
     }
-    if (typeof error === "string") return { message: error };
-    return { message: String(error) };
+}
+
+function traceErrorEntry(
+    error: unknown,
+    depth: number,
+    state: ErrorSerializationState
+): TraceValue {
+    if (!safeRead(() => error instanceof Error, false)) {
+        state.entries--;
+        return serializeUnknownThrownValue(error, depth, state);
+    }
+
+    const errorObject = error as Error & { cause?: unknown; errors?: unknown };
+
+    // `cause` chains and AggregateError.errors may legally form cycles or DAGs;
+    // serialize each branch once per path instead of recursing forever.
+    if (state.seen.has(errorObject)) {
+        const name = takeErrorText(
+            state,
+            readErrorName(errorObject),
+            MAX_ERROR_NAME_BYTES
+        );
+        return {
+            name: name.text ?? "Error",
+            message: "[Circular error]",
+        };
+    }
+
+    state.entries--;
+    state.seen.add(errorObject);
+    try {
+        const result: Record<string, TraceValue> = {};
+        let truncated = false;
+
+        const name = takeErrorText(
+            state,
+            readErrorName(errorObject),
+            MAX_ERROR_NAME_BYTES
+        );
+        result.name = name.text ?? "Error";
+        if (name.truncated) truncated = true;
+
+        const rawMessage = safeRead(() => errorObject.message, undefined);
+        if (rawMessage !== undefined) {
+            const message = takeErrorText(
+                state,
+                typeof rawMessage === "string"
+                    ? rawMessage
+                    : unknownToString(rawMessage),
+                depth === 0
+                    ? MAX_ERROR_MESSAGE_BYTES
+                    : MAX_ERROR_NESTED_MESSAGE_BYTES
+            );
+            if (message.text !== undefined) result.message = message.text;
+            if (message.truncated) truncated = true;
+        }
+
+        const canRecurse = depth < MAX_ERROR_DEPTH;
+        const cause = safeRead(() => errorObject.cause, undefined);
+        if (cause !== undefined) {
+            if (canRecurse && state.entries > 0) {
+                result.cause = traceErrorEntry(cause, depth + 1, state);
+            } else {
+                truncated = true;
+            }
+        }
+
+        const aggregated = safeRead(() => errorObject.errors, undefined);
+        if (Array.isArray(aggregated)) {
+            const length = safeRead(() => aggregated.length, 0);
+            if (length > 0) {
+                const values: TraceValue[] = [];
+                if (canRecurse) {
+                    for (let index = 0; index < length; index++) {
+                        if (state.entries <= 0) break;
+                        const entry = safeRead(
+                            () => aggregated[index],
+                            "[Unreadable error]"
+                        );
+                        values.push(traceErrorEntry(entry, depth + 1, state));
+                    }
+                }
+                if (values.length > 0) result.errors = values;
+                const omitted = length - values.length;
+                if (omitted > 0) {
+                    result.omitted = omitted;
+                    truncated = true;
+                }
+            }
+        }
+
+        // Children are serialized before this stack on purpose: leaf/root-cause
+        // stacks win the shared byte budget, AggregateError wrapper frames only
+        // consume what is left.
+        const rawStack = safeRead(() => errorObject.stack, undefined);
+        if (typeof rawStack === "string" && rawStack.length > 0) {
+            const stack = takeErrorText(
+                state,
+                rawStack,
+                depth === 0
+                    ? MAX_ERROR_STACK_BYTES
+                    : MAX_ERROR_NESTED_STACK_BYTES
+            );
+            if (stack.text !== undefined) result.stack = stack.text;
+            if (stack.truncated) truncated = true;
+        }
+
+        if (truncated) result.truncated = true;
+        return result;
+    } finally {
+        state.seen.delete(errorObject);
+    }
+}
+
+function serializeUnknownThrownValue(
+    error: unknown,
+    depth: number,
+    state: ErrorSerializationState
+): TraceValue {
+    const taken = takeErrorText(
+        state,
+        unknownToString(error),
+        depth === 0 ? MAX_ERROR_MESSAGE_BYTES : MAX_ERROR_NESTED_MESSAGE_BYTES
+    );
+    const result: Record<string, TraceValue> = { message: taken.text ?? "" };
+    if (taken.truncated) result.truncated = true;
+    return result;
+}
+
+function readErrorName(error: Error): string {
+    const raw = safeRead(() => error.name, "Error");
+    return typeof raw === "string" ? raw : unknownToString(raw);
+}
+
+function safeRead<T>(read: () => T, fallback: T): T {
+    try {
+        return read();
+    } catch {
+        return fallback;
+    }
+}
+
+function unknownToString(value: unknown): string {
+    return safeRead(() => String(value), `[Unserializable ${typeof value}]`);
+}
+
+function takeErrorText(
+    state: ErrorSerializationState,
+    value: string,
+    limit: number
+): BudgetedText {
+    if (state.textBytes <= 0) return { truncated: true };
+    const allowed = Math.min(limit, state.textBytes);
+    const bytes = utf8ByteLength(value);
+    if (bytes <= allowed) {
+        state.textBytes -= bytes;
+        return { text: value, truncated: false };
+    }
+    const text = truncateUtf8(value, allowed);
+    state.textBytes -= utf8ByteLength(text);
+    return { text, truncated: true };
 }
 
 export function snapshotTraceValue(value: unknown, depth = 0, seen = new Set<object>()): TraceValue {

@@ -72,6 +72,7 @@ Core reserves type ids below 128. Current families are:
 | Game | `game.created`, `game.starting`, `game.started`, `game.start_failed`, `game.stopping`, `game.stopped`, `game.disposed` |
 | State | `state.push`, `state.enter`, `state.exit`, `state.remove`, `state.transition`, `state.root_changed`, `state.enter_failed` |
 | Component | `component.attach_started`, `component.attached`, `component.detached`, `component.attach_failed`, `component.error` |
+| Event callback | `event.callback_error` |
 | Participation | `participation.acquire`, `participation.joined`, `participation.released`, `participation.acquire_rejected` |
 | Connection | `player.connect`, `player.disconnect`, `player.reconnect` |
 | Offline guard | `disconnect_timeout.started`, `disconnect_timeout.cancelled`, `disconnect_timeout.expired` |
@@ -80,6 +81,8 @@ Core reserves type ids below 128. Current families are:
 | Diagnostic | `debug.message` |
 
 A connection event never implies participation release. `DisconnectTimeoutComponent` emits timeout lifecycle independently and, when configured to release, `GamePlayerManager.leave()` emits a separate `participation.released` with reason `disconnect-timeout`.
+
+`state.subscribe` / `component.subscribe` callbacks are a synchronous contract. Async work belongs in `runner.run(...)`, where failures become `runner.uncaught_error`. A callback that returns a thenable triggers a one-time `debugMode` warning; its Promise rejection is not captured by the Trace Session. An `event.callback_error` marks that an issue happened and turns the event red in the viewer, but it never by itself flips the session status to `crashed`; only a failed game lifecycle does that.
 
 ## Automatic emit points
 
@@ -91,6 +94,7 @@ A connection event never implies participation release. `DisconnectTimeoutCompon
 | `GameEngine` | state push/enter/failure/exit/remove/transition/root changes |
 | `GameState` | component attach start/success/failure, detach/error |
 | `GamePlayerManager` | participation acquire/join/reject/release and player ref registration |
+| `EventManager` | `event.callback_error` when a State/Component subscription callback throws (payload carries the signal name); emitted before the error is rethrown to the underlying signal |
 | connection signal bridge | connect/disconnect/reconnect for players already known to a session |
 | `DisconnectTimeoutComponent` | timeout start/cancel/expire |
 | `RunnerManager` | uncaught async runner error and explicit/lifecycle cancellation |
@@ -133,6 +137,8 @@ The session maintains dictionaries/ref tables for strings, players, state instan
 Integers use unsigned varint; signed integers use zigzag + varint; floating-point fields use little-endian float64. Event ticks are stored as deltas inside a chunk. Event sequence numbers are implicit from `firstSequence + eventIndex`.
 
 A chunk is immutable after sealing. The default binary target is 20 KiB. A chunk may also rotate when the tick span exceeds the configured threshold. The encoder does not schedule per-tick work solely for tracing.
+
+Error payloads are byte-budgeted because sessions are stored in World Dynamic Properties: `traceError` caps each message (512 B top-level, 256 B nested) and stack (4 KiB top-level, 256 B nested), shares one 8 KiB UTF-8 text budget per error value, limits a serialized error tree to 16 entries and 6 levels, and reports excess `AggregateError.errors` as an `omitted` count. Child errors are serialized before wrapper stacks, so leaf/root-cause stacks win the shared budget. Truncated nodes carry `truncated: true`. `traceError` is also total: hostile thrown values (throwing getters, proxies, throwing `toString`) can never make it throw and replace the original exception at a catch boundary.
 
 The decoder reconstructs session-wide dictionaries in chunk order and exposes logical events. JSON/JSONL is a derived representation only.
 

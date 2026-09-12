@@ -10,7 +10,11 @@ import {
     ParticipationPolicy,
 } from "../participation/participationManager";
 import { TraceManager } from "../trace/manager";
-import { BuiltinTraceEventType, traceError } from "@begame/trace-core";
+import {
+    BuiltinTraceEventType,
+    traceError,
+    type TraceValue,
+} from "@begame/trace-core";
 import { GameManagerError } from "../utils/GameError";
 import { classConstructor } from "../utils/interfaces";
 import { Logger } from "../utils/logger";
@@ -108,9 +112,13 @@ export class GameManager implements GameEngineOwner {
             } catch (disposeError) {
                 errors.push(disposeError);
             } finally {
+                const rollbackError = traceErrorList(errors.slice(1));
                 traceSession?.game.builtin(BuiltinTraceEventType.GameDisposed, {
                     reason: "start-failed-rollback",
                     success: errors.length === 1,
+                    ...(rollbackError === undefined
+                        ? {}
+                        : { error: rollbackError }),
                 });
                 if (this.games.get(key) === gameInstance) {
                     this.games.delete(key);
@@ -170,10 +178,11 @@ export class GameManager implements GameEngineOwner {
         } catch (err) {
             errors.push(err);
         } finally {
+            const stopError = traceErrorList(errors);
             traceSession?.game.builtin(BuiltinTraceEventType.GameStopped, {
                 reason,
                 success: errors.length === 0,
-                ...(errors.length ? { error: traceError(errors[0]) } : {}),
+                ...(stopError === undefined ? {} : { error: stopError }),
             });
         }
         try {
@@ -181,10 +190,11 @@ export class GameManager implements GameEngineOwner {
         } catch (err) {
             errors.push(err);
         } finally {
+            const disposeError = traceErrorList(errors);
             traceSession?.game.builtin(BuiltinTraceEventType.GameDisposed, {
                 reason,
                 success: errors.length === 0,
-                ...(errors.length ? { error: traceError(errors.at(-1)) } : {}),
+                ...(disposeError === undefined ? {} : { error: disposeError }),
             });
             if (this.games.get(key) === gameInstance) {
                 this.games.delete(key);
@@ -324,4 +334,17 @@ export class GameManager implements GameEngineOwner {
     buildKey(game: Function, tag?: string) {
         return `${this.getGameType(game)}:${tag ?? 0}`;
     }
+}
+
+/**
+ * Trace 中记录一个生命周期阶段的全部错误：
+ * 单个错误直接序列化；多个错误包成 AggregateError，
+ * 由 `traceError` 递归展开，避免只保留首尾错误而丢失根因。
+ */
+function traceErrorList(errors: readonly unknown[]): TraceValue | undefined {
+    if (errors.length === 0) return undefined;
+    if (errors.length === 1) return traceError(errors[0]);
+    return traceError(
+        new AggregateError(errors, "Multiple errors in game lifecycle phase")
+    );
 }

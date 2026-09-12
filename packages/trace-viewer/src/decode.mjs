@@ -112,6 +112,7 @@ const ERROR_TYPES = new Set([
     "component.error",
     "runner.uncaught_error",
     "game.start_failed",
+    "event.callback_error",
 ]);
 
 function isErrorEvent(type) {

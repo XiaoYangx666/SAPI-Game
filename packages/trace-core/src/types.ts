@@ -104,6 +104,8 @@ export enum BuiltinTraceEventType {
     ComponentDetached = 34,
     ComponentAttachFailed = 35,
     ComponentError = 36,
+    // 40-47: Event subsystem.
+    EventCallbackError = 40,
 
     ParticipationAcquire = 48,
     ParticipationJoined = 49,
@@ -148,6 +150,7 @@ export const BUILTIN_TRACE_EVENT_NAMES: Readonly<Record<number, string>> = {
     [BuiltinTraceEventType.ComponentDetached]: "component.detached",
     [BuiltinTraceEventType.ComponentAttachFailed]: "component.attach_failed",
     [BuiltinTraceEventType.ComponentError]: "component.error",
+    [BuiltinTraceEventType.EventCallbackError]: "event.callback_error",
     [BuiltinTraceEventType.ParticipationAcquire]: "participation.acquire",
     [BuiltinTraceEventType.ParticipationJoined]: "participation.joined",
     [BuiltinTraceEventType.ParticipationReleased]: "participation.released",
