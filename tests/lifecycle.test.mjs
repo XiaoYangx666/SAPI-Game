@@ -1,12 +1,14 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import {
     DisconnectTimeoutComponent,
+    Game,
     GameComponent,
     GameContext,
     GameEngine,
     GamePlayer,
     GameState,
 } from "../packages/core/dist/main.js";
+import { Logger } from "../packages/core/dist/utils/logger.js";
 import { Duration } from "../packages/core/dist/utils/index.js";
 import { BEGameTestEngine } from "../packages/test/dist/index.js";
 
@@ -224,4 +226,99 @@ test("test reset disposes daemon games as a real script reload would", () => {
     env.reset();
     expect(daemon.lifecycle).toBe("disposed");
     expect(env.getGame(DaemonGame)).toBeUndefined();
+});
+
+/**
+ * 回归：一个 interval 回调在同步执行中触发了 State 清理（真实场景是
+ * TableEntityLifetimeComponent 检测到区块卸载后 stopGame），清理会把其它
+ * 组件的订阅一起注销。tick 事先快照了回调列表，若不在调用前复查就会继续调用
+ * 那个已经失效的回调，让它去访问已被删除的组件并抛错。
+ */
+class ReentrantStopComponent extends GameComponent {
+    onAttach() {
+        // 触发者必须先注册：这样它在同一 tick 的快照里排在观察者前面，
+        // 才能重现「先同步 stopGame 清理，再调用已失效的观察者」这个真实顺序
+        // （实际项目里 TableEntityLifetimeComponent 早于 display 组件注册）。
+        this.subscribe(
+            Game.events.interval,
+            () => {
+                this.context.trace.push("stopper:tick");
+                if (!this.context.stopped) {
+                    this.context.stopped = true;
+                    this.state.stopGame("reentrant-stop");
+                }
+            },
+            Duration.fromTicks(1)
+        );
+        // 后注册的观察者：清理发生后它已被注销，本轮不应再被调用。
+        this.subscribe(
+            Game.events.interval,
+            () => {
+                let probeAlive = true;
+                try {
+                    this.state.getComponent(ProbeComponent);
+                } catch {
+                    probeAlive = false;
+                }
+                if (!probeAlive) {
+                    throw new Error("observer ran after its sibling was deleted");
+                }
+                this.context.trace.push("observer:tick");
+            },
+            Duration.fromTicks(1)
+        );
+    }
+}
+
+class ProbeComponent extends GameComponent {
+    onAttach() { this.context.trace.push("probe:attach"); }
+    onDetach() { this.context.trace.push("probe:detach"); }
+}
+
+class ReentrantState extends GameState {
+    onEnter() {
+        // 观察者先注册，触发者后注册，保证顺序稳定。
+        this.addComponent(ReentrantStopComponent);
+        this.addComponent(ProbeComponent);
+    }
+}
+
+class ReentrantGame extends GameEngine {
+    static gameType = "test-reentrant-stop";
+    constructor(owner, key, config) { super(TracePlayer, owner, key, config); }
+    buildContext(config) { return new TraceContext({ ...config, stopped: false }); }
+    onStart() { this.resetState(ReentrantState); }
+    onStop() { this.context.trace.push("game:stop"); }
+}
+
+test("interval callbacks unsubscribed by a reentrant stop are not invoked", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const trace = [];
+    const game = env.startGame(ReentrantGame, { trace });
+
+    // tick 会吞掉回调异常并只写日志，所以失败不会自然冒泡；必须显式盯住
+    // Logger.error，否则这个回归测试即使在有 bug 的版本上也会通过。
+    const errors = [];
+    const loggerError = vi
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation((...args) => { errors.push(args); });
+
+    try {
+        // 一整个 tick 内：stopper 触发清理并注销 observer。同一 tick 的快照里
+        // 还有 observer，它必须被跳过，而不是去访问已删除的组件。
+        await env.advanceTicks(1);
+    } finally {
+        loggerError.mockRestore();
+    }
+
+    expect(game.lifecycle).toBe("disposed");
+    expect(trace).toContain("probe:detach");
+    expect(errors).toEqual([]);
+
+    // 之后再推进若干 tick，不应有任何残留回调继续跑。
+    const before = trace.length;
+    await env.advanceTicks(50);
+    expect(trace.length).toBe(before);
+    env.reset();
 });
