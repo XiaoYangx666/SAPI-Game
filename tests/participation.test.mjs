@@ -74,3 +74,38 @@ test("leaveAll returns the released game keys", () => {
     expect(manager.leaveAll("player-1")).toEqual(["game-a", "game-b"]);
     expect(manager.has("player-1")).toBe(false);
 });
+
+test("game-scoped change subscriptions emit genuine transitions and outlive empty membership", () => {
+    const manager = new ParticipationManager(new SharedParticipationPolicy());
+    const a = new GameParticipation(manager, "game-a");
+    const b = new GameParticipation(manager, "game-b");
+    const aEvents = [], bEvents = [];
+    const subA = a.changed.subscribe(event => aEvents.push(event));
+    const subB = b.changed.subscribe(event => bEvents.push(event));
+
+    a.join("alice");
+    a.join("alice"); // Idempotent; not another membership transition.
+    a.joinAll(["alice", "bob"]);
+    manager.join("alice", "game-b");
+    manager.leaveAll("alice");
+    expect(aEvents.map(event => [event.type, event.playerId])).toEqual([
+        ["joined", "alice"], ["joined", "bob"], ["left", "alice"],
+    ]);
+    expect(bEvents.map(event => [event.type, event.playerId])).toEqual([
+        ["joined", "alice"], ["left", "alice"],
+    ]);
+    expect(aEvents.at(-1).reason).toBe("leave-all");
+
+    // Empty membership must not unregister observers of a still-running game.
+    a.leave("bob");
+    a.join("carol");
+    expect(aEvents.at(-1).playerId).toBe("carol");
+
+    const before = aEvents.length;
+    a.clear(); // dispose/teardown is intentionally silent.
+    expect(aEvents).toHaveLength(before);
+    subA.unsubscribe();
+    subB.unsubscribe();
+    a.join("dave");
+    expect(aEvents).toHaveLength(before);
+});
