@@ -31,10 +31,17 @@ export class AutoStopComponent<
 
         this.hasBeenNonEmpty = this.getMemberIds().length > 0;
         if (this.options?.memberChanged) {
-            this.subscribe(this.options.memberChanged, () => this.reconcile());
+            this.subscribe(this.options.memberChanged, () => this.observeAndReconcile());
         } else {
-            this.subscribe(this.state.participation.changed, () => this.reconcile());
+            this.subscribe(this.state.participation.changed, () => this.observeAndReconcile());
         }
+    }
+
+    private observeAndReconcile(): void {
+        // Record the first real membership as soon as it occurs, even if join
+        // and leave happen in the same tick before the deferred check runs.
+        if (this.getMemberIds().length > 0) this.hasBeenNonEmpty = true;
+        this.reconcile();
     }
 
     /** Idempotently request a fresh check, including after canStop() changes. */
