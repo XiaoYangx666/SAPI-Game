@@ -11,9 +11,9 @@ import { GamePlayerManager } from "../gamePlayer/playerManager";
 import { RunnerManager } from "../Runner/RunnerManager";
 import {
     BuiltinTraceEventType,
-    traceError,
-    TraceScope,
-} from "@begame/trace-core";
+    traceErrorValue,
+    type TraceScopeLike as TraceScope,
+} from "../trace/contract";
 import { Logger } from "../utils/logger";
 import {
     ComponentDeleteFailedError,
@@ -173,7 +173,7 @@ export abstract class GameState<
                 {
                     component: component.name,
                     ...(tag === undefined ? {} : { tag }),
-                    error: traceError(err),
+                    error: traceErrorValue(err),
                 }
             );
             throw new ComponentLoadFailedError(component, tag, { cause: err });
@@ -230,7 +230,7 @@ export abstract class GameState<
         } catch (err) {
             componentInstance.trace.builtin(BuiltinTraceEventType.ComponentError, {
                 phase: "detach",
-                error: traceError(err),
+                error: traceErrorValue(err),
             });
             componentInstance.trace.builtin(BuiltinTraceEventType.ComponentDetached, {
                 component: component.name,
@@ -264,7 +264,7 @@ export abstract class GameState<
                 } catch (err) {
                     comp.trace.builtin(BuiltinTraceEventType.ComponentError, {
                         phase: "detach",
-                        error: traceError(err),
+                        error: traceErrorValue(err),
                     });
                     comp.trace.builtin(BuiltinTraceEventType.ComponentDetached, {
                         component: compType.name,
@@ -340,7 +340,7 @@ export abstract class GameState<
             this.eventManager.dispose();
         } catch (err) {
             this.trace.debug("event manager cleanup failed", {
-                error: traceError(err),
+                error: traceErrorValue(err),
             });
             errors.push(err);
         }

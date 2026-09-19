@@ -91,6 +91,16 @@ npm run observatory   # 打开 http://127.0.0.1:8787
 
 工作台围绕会话与数据源组织，提供分析概览、活动流和事件检索三个视图，可粘贴 Content Log 或拖入 `.log` / `.txt` / `.begtrace` 文件。详见 [Game Trace 文档](./docs/game-trace.md)。
 
+Trace 是**按需引入**的：`@begame/core` 本身不依赖 `@begame/trace-core`，只有显式加载 trace 入口时才启用，不用的项目不会把它打进产物。
+
+```ts
+import "@begame/core/trace";   // 不使用 trace 就完全不用写这一行
+```
+
+## Packaging
+
+包按「未使用即不打包」设计：`sideEffects` 精确声明到文件级，可选能力（`@begame/core/server`、`@begame/core/trace`）通过**引入入口**而不是调用开关来启用，所以不用的功能不会进入产物。`npm run test:treeshake` 会真的打包单符号消费者并断言结果，在 CI 中运行。详见[打包与 tree-shaking](./docs/packaging.md)。
+
 ## Runtime architecture
 
 ```text

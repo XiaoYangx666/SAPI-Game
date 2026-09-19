@@ -6,6 +6,7 @@
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "files": ["dist"],
+    "sideEffects": ["./dist/register.js"],
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",

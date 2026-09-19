@@ -44,7 +44,13 @@ interface TracePlayerMarker {
     readonly name?: string;
 }
 
-type TraceInputValue =
+/**
+ * Any value a trace payload may carry.
+ *
+ * Exported because `@begame/core` builds payloads against it without importing
+ * this package at runtime (it uses `import type`, which erases).
+ */
+export type TraceInputValue =
     | null
     | boolean
     | number
@@ -355,20 +361,78 @@ export class TraceScope {
     debug(message: string, fields?: Record<string, TraceValue>) {
         this.session?.emitBuiltin(
             BuiltinTraceEventType.DebugMessage,
-            { message, ...(fields ? { fields } : {}) },
+            {
+                message,
+                ...(fields
+                    ? { fields: resolveTracePayload(fields as Record<string, TraceInputValue>) }
+                    : {}),
+            },
             this.source
         );
     }
 
     /** @internal */
     builtin(type: BuiltinTraceEventType, payload: Record<string, TraceInputValue> = {}) {
-        this.session?.emitBuiltin(type, payload, this.source);
+        this.session?.emitBuiltin(type, resolveTracePayload(payload), this.source);
     }
 
     /** @internal */
     player(id: string, name?: string) {
         return this.session?.player(id, name) ?? id;
     }
+}
+
+/**
+ * Key of the deferred-error marker produced by `@begame/core`.
+ *
+ * Core cannot import this package, so the literal is duplicated in
+ * `packages/core/src/trace/contract.ts` and asserted equal by
+ * tests/trace-contract.test.mjs.
+ */
+const TRACE_ERROR_MARKER = "begame.trace.error";
+
+function isTraceErrorMarker(value: unknown): value is { error: unknown } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        (value as { marker?: unknown }).marker === TRACE_ERROR_MARKER &&
+        "error" in value
+    );
+}
+
+/**
+ * Resolves values that core deferred to us.
+ *
+ * Core emits the raw thrown value so `traceError` — which walks `cause` chains
+ * and `AggregateError.errors` under UTF-8 byte budgets — only runs when a
+ * session is actually listening. Without this the marker would be serialized as
+ * a plain object and the trace would silently lose error semantics.
+ */
+function resolveTraceInput(value: TraceInputValue): TraceInputValue {
+    if (isTraceErrorMarker(value)) return traceError(value.error);
+    if (Array.isArray(value)) {
+        let changed = false;
+        const resolved = value.map((entry) => {
+            const next = resolveTraceInput(entry as TraceInputValue);
+            if (next !== entry) changed = true;
+            return next;
+        });
+        return changed ? (resolved as TraceInputValue) : value;
+    }
+    return value;
+}
+
+function resolveTracePayload(
+    payload: Record<string, TraceInputValue>
+): Record<string, TraceInputValue> {
+    let changed = false;
+    const resolved: Record<string, TraceInputValue> = {};
+    for (const [key, value] of Object.entries(payload)) {
+        const next = resolveTraceInput(value);
+        if (next !== value) changed = true;
+        resolved[key] = next;
+    }
+    return changed ? resolved : payload;
 }
 
 export const NOOP_TRACE_SCOPE = new TraceScope();

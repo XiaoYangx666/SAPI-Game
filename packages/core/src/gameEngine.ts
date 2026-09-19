@@ -14,10 +14,10 @@ import type { TraceManager } from "./trace/manager";
 import {
     BuiltinTraceEventType,
     NOOP_TRACE_SCOPE,
-    TraceScope,
-    traceError,
-    type TraceSession,
-} from "@begame/trace-core";
+    traceErrorValue,
+    type TraceScopeLike as TraceScope,
+} from "./trace/contract";
+import type { TraceSession } from "@begame/trace-core";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
@@ -186,7 +186,7 @@ export abstract class GameEngine<
             }
         } catch (enterError) {
             stateInstance.trace.builtin(BuiltinTraceEventType.StateEnterFailed, {
-                error: traceError(enterError),
+                error: traceErrorValue(enterError),
             });
             const rollbackStates = this.stateStack.splice(startIndex);
             const cleanupErrors: unknown[] = [];
@@ -319,7 +319,7 @@ export abstract class GameEngine<
             state.trace.builtin(BuiltinTraceEventType.StateRemove, {
                 reason,
                 success: false,
-                error: traceError(error),
+                error: traceErrorValue(error),
             });
             throw error;
         }

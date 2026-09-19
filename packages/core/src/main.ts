@@ -4,6 +4,8 @@ import { gameEvents } from "./gameEvent/gameEvent";
 import { ParticipationPolicy } from "./participation/participationManager";
 import { GameManager } from "./system/gameManager";
 import { gameServer } from "./system/server";
+import { isTraceRuntimeInstalled } from "./trace/registry";
+import { Logger } from "./utils/logger";
 import type { WorldTraceStoreOptions } from "./trace/worldStore";
 
 export { BEGameConfig, SAPIGameConfig } from "./config";
@@ -29,7 +31,10 @@ export type SAPIGameInitOptions = BEGameInitOptions;
 
 const manager = new GameManager();
 const events = new gameEvents();
-manager.trace.bindConnectionSource(events.connection);
+// Recorded, not bound: the trace runtime is created lazily, so this stays
+// correct no matter whether the consumer's trace entry is evaluated before or
+// after `@begame/core`.
+manager.bindTraceConnectionSource(events.connection);
 
 /** BEGame 核心全局入口。命令/onJoin 等服务器集成能力仍需显式启用 `@begame/core/server`。 */
 export const Game = {
@@ -37,7 +42,11 @@ export const Game = {
     server: gameServer,
     manager,
     participation: manager.participation,
-    trace: manager.trace,
+    // Must stay a getter: reading it here would resolve the trace runtime while
+    // this module is still evaluating, before an opt-in entry could install it.
+    get trace() {
+        return manager.trace;
+    },
     constants: Constants,
     config: BEGameConfig,
 } as const;
@@ -50,6 +59,17 @@ export function initBEGame(options: BEGameInitOptions = {}) {
         manager.participation.setPolicy(participationPolicy);
     }
     if (traceStore !== undefined) {
+        const wantsTrace =
+            typeof traceStore === "boolean"
+                ? traceStore
+                : traceStore.enabled !== false;
+        if (wantsTrace && !isTraceRuntimeInstalled()) {
+            // Otherwise this silently does nothing and the missing history looks
+            // like a framework bug rather than a missing import.
+            new Logger("BEGame").error(
+                'traceStore 已启用，但 Trace 运行时未加载。请在使用 Trace 的入口 import "@begame/core/trace"。'
+            );
+        }
         if (typeof traceStore === "boolean") {
             manager.trace.setStoreEnabled(traceStore);
         } else {
@@ -77,5 +97,4 @@ export { ScriptRunner, ScriptCancelledError } from "./Runner/scriptRunner";
 export { RunnerManager } from "./Runner/RunnerManager";
 export * from "./gameEvent/index";
 export * from "./system/gameManager";
-export * from "./trace/index";
 export { createGameModule } from "./createGameModule";

@@ -1,7 +1,6 @@
 import { expect, test, vi } from "vitest";
 import {
     BEGameConfig,
-    BuiltinTraceEventType,
     EventManager,
     Game,
     GameComponent,
@@ -10,9 +9,15 @@ import {
     GamePlayer,
     GameState,
     Utils,
+} from "../packages/core/dist/main.js";
+// Trace tooling lives behind its own entry now, so `@begame/core` stays free of
+// the codec and session implementation. Importing it also installs the runtime.
+import {
+    BuiltinTraceEventType,
     defineTraceEvent,
     traceError,
-} from "../packages/core/dist/main.js";
+} from "../packages/core/dist/trace/index.js";
+import { isTraceErrorPayload } from "../packages/core/dist/trace/contract.js";
 import {
     BinaryReader,
     BinaryWriter,
@@ -290,18 +295,18 @@ test("EventManager wrapping keeps callback identity and rethrows the original er
         caught = error;
     }
     expect(caught).toBe(originalError);
-    expect(builtins).toEqual([
-        {
-            type: BuiltinTraceEventType.EventCallbackError,
-            payload: {
-                signal: "FakeSignal",
-                error: expect.objectContaining({
-                    name: "Error",
-                    message: "wrapped-boom",
-                }),
-            },
-        },
-    ]);
+    // Errors cross this boundary as a deferred marker rather than a serialized
+    // value: core hands over the raw error so `traceError` — which walks cause
+    // chains under UTF-8 byte budgets — only runs when a session is listening.
+    // This fake scope bypasses TraceScope, so it observes the marker; the
+    // resolved shape is asserted by the decoded session in "Event callback
+    // errors are captured as event.callback_error".
+    expect(builtins).toHaveLength(1);
+    const [emitted] = builtins;
+    expect(emitted.type).toBe(BuiltinTraceEventType.EventCallbackError);
+    expect(emitted.payload.signal).toBe("FakeSignal");
+    expect(isTraceErrorPayload(emitted.payload.error)).toBe(true);
+    expect(emitted.payload.error.error).toBe(originalError);
 
     manager.unsubscribe(record);
     expect(signal.callbacks.size).toBe(0);

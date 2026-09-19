@@ -9,12 +9,13 @@ import {
     ParticipationManager,
     ParticipationPolicy,
 } from "../participation/participationManager";
-import { TraceManager } from "../trace/manager";
+import type { TraceConnectionSource, TraceManager } from "../trace/manager";
 import {
     BuiltinTraceEventType,
-    traceError,
-    type TraceValue,
-} from "@begame/trace-core";
+    traceErrorValue,
+    type TraceInputValue,
+} from "../trace/contract";
+import { createTraceRuntime } from "../trace/registry";
 import { GameManagerError } from "../utils/GameError";
 import { classConstructor } from "../utils/interfaces";
 import { Logger } from "../utils/logger";
@@ -38,21 +39,47 @@ export class GameManager implements GameEngineOwner {
     private games: Map<string, GameEngine<any, any>> = new Map();
     private readonly logger = new Logger(this.constructor.name);
     public readonly participation: ParticipationManager;
-    public readonly trace: TraceManager;
+    private traceRuntime?: TraceManager;
+    private traceConnectionSource?: TraceConnectionSource;
 
     constructor(
         participationPolicy: ParticipationPolicy = new ExclusiveParticipationPolicy()
     ) {
         this.participation = new ParticipationManager(participationPolicy);
-        this.trace = new TraceManager(() => system.currentTick, {
-            onInternalError: (error) => {
-                try {
-                    this.logger.error("Trace internal error:", error);
-                } catch {
-                    // Trace diagnostics must never affect game execution.
+    }
+
+    /**
+     * Resolved on first access rather than in the constructor.
+     *
+     * The entry that installs the trace runtime (`@begame/core/trace`) may be
+     * evaluated after `@begame/core`, so resolving lazily makes installation
+     * order irrelevant. Until it is imported this is the inert runtime, which
+     * keeps the trace implementation out of the default bundle.
+     */
+    public get trace(): TraceManager {
+        if (!this.traceRuntime) {
+            this.traceRuntime = createTraceRuntime(
+                () => system.currentTick,
+                (error) => {
+                    try {
+                        this.logger.error("Trace internal error:", error);
+                    } catch {
+                        // Trace diagnostics must never affect game execution.
+                    }
                 }
-            },
-        });
+            );
+            this.traceRuntime.bindConnectionSource(this.traceConnectionSource);
+        }
+        return this.traceRuntime;
+    }
+
+    /**
+     * Records the connection event source and binds it once a trace runtime
+     * exists. Called during module evaluation, so it must not create the runtime.
+     */
+    bindTraceConnectionSource(source?: TraceConnectionSource) {
+        this.traceConnectionSource = source;
+        this.traceRuntime?.bindConnectionSource(source);
     }
 
     startGame<T extends GameEngine<any, any, any>>(
@@ -82,7 +109,7 @@ export class GameManager implements GameEngineOwner {
         } catch (constructError) {
             traceSession?.game.builtin(BuiltinTraceEventType.GameStartFailed, {
                 stage: "construct",
-                error: traceError(constructError),
+                error: traceErrorValue(constructError),
             });
             this.trace.endSession(key, "aborted", "game-construction-failed");
             throw constructError;
@@ -104,7 +131,7 @@ export class GameManager implements GameEngineOwner {
         } catch (startError) {
             traceSession?.game.builtin(BuiltinTraceEventType.GameStartFailed, {
                 stage: "onStart",
-                error: traceError(startError),
+                error: traceErrorValue(startError),
             });
             const errors: unknown[] = [startError];
             try {
@@ -266,7 +293,7 @@ export class GameManager implements GameEngineOwner {
                     success: disposeError === undefined,
                     ...(disposeError === undefined
                         ? {}
-                        : { error: traceError(disposeError) }),
+                        : { error: traceErrorValue(disposeError) }),
                 });
                 this.games.delete(key);
                 this.logger.log(`disposedGame: ${key}`);
@@ -341,10 +368,10 @@ export class GameManager implements GameEngineOwner {
  * 单个错误直接序列化；多个错误包成 AggregateError，
  * 由 `traceError` 递归展开，避免只保留首尾错误而丢失根因。
  */
-function traceErrorList(errors: readonly unknown[]): TraceValue | undefined {
+function traceErrorList(errors: readonly unknown[]): TraceInputValue | undefined {
     if (errors.length === 0) return undefined;
-    if (errors.length === 1) return traceError(errors[0]);
-    return traceError(
+    if (errors.length === 1) return traceErrorValue(errors[0]);
+    return traceErrorValue(
         new AggregateError(errors, "Multiple errors in game lifecycle phase")
     );
 }

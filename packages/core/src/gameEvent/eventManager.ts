@@ -1,8 +1,8 @@
 import {
     BuiltinTraceEventType,
-    traceError,
-    type TraceScope,
-} from "@begame/trace-core";
+    traceErrorValue,
+    type TraceScopeLike as TraceScope,
+} from "../trace/contract";
 import { BEGameConfig } from "../config";
 import { Logger } from "../utils/logger";
 import { EventCallBack, EventSignal, VanillaEventSignal } from "./eventSignal";
@@ -71,7 +71,7 @@ export class EventManager {
                 if (trace?.enabled) {
                     trace.builtin(BuiltinTraceEventType.EventCallbackError, {
                         signal,
-                        error: traceError(error),
+                        error: traceErrorValue(error),
                     });
                 }
                 throw error;

@@ -1,6 +1,6 @@
 import { GameState } from "@sapi-game/gameState/gameState";
 import { Game } from "@sapi-game/main";
-import { BuiltinTraceEventType } from "@begame/trace-core";
+import { BuiltinTraceEventType } from "../../../trace/contract";
 import { GameComponent } from "../../gameComponent";
 import { TimerOnTimeEventSignal } from "./onTimeEvent";
 import { TimerTickEventSignal } from "./tickEvent";

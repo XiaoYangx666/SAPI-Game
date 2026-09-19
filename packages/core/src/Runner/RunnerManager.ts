@@ -2,9 +2,9 @@ import { system } from "@minecraft/server";
 import { Logger } from "@sapi-game/utils";
 import {
     BuiltinTraceEventType,
-    traceError,
-    type TraceScope,
-} from "@begame/trace-core";
+    traceErrorValue,
+    type TraceScopeLike as TraceScope,
+} from "../trace/contract";
 import { ScriptRunner } from "./scriptRunner";
 
 export class RunnerManager {
@@ -37,7 +37,7 @@ export class RunnerManager {
         runner.run(script).catch((e) => {
             this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
                 runnerId: id,
-                error: traceError(e),
+                error: traceErrorValue(e),
             });
             this.logger.error(`runner ${id} 出错了:`, e);
         });
@@ -58,7 +58,7 @@ export class RunnerManager {
             .catch((e) => {
                 this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
                     runnerId: id,
-                    error: traceError(e),
+                    error: traceErrorValue(e),
                 });
                 this.logger.error(`runner ${id} 出错了:`, e);
             });
@@ -80,7 +80,7 @@ export class RunnerManager {
             .catch((error) => {
                 this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
                     runnerId: id,
-                    error: traceError(error),
+                    error: traceErrorValue(error),
                 });
                 throw error;
             })

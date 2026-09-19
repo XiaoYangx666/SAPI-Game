@@ -1,0 +1,207 @@
+/**
+ * Tree-shaking probe.
+ *
+ * Bundles a tiny consumer that imports exactly one symbol from a BEGame package
+ * and reports which modules the bundler actually pulled in. This is a property
+ * of the built dist plus the package manifests, so it cannot be observed from
+ * source alone.
+ *
+ * Detection is by module id, never by scanning the output text: identifiers like
+ * `Timer` or `DisconnectTimeout` also occur as members of trace-core's
+ * BuiltinTraceEventType enum, so substring matching reports false positives.
+ *
+ * Usage: node scripts/treeshake-probe.mjs [--json]
+ */
+import { rolldown } from "rolldown";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+const COMPONENT_MODULES = [
+    "gameComponent/common/lazyLoader",
+    "gameComponent/common/timer/timer",
+    "gameComponent/common/stopWatch/stopWatch",
+    "gameComponent/common/disconnectTimeout",
+    "gameComponent/player/blockInteractionBlocker",
+    "gameComponent/player/entityInteractionBlocker",
+    "gameComponent/player/respawn",
+    "gameComponent/player/spawnProtector",
+    "gameComponent/player/healthIndicator",
+    "gameComponent/player/regionMonitor",
+    "gameComponent/region/regionProtecter",
+    "gameComponent/region/regionTeamChooser",
+    "gameComponent/region/regionTeamCleaner",
+    "gameComponent/view/infoScoreboard",
+    "gameComponent/view/teamScoreboard",
+];
+
+const RUNTIME_TRACE_MODULES = [
+    "core/dist/trace/manager",
+    "core/dist/trace/worldStore",
+    "trace-core/dist/session",
+    "trace-core/dist/binary",
+    "trace-core/dist/container",
+    "trace-core/dist/consoleExporter",
+];
+
+/** @param {string[]} modules */
+function matches(modules, needles = []) {
+    return needles.filter((needle) =>
+        modules.some((id) => id.includes(needle))
+    );
+}
+
+const CASES = [
+    {
+        name: "gameState-only",
+        entry: `import { GameState } from "@begame/core";\nexport const probe = GameState;\n`,
+        import: "@begame/core",
+        forbid: [...COMPONENT_MODULES, ...RUNTIME_TRACE_MODULES],
+        // Importing anything from the package entry runs the entry's module-level
+        // side effects. These register worldLoad gating and build the global
+        // manager singleton. Losing them silently breaks world access ordering,
+        // so this case fails loudly if sideEffects is ever declared too broadly.
+        //
+        // `system/worldReady` is deliberately NOT required here: it is only
+        // needed by the server and trace entries, which import it themselves.
+        require: ["core/dist/constants", "core/dist/main"],
+    },
+    {
+        name: "gameState-subpath",
+        entry: `import { GameState } from "@begame/core/gameState";\nexport const probe = GameState;\n`,
+        import: "@begame/core/gameState",
+        forbid: [...COMPONENT_MODULES, ...RUNTIME_TRACE_MODULES],
+    },
+    {
+        name: "timer-component-only",
+        entry: `import { Timer } from "@begame/core";\nexport const probe = Timer;\n`,
+        import: "@begame/core",
+        forbid: [
+            ...COMPONENT_MODULES.filter((m) => !m.includes("timer/timer")),
+            ...RUNTIME_TRACE_MODULES,
+        ],
+    },
+    {
+        // The opt-in trace entry is the only thing that pulls the trace runtime.
+        // It must bring the implementation (otherwise tracing would silently do
+        // nothing) and must still leave the game/component layer behind.
+        name: "trace-entry",
+        entry: `import { decodeBegTrace } from "@begame/core/trace";\nexport const probe = decodeBegTrace;\n`,
+        import: "@begame/core/trace",
+        forbid: [
+            ...COMPONENT_MODULES,
+            "core/dist/gameState/gameState",
+            "core/dist/gameEngine",
+            "core/dist/gamePlayer/playerManager",
+        ],
+        require: [
+            "core/dist/trace/manager",
+            "core/dist/trace/worldStore",
+            "core/dist/system/worldReady",
+            "trace-core/dist/session",
+        ],
+    },
+];
+
+const EXTERNAL = ["@minecraft/server", "@minecraft/server-ui"];
+
+function toRepoPath(id) {
+    const normalized = id.split("\\").join("/").replace(/^\0+/, "");
+    const index = normalized.lastIndexOf("/node_modules/");
+    if (index !== -1) return normalized.slice(index + "/node_modules/".length);
+    if (path.isAbsolute(normalized)) {
+        return path.relative(root, normalized).split("\\").join("/");
+    }
+    return normalized;
+}
+
+async function bundleCase(dir, testCase) {
+    const entryFile = path.join(dir, `${testCase.name}.js`);
+    await writeFile(entryFile, testCase.entry, "utf8");
+
+    const bundle = await rolldown({
+        input: entryFile,
+        external: EXTERNAL,
+        resolve: { modules: [path.join(root, "node_modules")] },
+        logLevel: "silent",
+    });
+    try {
+        const { output } = await bundle.generate({ format: "esm", minify: false });
+        const chunks = output.filter((item) => item.type === "chunk");
+        const code = chunks.map((item) => item.code).join("\n");
+
+        const ids = new Set();
+        for (const chunk of chunks) {
+            for (const id of Object.keys(chunk.modules ?? {})) {
+                ids.add(toRepoPath(id));
+            }
+        }
+        const modules = [...ids].sort();
+        return {
+            bytes: Buffer.byteLength(code),
+            moduleCount: modules.length,
+            kept: matches(modules, testCase.forbid),
+            missing: (testCase.require ?? []).filter(
+                (needle) => !modules.some((id) => id.includes(needle))
+            ),
+            modules,
+        };
+    } finally {
+        await bundle.close();
+    }
+}
+
+const dir = await mkdtemp(path.join(tmpdir(), "begame-treeshake-"));
+const results = [];
+try {
+    for (const testCase of CASES) {
+        const result = await bundleCase(dir, testCase);
+        results.push({
+            case: testCase.name,
+            import: testCase.import,
+            bytes: result.bytes,
+            moduleCount: result.moduleCount,
+            kept: result.kept,
+            missing: result.missing,
+            modules: result.modules,
+        });
+    }
+} finally {
+    await rm(dir, { recursive: true, force: true });
+}
+
+const verbose = process.argv.includes("--verbose");
+
+if (process.argv.includes("--json")) {
+    console.log(JSON.stringify(results, null, 2));
+} else {
+    for (const result of results) {
+        console.log(
+            `\n${result.case}  (import "${result.import}")  ${result.bytes.toLocaleString("en-US")} B, ${result.moduleCount} modules`
+        );
+        console.log(
+            result.kept.length === 0
+                ? "  unused modules kept: none"
+                : `  UNUSED MODULES KEPT (${result.kept.length}):\n${result.kept.map((m) => `    - ${m}`).join("\n")}`
+        );
+        if (result.missing.length > 0) {
+            console.log(
+                `  REQUIRED MODULES MISSING (${result.missing.length}):\n${result.missing.map((m) => `    - ${m}`).join("\n")}`
+            );
+        }
+        if (verbose) {
+            console.log(`  all modules:\n${result.modules.map((m) => `    ${m}`).join("\n")}`);
+        }
+    }
+}
+
+const dirty = results.filter(
+    (result) => result.kept.length > 0 || result.missing.length > 0
+);
+console.log(
+    `\n${dirty.length === 0 ? "PASS" : "FAIL"}: ${results.length - dirty.length}/${results.length} cases clean`
+);
+process.exit(dirty.length === 0 ? 0 : 1);

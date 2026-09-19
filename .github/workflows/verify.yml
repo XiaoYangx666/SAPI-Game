@@ -27,4 +27,7 @@ jobs:
       - run: npm install --ignore-scripts
       - run: npm run build
       - run: npm run test:unit
+      # Bundles one-symbol consumers to prove unused components and unused trace
+      # stay out of the output; needs dist, so it runs after the build.
+      - run: npm run test:treeshake
       - run: npm run pack

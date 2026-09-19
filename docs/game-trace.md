@@ -42,7 +42,27 @@ Game / State / Component / Participation / Runner / Timer
 
 `TraceSession` owns ordering and encoding. Gameplay code emits logical events through `TraceScope`. Sink membership is snapshotted when the session starts, so a runtime storage toggle cannot create a deliberately truncated stored session. Sink failures are isolated from game execution.
 
-`@begame/trace-core` holds the platform-independent part of the subsystem: vocabulary, binary codec, chunk container, decoder, schema/session primitives and the console exporter. `@begame/core` adds the Minecraft adapters (`WorldTraceStore`, `TraceManager`) and re-exports trace-core through `@begame/core/trace`, so existing deep imports keep working. `WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
+`@begame/trace-core` holds the platform-independent part of the subsystem: vocabulary, binary codec, chunk container, decoder, schema/session primitives and the console exporter. `@begame/core` adds the Minecraft adapters (`WorldTraceStore`, `TraceManager`) and exposes them through `@begame/core/trace`. `WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
+
+### Enabling tracing
+
+Tracing is opt-in at **import** time, not at call time:
+
+```ts
+import "@begame/core/trace";
+// or, when you also need the codec:
+import { decodeBegTrace } from "@begame/core/trace";
+```
+
+`@begame/core` never imports `@begame/trace-core` at runtime. Its hot path only carries a dependency-free contract (`packages/core/src/trace/contract.ts`): the numeric event ids, a no-op scope, and a deferred error marker. The real `TraceManager` installs itself into that contract when `@begame/core/trace` is evaluated. A game that never imports the trace entry ships no trace code at all; `npm run test:treeshake` asserts that in CI.
+
+Consequences worth knowing:
+
+- `@begame/core` no longer re-exports trace symbols from its package root. Import them from `@begame/core/trace`.
+- `initBEGame({ traceStore: true })` without the trace entry loaded is inert and logs an error, rather than silently recording nothing.
+- Import order does not matter: the runtime is resolved on first `Game.trace` access, so the entry may be evaluated before or after `@begame/core`.
+- Errors cross the runtime boundary as a deferred marker rather than a serialized value, so `traceError` — which walks `cause` chains under UTF-8 byte budgets — only runs when a session is actually listening.
+- The event id table exists twice (contract and trace-core) because core may not import the codec package. `tests/trace-contract.test.mjs` fails CI if they drift.
 
 ## Session model
 

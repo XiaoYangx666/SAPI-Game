@@ -6,6 +6,12 @@
     "main": "./dist/main.js",
     "types": "./dist/main.d.ts",
     "files": ["dist"],
+    "sideEffects": [
+        "./dist/constants.js",
+        "./dist/main.js",
+        "./dist/system/worldReady.js",
+        "./dist/trace/index.js"
+    ],
     "exports": {
         ".": {
             "types": "./dist/main.d.ts",

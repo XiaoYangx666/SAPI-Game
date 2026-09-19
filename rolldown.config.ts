@@ -26,6 +26,8 @@ const observatoryEntry = path.resolve("packages/observatory/src/main.tsx");
 const observatoryServerEntry = path.resolve("packages/observatory/server/index.ts");
 
 const traceCoreExternal = /^@begame\/trace-core(\/|$)/;
+/** Keeps every @begame/core subpath (notably ./trace) external, not just the root. */
+const coreExternal = /^@begame\/core(\/|$)/;
 
 const coreInput = buildInput(
     globSync(`${coreRoot}/**/*.ts`, {
@@ -86,7 +88,7 @@ export default defineConfig([
     {
         input: testInput,
         external: [
-            "@begame/core",
+            coreExternal,
             "@minecraft/server",
             "@minecraft/server-ui",
             "node:fs",
