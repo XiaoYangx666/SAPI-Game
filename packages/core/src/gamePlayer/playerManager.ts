@@ -1,4 +1,6 @@
 import { Player } from "@minecraft/server";
+import type { CustomEventSignal } from "../gameEvent/eventSignal";
+import type { Subscription } from "../gameEvent/subscription";
 import { GameParticipation } from "../participation/gameParticipation";
 import type { ParticipationBatchDecision } from "../participation/gameParticipation";
 import type { ParticipationDecision } from "../participation/policy";
@@ -14,10 +16,34 @@ export type GamePlayerBatchJoinDecision<T extends GamePlayer> =
     | { allowed: true; players: T[] }
     | { allowed: false; playerId: string; reason?: string };
 
+/** Transitional game-local notification. Phase 1 moves this to ParticipationManager. */
+class ParticipationReleasedSignal implements CustomEventSignal<{ playerId: string; reason: string }> {
+    private readonly callbacks = new Set<(event: { playerId: string; reason: string }) => void>();
+
+    subscribe(callback: (event: { playerId: string; reason: string }) => void): Subscription {
+        this.callbacks.add(callback);
+        let active = true;
+        return { unsubscribe: () => {
+            if (!active) return;
+            active = false;
+            this.callbacks.delete(callback);
+        } };
+    }
+
+    publish(event: { playerId: string; reason: string }): void {
+        for (const callback of [...this.callbacks]) {
+            try { callback(event); }
+            catch (error) { console.error("Participation release callback error:", error); }
+        }
+    }
+}
+
 /**游戏实例内的 GamePlayer wrapper 管理器。*/
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
     private readonly tracedOnlinePlayers = new Set<string>();
+    /** @internal Transitional signal; only actual leave() releases publish. */
+    readonly participationReleased = new ParticipationReleasedSignal();
     public readonly playerConstructor: GamePlayerConstructor<T>;
 
     /**玩家组构建器 */
@@ -189,13 +215,18 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         if (gamePlayer) gamePlayer._setActive(false);
         const released = this.participation.leave(playerId);
         if (released) {
-            this.traceSession?.participation.builtin(
-                BuiltinTraceEventType.ParticipationReleased,
-                {
-                    player: this.traceSession.player(playerId, gamePlayer?.name),
-                    reason,
-                }
-            );
+            try {
+                this.traceSession?.participation.builtin(
+                    BuiltinTraceEventType.ParticipationReleased,
+                    {
+                        player: this.traceSession.player(playerId, gamePlayer?.name),
+                        reason,
+                    }
+                );
+            } finally {
+                // Authoritative membership is already gone; game teardown is silent.
+                this.participationReleased.publish({ playerId, reason });
+            }
         }
         return gamePlayer !== undefined || released;
     }
