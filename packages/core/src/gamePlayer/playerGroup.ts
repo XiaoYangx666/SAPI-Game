@@ -10,6 +10,7 @@ import {
     GamePlayerConstructor,
     ValidGamePlayer,
 } from "./gamePlayer";
+import { GroupMembershipSignal } from "./groupMembershipSignal";
 
 class PlayerGroupError extends GameError {
     constructor(mes: string, options?: ErrorOptions) {
@@ -21,6 +22,7 @@ class PlayerGroupError extends GameError {
 /**玩家组 */
 export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
     private players: T[];
+    readonly changed = new GroupMembershipSignal<T>();
     readonly playerConstructor: GamePlayerConstructor<T>;
     readonly data: TData;
 
@@ -75,19 +77,21 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
         }
         if (!this.has(player)) {
             this.players.push(player);
+            this.changed.publish({ type: "added", player, reason: "manual" });
         }
         return this;
     }
 
-    delete(player: T | Player) {
+    delete(player: T | Player, reason = "manual") {
         const index = this.players.findIndex((p) => p.id == player.id);
         if (index != -1) {
-            this.players.splice(index, 1);
+            const [removed] = this.players.splice(index, 1);
+            this.changed.publish({ type: "removed", player: removed, reason });
         }
         return this;
     }
 
-    removeWhere(func: (player: T) => boolean): T[] {
+    removeWhere(func: (player: T) => boolean, reason = "predicate"): T[] {
         const removed: T[] = [];
         this.players = this.players.filter((p) => {
             if (func(p)) {
@@ -96,6 +100,9 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
             }
             return true;
         });
+        for (const player of removed) {
+            this.changed.publish({ type: "removed", player, reason });
+        }
         return removed;
     }
 
@@ -170,13 +177,17 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
 
     /** 清空组 */
     clear() {
+        const previous = this.players;
         this.players = [];
+        for (const player of previous) {
+            this.changed.publish({ type: "removed", player, reason: "group-clear" });
+        }
         return this;
     }
 
     /**清除无效玩家 */
     clearInvalid() {
-        this.players = this.players.filter((p) => p.isValid);
+        this.removeWhere((p) => !p.isValid, "invalid-purge");
         return this;
     }
 

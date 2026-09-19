@@ -24,7 +24,7 @@ export class RegionTeamCleaner extends GameComponent<
             (t) => {
                 if (t.type == RegionEventType.Leave) {
                     this.options?.teams.forEach((team) =>
-                        team.delete(t.player)
+                        team.delete(t.player, "region-leave")
                     );
                     this.options?.onClean?.(t.player);
                 }
