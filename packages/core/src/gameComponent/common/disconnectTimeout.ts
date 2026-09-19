@@ -29,8 +29,9 @@ export interface DisconnectTimeoutOptions<P extends GamePlayer = GamePlayer> {
      */
     participantFilter?: (playerId: string, player: P | undefined) => boolean;
     /**
+     * @deprecated 请改用独立 AutoStopComponent 监听真实 membership 变化。
+     * 仅为旧代码兼容保留：此选项现在也会在主动 leave 后检查空房。
      * release 后若当前监控 scope 已没有 participant，是否自动 stopGame，默认 false。
-     * 未设置 scope 时等价于检查整个游戏。
      */
     stopGameWhenEmpty?: boolean;
     /**玩家掉线并开始计时时触发。*/
