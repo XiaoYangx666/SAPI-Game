@@ -59,6 +59,14 @@ export class DisconnectTimeoutComponent<
     private readonly timers = new Map<string, string>();
 
     protected override onAttach(): void {
+        // Online /game:hub and /game:l release membership without a connection event.
+        // Defer the stop check so leave() callers can finish their own state transition.
+        this.subscribe(this.state.playerManager.participationReleased, ({ playerId }) => {
+            this.cancelTimeout(playerId, "participation-released");
+            if (this.options?.stopGameWhenEmpty) {
+                this.runner.runDelay(() => this.stopIfScopedEmpty(), 1);
+            }
+        });
         this.subscribe(Game.events.connection, (event) => {
             if (event.type === "online") {
                 this.handleOnline(event.playerId, event.player);
@@ -160,11 +168,14 @@ export class DisconnectTimeoutComponent<
             this.state.playerManager.leave(playerId, "disconnect-timeout");
         }
 
-        if (
-            (this.options?.stopGameWhenEmpty ?? false) &&
-            this.getScopedParticipantIds().length === 0
-        ) {
-            this.state.stopGame("disconnect-timeout-empty");
+        this.stopIfScopedEmpty();
+    }
+
+    private stopIfScopedEmpty(): void {
+        if (!this.isAttached || !this.options?.stopGameWhenEmpty) return;
+        // Re-evaluate at execution time: another player may have joined this tick.
+        if (this.getScopedParticipantIds().length === 0) {
+            this.state.stopGame("participants-empty");
         }
     }
 
