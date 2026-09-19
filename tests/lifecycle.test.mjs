@@ -6,6 +6,9 @@ import {
     GameContext,
     GameEngine,
     GamePlayer,
+    GamePlayerManager,
+    GameParticipation,
+    ParticipationManager,
     GameState,
 } from "../packages/core/dist/main.js";
 import { Logger } from "../packages/core/dist/utils/logger.js";
@@ -177,6 +180,27 @@ test("disconnect grace period can reconnect before timeout or leave after timeou
     expect(env.getGame(DisconnectGame)).toBeUndefined();
     expect(game.lifecycle).toBe("disposed");
     env.reset();
+});
+
+test("reconnect rebinds the existing GamePlayer wrapper to a new native Player handle", () => {
+    // Do not use virtualMinecraft.connectPlayer here: that helper reuses the
+    // original Player object and cannot expose a stale-handle regression.
+    const participation = new GameParticipation(new ParticipationManager(), "rebind-test");
+    const manager = new GamePlayerManager(GamePlayer, participation);
+    const oldHandle = { id: "alice", name: "Alice", isValid: true };
+    const wrapper = manager.join(oldHandle).player;
+    expect(wrapper.player).toBe(oldHandle);
+
+    oldHandle.isValid = false;
+    expect(wrapper.isOnline).toBe(false);
+    const replacementHandle = { id: "alice", name: "Alice", isValid: true };
+    const rebound = manager.get(replacementHandle);
+    expect(rebound).toBe(wrapper);
+    expect(wrapper.isOnline).toBe(true);
+    expect(wrapper.player).toBe(replacementHandle);
+    expect(() => wrapper._bind({ id: "bob", name: "Bob", isValid: true })).toThrow(/different player ID/);
+    expect(wrapper.player).toBe(replacementHandle);
+    manager.dispose();
 });
 
 test("reload keeps virtual world players but rebuilds game runtime from snapshot", async () => {
