@@ -7,3 +7,6 @@ export * from "./decoder";
 export * from "./schema";
 export * from "./session";
 export * from "./consoleExporter";
+export * from "./storage";
+export * from "./historyStore";
+export * from "./manager";

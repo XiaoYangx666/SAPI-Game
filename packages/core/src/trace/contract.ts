@@ -25,7 +25,7 @@ import type {
     TraceSource,
     TraceSourceKind,
     TraceValue,
-    WorldTraceStoreOptions,
+    TraceStoreOptions,
 } from "@begame/trace-spec";
 
 /**
@@ -85,7 +85,7 @@ export interface TraceSessionLike {
 /** The history store, as far as core and tooling reach into it. */
 export interface TraceStoreLike {
     readonly enabled: boolean;
-    configure(options?: WorldTraceStoreOptions): unknown;
+    configure(options?: TraceStoreOptions): unknown;
     enable(): void;
     disable(): void;
     list(): StoredTraceSummary[];
@@ -107,7 +107,7 @@ export interface TraceRuntime {
         export(sessionId?: string): ConsoleTraceExportResult;
     };
     setSink(sink?: TraceSink): void;
-    configureStore(options?: WorldTraceStoreOptions): unknown;
+    configureStore(options?: TraceStoreOptions): unknown;
     setStoreEnabled(enabled: boolean): unknown;
     exportToConsole(sessionId?: string): ConsoleTraceExportResult;
     bindConnectionSource(source?: TraceConnectionSource): void;

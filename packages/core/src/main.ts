@@ -6,12 +6,12 @@ import { GameManager } from "./system/gameManager";
 import { gameServer } from "./system/server";
 import type { TraceRuntime } from "./trace/contract";
 import { Logger } from "./utils/logger";
-import type { WorldTraceStoreOptions } from "@begame/trace-spec";
+import type { TraceStoreOptions } from "@begame/trace-spec";
 
 export { BEGameConfig, SAPIGameConfig } from "./config";
 export type { BEGameConfigOptions, SAPIGameConfigOptions } from "./config";
 
-export interface BEGameTraceStoreInitOptions extends WorldTraceStoreOptions {
+export interface BEGameTraceStoreInitOptions extends TraceStoreOptions {
     /** Whether World Dynamic Property history storage is enabled. Defaults to true when this object is provided. */
     enabled?: boolean;
 }

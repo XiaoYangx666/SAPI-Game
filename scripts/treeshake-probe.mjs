@@ -39,8 +39,8 @@ const COMPONENT_MODULES = [
 ];
 
 const RUNTIME_TRACE_MODULES = [
-    "trace/dist/manager",
-    "trace/dist/worldStore",
+    "trace-core/dist/manager",
+    "trace-core/dist/historyStore",
     "trace-core/dist/session",
     "trace-core/dist/binary",
     "trace-core/dist/container",
@@ -98,8 +98,9 @@ const CASES = [
             "core/dist/gamePlayer/playerManager",
         ],
         require: [
-            "trace/dist/manager",
-            "trace/dist/worldStore",
+            "trace/dist/minecraft",
+            "trace-core/dist/manager",
+            "trace-core/dist/historyStore",
             "trace-core/dist/session",
             "trace-spec/dist/types",
         ],

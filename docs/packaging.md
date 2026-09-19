@@ -99,6 +99,20 @@ better for reasons that are worth keeping in mind before "simplifying" it back:
   evaluating, so a plain property would capture the inert runtime before
   anything could inject the real one.
 
+## Where the platform boundary sits
+
+`@begame/trace-core` holds the codec *and* the session/history logic, because
+none of it actually needs Minecraft: the tick source is injected into
+`TraceManager`, and the storage substrate is injected into `TraceHistoryStore`
+through the seams in `packages/trace-core/src/storage.ts`. `@begame/trace` is
+only the binding — dynamic properties, `system.runInterval`, the worldLoad gate.
+
+That boundary is enforced rather than merely intended.
+`tests/trace-isolation.test.mjs` scans the built output and fails if anything
+under `packages/trace-core/dist` imports `@minecraft/*` or `@begame/core`, or if
+`packages/core/dist` reaches either trace package. It reads `dist` rather than
+source because that is what consumers actually load.
+
 ## Why not a dynamic `import()`
 
 Deferring the load would also work, but it makes enabling tracing asynchronous,

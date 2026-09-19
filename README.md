@@ -10,8 +10,8 @@ BEGame 关注 **GameEngine → GameState → GameComponent** 的运行时生命�
 @begame/core         游戏运行时
 @begame/test         无头生命周期测试引擎
 @begame/trace-spec   Trace 词汇表：事件 ID、值/schema 类型、错误标记
-@begame/trace-core   平台无关的 Trace 格式、编解码与会话模型
-@begame/trace        Trace 运行时：会话管理与世界历史存储
+@begame/trace-core   平台无关的全部 trace 逻辑：编解码 + 会话管理 + 历史存储
+@begame/trace        trace 的 Minecraft 绑定：存储底座与 createTraceRuntime
 @begame/trace-tools  Content Log / .begtrace 离线解析工具
 @begame/observatory  本地 Trace 分析工作台与服务（private，不发布）
 ```

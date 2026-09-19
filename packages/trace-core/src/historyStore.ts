@@ -1,19 +1,16 @@
-import { system, world } from "@minecraft/server";
-import { isWorldLoaded, runAfterWorldLoad } from "@begame/core/world-ready";
+import { decodeBase64, encodeBase64 } from "./base64";
+import { encodeBegTrace, type BegTraceContainer } from "./container";
+import { createInMemoryStorage, type TraceStorage } from "./storage";
 import {
-    decodeBase64,
-    encodeBase64,
-    encodeBegTrace,
     TRACE_FORMAT_VERSION,
-    type BegTraceContainer,
     type StoredTraceSummary,
     type TraceChunk,
     type TraceSessionEnd,
     type TraceSessionHeader,
     type TraceSessionStatus,
     type TraceSink,
-    type WorldTraceStoreOptions,
-} from "@begame/trace-core";
+    type TraceStoreOptions,
+} from "./types";
 
 const STORE_PREFIX = `begame.trace.v${TRACE_FORMAT_VERSION}.`;
 const DEFAULT_MAX_SESSIONS = 50;
@@ -21,7 +18,7 @@ const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_CLEANUP_INTERVAL_TICKS = 6000;
 
-interface WorldTraceStoreMetaV1 {
+interface TraceHistoryMetaV1 {
     readonly storageVersion: 1;
     readonly header: TraceSessionHeader;
     status: TraceSessionStatus;
@@ -32,8 +29,19 @@ interface WorldTraceStoreMetaV1 {
     end?: TraceSessionEnd;
 }
 
-export class WorldTraceStore implements TraceSink {
-    private options: Required<WorldTraceStoreOptions> = {
+/**
+ * Persistent trace history with a bounded retention policy.
+ *
+ * Writes session chunks through the injected {@link TraceStorage} seams, so the
+ * bookkeeping here — ordering, retention, reload recovery, "an accepted session
+ * must finish atomically" — is platform-independent. `@begame/trace` supplies
+ * Minecraft dynamic properties; the default is an in-memory map.
+ *
+ * This is a history store, not an export transport: `@begame/trace-tools` and
+ * the console exporter read completed sessions back out of it.
+ */
+export class TraceHistoryStore implements TraceSink {
+    private options: Required<TraceStoreOptions> = {
         maxSessions: DEFAULT_MAX_SESSIONS,
         maxBytes: DEFAULT_MAX_BYTES,
         maxAgeMs: DEFAULT_MAX_AGE_MS,
@@ -47,7 +55,8 @@ export class WorldTraceStore implements TraceSink {
     private readonly activeSessions = new Set<string>();
 
     constructor(
-        options: WorldTraceStoreOptions = {},
+        private readonly storage: TraceStorage = createInMemoryStorage(),
+        options: TraceStoreOptions = {},
         private readonly onInternalError?: (error: unknown) => void
     ) {
         this.configure(options);
@@ -59,15 +68,15 @@ export class WorldTraceStore implements TraceSink {
 
     /** Whether new sessions can safely be persisted right now. */
     get acceptingSessions() {
-        return this._enabled && isWorldLoaded();
+        return this._enabled && this.storage.gate.isReady();
     }
 
-    get config(): Readonly<Required<WorldTraceStoreOptions>> {
+    get config(): Readonly<Required<TraceStoreOptions>> {
         return { ...this.options };
     }
 
     /** Update retention settings without changing the enabled state. */
-    configure(options: WorldTraceStoreOptions = {}) {
+    configure(options: TraceStoreOptions = {}) {
         const previousInterval = this.options.cleanupIntervalTicks;
         this.options = {
             maxSessions: positiveInteger(
@@ -107,8 +116,9 @@ export class WorldTraceStore implements TraceSink {
         if (this._enabled) return this;
         this._enabled = true;
         this.recoverOnMaintenance = true;
-        // Dynamic Property APIs are World APIs. Initial recovery, cleanup and
-        // periodic maintenance start only after world.afterEvents.worldLoad.
+        // The substrate may not be safe to touch yet (Minecraft dynamic
+        // properties are unusable before worldLoad), so recovery, cleanup and
+        // periodic maintenance all wait for the gate.
         this.scheduleMaintenance();
         return this;
     }
@@ -129,7 +139,7 @@ export class WorldTraceStore implements TraceSink {
 
     onSessionStart(header: TraceSessionHeader) {
         if (!this.acceptingSessions) return;
-        const meta: WorldTraceStoreMetaV1 = {
+        const meta: TraceHistoryMetaV1 = {
             storageVersion: 1,
             header,
             status: "running",
@@ -152,7 +162,7 @@ export class WorldTraceStore implements TraceSink {
         }
 
         const encoded = encodeBase64(chunk.bytes);
-        world.setDynamicProperty(this.chunkKey(chunk.sessionId, chunk.index), encoded);
+        this.storage.kv.set(this.chunkKey(chunk.sessionId, chunk.index), encoded);
         meta.chunkCount = chunk.index + 1;
         meta.eventCount = chunk.lastSequence;
         meta.lastTick = chunk.endTick;
@@ -179,7 +189,7 @@ export class WorldTraceStore implements TraceSink {
     /** Newest sessions first. Corrupt metadata is skipped and reported. */
     list(): StoredTraceSummary[] {
         const summaries: StoredTraceSummary[] = [];
-        for (const id of world.getDynamicPropertyIds()) {
+        for (const id of this.storage.kv.keys()) {
             if (!id.startsWith(STORE_PREFIX) || !id.endsWith(".meta")) continue;
             try {
                 const meta = this.readMetaKey(id);
@@ -207,7 +217,7 @@ export class WorldTraceStore implements TraceSink {
         if (!meta?.end) return undefined;
         const chunks: Uint8Array[] = [];
         for (let index = 0; index < meta.chunkCount; index++) {
-            const encoded = world.getDynamicProperty(this.chunkKey(sessionId, index));
+            const encoded = this.storage.kv.get(this.chunkKey(sessionId, index));
             if (typeof encoded !== "string") {
                 throw new Error(`Missing Trace chunk ${sessionId}:${index}`);
             }
@@ -232,9 +242,9 @@ export class WorldTraceStore implements TraceSink {
         if (this.activeSessions.has(sessionId)) return false;
         const prefix = `${STORE_PREFIX}${sessionId}.`;
         let removed = false;
-        for (const id of world.getDynamicPropertyIds()) {
+        for (const id of this.storage.kv.keys()) {
             if (!id.startsWith(prefix)) continue;
-            world.setDynamicProperty(id, undefined);
+            this.storage.kv.set(id, undefined);
             removed = true;
         }
         return removed;
@@ -314,12 +324,12 @@ export class WorldTraceStore implements TraceSink {
 
     private scheduleMaintenance() {
         if (!this._enabled) return;
-        if (isWorldLoaded()) {
+        if (this.storage.gate.isReady()) {
             this.runMaintenance();
             return;
         }
         if (this.cancelMaintenanceWait) return;
-        this.cancelMaintenanceWait = runAfterWorldLoad(() => {
+        this.cancelMaintenanceWait = this.storage.gate.afterReady(() => {
             this.cancelMaintenanceWait = undefined;
             if (!this._enabled) return;
             this.runMaintenance();
@@ -338,20 +348,20 @@ export class WorldTraceStore implements TraceSink {
     private startCleanupTimer() {
         if (
             !this._enabled ||
-            !isWorldLoaded() ||
+            !this.storage.gate.isReady() ||
             this.cleanupRunId !== undefined
         ) {
             return;
         }
-        this.cleanupRunId = system.runInterval(
-            () => this.safeMaintenance(() => this.cleanup()),
-            this.options.cleanupIntervalTicks
+        this.cleanupRunId = this.storage.scheduler.every(
+            this.options.cleanupIntervalTicks,
+            () => this.safeMaintenance(() => this.cleanup())
         );
     }
 
     private stopCleanupTimer() {
         if (this.cleanupRunId === undefined) return;
-        system.clearRun(this.cleanupRunId);
+        this.storage.scheduler.cancel(this.cleanupRunId);
         this.cleanupRunId = undefined;
     }
 
@@ -363,8 +373,8 @@ export class WorldTraceStore implements TraceSink {
         return `${STORE_PREFIX}${sessionId}.${index}`;
     }
 
-    private writeMeta(meta: WorldTraceStoreMetaV1) {
-        world.setDynamicProperty(this.metaKey(meta.header.sessionId), JSON.stringify(meta));
+    private writeMeta(meta: TraceHistoryMetaV1) {
+        this.storage.kv.set(this.metaKey(meta.header.sessionId), JSON.stringify(meta));
     }
 
     private readMeta(sessionId: string) {
@@ -377,13 +387,13 @@ export class WorldTraceStore implements TraceSink {
         return meta;
     }
 
-    private readMetaKey(key: string): WorldTraceStoreMetaV1 | undefined {
-        const value = world.getDynamicProperty(key);
+    private readMetaKey(key: string): TraceHistoryMetaV1 | undefined {
+        const value = this.storage.kv.get(key);
         if (value === undefined) return undefined;
         if (typeof value !== "string") {
             throw new TypeError(`Invalid Trace metadata property: ${key}`);
         }
-        const parsed = JSON.parse(value) as Partial<WorldTraceStoreMetaV1>;
+        const parsed = JSON.parse(value) as Partial<TraceHistoryMetaV1>;
         if (
             parsed.storageVersion !== 1 ||
             !parsed.header ||
@@ -408,7 +418,7 @@ export class WorldTraceStore implements TraceSink {
         };
     }
 
-    private toSummary(meta: WorldTraceStoreMetaV1): StoredTraceSummary {
+    private toSummary(meta: TraceHistoryMetaV1): StoredTraceSummary {
         return {
             sessionId: meta.header.sessionId,
             gameType: meta.header.gameType,

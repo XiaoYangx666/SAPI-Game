@@ -31,7 +31,7 @@ export interface TraceConnectionSource {
 }
 
 /** Retention policy for the world Dynamic Property history store. */
-export interface WorldTraceStoreOptions {
+export interface TraceStoreOptions {
     /** Maximum completed sessions retained in this world. */
     readonly maxSessions?: number;
     /** Approximate Base64 payload bytes retained by BEGame Trace. */

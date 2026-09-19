@@ -1,7 +1,8 @@
+import { ConsoleTraceExporter } from "./consoleExporter";
+import { TraceHistoryStore } from "./historyStore";
+import { TraceSession, snapshotTraceValue } from "./session";
+import type { TraceStorage } from "./storage";
 import {
-    ConsoleTraceExporter,
-    snapshotTraceValue,
-    TraceSession,
     TRACE_FORMAT_VERSION,
     type BeginTraceSessionOptions,
     type TraceConnectionSource,
@@ -9,11 +10,23 @@ import {
     type TraceSessionEnd,
     type TraceSessionOptions,
     type TraceSink,
+    type TraceStoreOptions,
     type TraceValue,
-    type WorldTraceStoreOptions,
-} from "@begame/trace-core";
-import { WorldTraceStore } from "./worldStore";
+} from "./types";
 
+export interface TraceManagerOptions extends TraceSessionOptions {
+    /** Storage substrate for the history store. Defaults to an in-memory map. */
+    readonly storage?: TraceStorage;
+    /** Retention policy applied to the history store. */
+    readonly storeOptions?: TraceStoreOptions;
+}
+
+/**
+ * Owns the trace sessions of every running game and the shared history store.
+ *
+ * Platform-independent: the tick source is injected, and so is the storage
+ * substrate, so nothing here needs Minecraft.
+ */
 export class TraceManager {
     /** Optional compatibility/testing sink. Production history uses `store`. */
     private sink?: TraceSink;
@@ -21,25 +34,28 @@ export class TraceManager {
     private connectionSubscription?: TraceConnectionSubscription;
     private readonly sessions = new Map<string, TraceSession>();
     private readonly completedSessions = new Set<TraceSession>();
+    private readonly options: TraceSessionOptions;
     private sessionCounter = 0;
 
-    /** World Dynamic Property history store. Disabled by default. */
-    readonly store: WorldTraceStore;
-    /** Console/Content Log export channel backed by the world history store. */
+    /** Bounded trace history. Disabled by default. */
+    readonly store: TraceHistoryStore;
+    /** Console/Content Log export channel backed by the history store. */
     readonly consoleExporter: ConsoleTraceExporter;
 
     constructor(
         private readonly tick: () => number,
-        private readonly options: TraceSessionOptions = {}
+        options: TraceManagerOptions = {}
     ) {
-        this.store = new WorldTraceStore({}, (error) =>
+        const { storage, storeOptions, ...sessionOptions } = options;
+        this.options = sessionOptions;
+        this.store = new TraceHistoryStore(storage, storeOptions, (error) =>
             this.reportInternalError(error)
         );
         this.consoleExporter = new ConsoleTraceExporter(this.store);
     }
 
     /**
-     * Compatibility/testing sink. It is combined with the WorldTraceStore when
+     * Compatibility/testing sink. It is combined with the history store when
      * persistent storage is enabled.
      */
     setSink(sink?: TraceSink) {
@@ -47,7 +63,7 @@ export class TraceManager {
         this.refreshConnectionSubscription();
     }
 
-    configureStore(options: WorldTraceStoreOptions = {}) {
+    configureStore(options: TraceStoreOptions = {}) {
         this.store.configure(options);
         return this;
     }

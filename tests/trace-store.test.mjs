@@ -23,7 +23,7 @@ class StoreGame extends GameEngine {
     onStop() {}
 }
 
-test("WorldTraceStore can be configured and toggled at runtime without truncating an accepted session", async () => {
+test("TraceHistoryStore can be configured and toggled at runtime without truncating an accepted session", async () => {
     const env = new BEGameTestEngine();
     Game.trace.store.disable();
     env.reset();

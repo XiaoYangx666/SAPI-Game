@@ -1,10 +1,14 @@
 /**
- * BEGame Trace runtime.
+ * BEGame Trace for Minecraft.
+ *
+ * This package is the *binding*, not the logic. The sessions, the history store
+ * and the codec all live in the platform-independent `@begame/trace-core`; all
+ * that is Minecraft-specific is the storage substrate in `./minecraft.ts` and
+ * the runtime assembly below.
  *
  * `@begame/core` carries no trace implementation: its hot path only needs the
- * vocabulary from `@begame/trace-spec` and an inert runtime. This package
- * provides the real one, and the consumer wires the two together at its own
- * composition root:
+ * vocabulary from `@begame/trace-spec` and an inert runtime. The consumer wires
+ * the two together at its own composition root:
  *
  * ```ts
  * import { initBEGame } from "@begame/core";
@@ -19,12 +23,11 @@
  * and installation does not depend on which module was evaluated first.
  */
 import { system } from "@minecraft/server";
-import type { TraceSessionOptions } from "@begame/trace-core";
-import { TraceManager } from "./manager";
+import { TraceManager, type TraceSessionOptions } from "@begame/trace-core";
+import { createMinecraftTraceStorage } from "./minecraft";
 
 export * from "@begame/trace-core";
-export * from "./manager";
-export * from "./worldStore";
+export * from "./minecraft";
 
 export interface CreateTraceRuntimeOptions extends TraceSessionOptions {
     /** Tick source used to stamp events. Defaults to `system.currentTick`. */
@@ -47,5 +50,6 @@ export function createTraceRuntime(
             console.error("[BEGame] Trace internal error:", error);
         },
         ...sessionOptions,
+        storage: createMinecraftTraceStorage(),
     });
 }

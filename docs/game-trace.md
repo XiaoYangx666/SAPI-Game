@@ -27,8 +27,8 @@ Game / State / Component / Participation / Runner / Timer
              session sink set
               /          \
              v            v
-      TestTraceSink   WorldTraceStore
-       (@begame/test)   (World DP)
+      TestTraceSink   TraceHistoryStore
+       (@begame/test)   (TraceStorage seams)
                             |
                             v
                     ConsoleTraceExporter
@@ -42,7 +42,24 @@ Game / State / Component / Participation / Runner / Timer
 
 `TraceSession` owns ordering and encoding. Gameplay code emits logical events through `TraceScope`. Sink membership is snapshotted when the session starts, so a runtime storage toggle cannot create a deliberately truncated stored session. Sink failures are isolated from game execution.
 
-`@begame/trace-spec` is the shared, zero-dependency vocabulary: event ids, value and schema types, the management-side option shapes and the deferred error marker. `@begame/trace-core` adds the platform-independent codec: binary format, chunk container, decoder, schema/session primitives and the console exporter. `@begame/trace` adds the Minecraft adapters (`TraceManager`, `WorldTraceStore`) and the `createTraceRuntime` factory. `WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
+`@begame/trace-spec` is the shared, zero-dependency vocabulary: event ids, value and schema types, the management-side option shapes and the deferred error marker. `@begame/trace-core` is everything platform-independent: the binary codec, chunk container, decoder, schema/session primitives, the console exporter, and the two runtime pieces — `TraceManager` and `TraceHistoryStore`. `@begame/trace` is only the Minecraft binding: it supplies the storage seams (world dynamic properties, the tick scheduler, the worldLoad gate) and the `createTraceRuntime` factory. `TraceHistoryStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
+
+### The storage seam
+
+`TraceHistoryStore` never touches Minecraft. Chunking sessions, the retention policy (count / bytes / age), reload recovery and the "an accepted session must finish even after storage is disabled" invariant are all pure bookkeeping, so the substrate is injected through `TraceStorage` (`packages/trace-core/src/storage.ts`):
+
+| Seam | Minecraft supplies | Tests supply |
+| --- | --- | --- |
+| `TraceKeyValueStore` | `world.*DynamicProperty*` | a `Map` |
+| `TraceScheduler` | `system.runInterval` / `clearRun` | a recorded fake |
+| `TraceWorldGate` | `worldReady` helpers | an always-ready stub |
+
+The value type is deliberately `string \| number \| boolean \| undefined` to mirror dynamic properties, which is why chunk bytes are Base64 encoded before they reach the store.
+
+Two consequences worth keeping:
+
+- `@begame/trace-core` runs in plain Node, which is what lets the observatory server and offline tooling import it with no Minecraft runtime present. `tests/trace-isolation.test.mjs` fails CI if anything under `packages/trace-core/dist` starts importing `@minecraft/*` or `@begame/core`.
+- The store's behaviour is unit-testable without the virtual world. `tests/trace-history-store.test.mjs` drives it through its `TraceSink` contract with fake seams.
 
 ### Enabling tracing
 
@@ -191,16 +208,18 @@ Core never awaits a Sink on the gameplay path. Promise rejection and synchronous
 
 `TestTraceSink` can return raw `.begtrace` bytes or decode them for assertions. `FileTraceSink` is Node-only and writes completed `.begtrace` sessions for CI artifacts.
 
-## WorldTraceStore
+## TraceHistoryStore
 
-`WorldTraceStore` persists history directly to Minecraft World Dynamic Properties. It does not depend on SAPI-Pro `DPDataBase`.
+`TraceHistoryStore` persists history through the injected `TraceStorage` seams. `@begame/trace` backs them with Minecraft World Dynamic Properties; it does not depend on SAPI-Pro `DPDataBase`. See [The storage seam](#the-storage-seam) for the split.
 
 Storage is **disabled by default**. Developers can opt in during initialization:
 
 ```ts
 import { initBEGame } from "@begame/core";
+import { createTraceRuntime } from "@begame/trace";
 
 initBEGame({
+    trace: createTraceRuntime(),
     traceStore: {
         enabled: true,
         maxSessions: 50,
@@ -214,8 +233,8 @@ initBEGame({
 A boolean is also accepted:
 
 ```ts
-initBEGame({ traceStore: true });
-initBEGame({ traceStore: false });
+initBEGame({ trace: createTraceRuntime(), traceStore: true });
+initBEGame({ trace: createTraceRuntime(), traceStore: false });
 ```
 
 Runtime control is available without reinitializing BEGame:
@@ -289,7 +308,7 @@ The marker deliberately does not depend on Minecraft's surrounding log prefix, b
 - codec: varint/zigzag, UTF-8, `BinaryReader`/`BinaryWriter`, `.begtrace` container, chunk encoder/decoder;
 - session primitives: `TraceScope`, `TraceSession`, `defineTraceEvent`, `ConsoleTraceExporter`.
 
-It has no `@minecraft/server` dependency; its only dependency is `@begame/trace-spec`, which holds the shared vocabulary and is itself dependency-free. The Minecraft adapters (`WorldTraceStore`, `TraceManager`) live in `@begame/trace`, which is injected into `@begame/core` rather than reached from it.
+It has no `@minecraft/server` dependency; its only dependency is `@begame/trace-spec`, which holds the shared vocabulary and is itself dependency-free. The Minecraft binding (`@begame/trace`) is injected into `@begame/core` rather than reached from it.
 
 Consumers that install BEGame packages from a local checkout (`"@begame/core": "file:../begame/packages/core"`) must also declare the trace packages they use, with the same version (`@begame/trace-spec`, `@begame/trace-core` and `@begame/trace` as `file:` paths or the packed tarballs). Like all npm `file:` dependencies, the packages are copied into `node_modules`, so re-run `npm install` after rebuilding BEGame.
 
