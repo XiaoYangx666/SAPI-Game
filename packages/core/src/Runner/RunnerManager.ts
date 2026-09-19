@@ -3,7 +3,7 @@ import { Logger } from "@sapi-game/utils";
 import {
     BuiltinTraceEventType,
     traceErrorValue,
-    type TraceScopeLike as TraceScope,
+    type TraceScope,
 } from "../trace/contract";
 import { ScriptRunner } from "./scriptRunner";
 

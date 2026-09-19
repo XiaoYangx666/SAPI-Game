@@ -12,7 +12,7 @@ import { RunnerManager } from "../Runner/RunnerManager";
 import {
     BuiltinTraceEventType,
     traceErrorValue,
-    type TraceScopeLike as TraceScope,
+    type TraceScope,
 } from "../trace/contract";
 import { Logger } from "../utils/logger";
 import {

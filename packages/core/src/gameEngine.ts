@@ -15,8 +15,8 @@ import {
     NOOP_TRACE_SCOPE,
     traceErrorValue,
     type TraceRuntime,
-    type TraceScopeLike as TraceScope,
-    type TraceSessionLike as TraceSession,
+    type TraceScope,
+    type TraceSession,
 } from "./trace/contract";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";

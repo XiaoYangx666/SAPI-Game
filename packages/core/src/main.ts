@@ -11,6 +11,24 @@ import type { TraceStoreOptions } from "@begame/trace-spec";
 export { BEGameConfig, SAPIGameConfig } from "./config";
 export type { BEGameConfigOptions, SAPIGameConfigOptions } from "./config";
 
+/**
+ * The trace contract types.
+ *
+ * `@begame/core` ships no trace implementation, so these are the only trace
+ * names it exposes — and they are type-only, which means they are erased at
+ * build time and cost nothing in the bundle. They exist so gameplay code can
+ * name the scope it hands around (`TraceScope`, the type of `this.trace` on
+ * engines, states and components) from the package root instead of reaching into
+ * a subpath.
+ */
+export type {
+    TraceConnectionSource,
+    TraceRuntime,
+    TraceScope,
+    TraceSession,
+    TraceStoreLike,
+} from "./trace/contract";
+
 export interface BEGameTraceStoreInitOptions extends TraceStoreOptions {
     /** Whether World Dynamic Property history storage is enabled. Defaults to true when this object is provided. */
     enabled?: boolean;

@@ -45,7 +45,7 @@ export {
 } from "@begame/trace-spec";
 
 /** The structured trace scope gameplay code talks to. */
-export interface TraceScopeLike {
+export interface TraceScope {
     readonly enabled: boolean;
     readonly source: TraceSource;
     builtin(
@@ -62,21 +62,21 @@ export interface TraceScopeLike {
 }
 
 /** The per-game session handle core drives. */
-export interface TraceSessionLike {
-    readonly game: TraceScopeLike;
-    readonly participation: TraceScopeLike;
-    createStateScope(state: object, name: string): TraceScopeLike;
+export interface TraceSession {
+    readonly game: TraceScope;
+    readonly participation: TraceScope;
+    createStateScope(state: object, name: string): TraceScope;
     createComponentScope(
         component: object,
         state: object,
         name: string,
         tag?: string
-    ): TraceScopeLike;
+    ): TraceScope;
     createNamedScope(
         kind: Exclude<TraceSourceKind, "state" | "component">,
         name: string,
         ref?: number
-    ): TraceScopeLike;
+    ): TraceScope;
     player(id: string, name?: string): TracePlayerMarker;
     registerPlayer(id: string, name?: string): void;
     noteConnection(id: string, name: string | undefined, online: boolean): void;
@@ -111,8 +111,8 @@ export interface TraceRuntime {
     setStoreEnabled(enabled: boolean): unknown;
     exportToConsole(sessionId?: string): ConsoleTraceExportResult;
     bindConnectionSource(source?: TraceConnectionSource): void;
-    beginSession(options: BeginTraceSessionOptions): TraceSessionLike | undefined;
-    getSession(gameKey: string): TraceSessionLike | undefined;
+    beginSession(options: BeginTraceSessionOptions): TraceSession | undefined;
+    getSession(gameKey: string): TraceSession | undefined;
     noteConnection(
         playerId: string,
         playerName: string | undefined,
@@ -127,7 +127,7 @@ export interface TraceRuntime {
 }
 
 /** Used whenever no trace session exists; every method is intentionally empty. */
-export const NOOP_TRACE_SCOPE: TraceScopeLike = {
+export const NOOP_TRACE_SCOPE: TraceScope = {
     enabled: false,
     source: { kind: "system" },
     builtin() {},

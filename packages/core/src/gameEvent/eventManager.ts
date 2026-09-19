@@ -1,7 +1,7 @@
 import {
     BuiltinTraceEventType,
     traceErrorValue,
-    type TraceScopeLike as TraceScope,
+    type TraceScope,
 } from "../trace/contract";
 import { BEGameConfig } from "../config";
 import { Logger } from "../utils/logger";

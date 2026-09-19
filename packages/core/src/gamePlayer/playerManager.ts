@@ -2,7 +2,7 @@ import { Player } from "@minecraft/server";
 import { GameParticipation } from "../participation/gameParticipation";
 import type { ParticipationBatchDecision } from "../participation/gameParticipation";
 import type { ParticipationDecision } from "../participation/policy";
-import { BuiltinTraceEventType, type TraceSessionLike as TraceSession } from "../trace/contract";
+import { BuiltinTraceEventType, type TraceSession } from "../trace/contract";
 import { GamePlayer, GamePlayerConstructor } from "./gamePlayer";
 import { PlayerGroupBuilder } from "./groupBuilder";
 
