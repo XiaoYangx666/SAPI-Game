@@ -29,8 +29,9 @@ export interface DisconnectTimeoutOptions<P extends GamePlayer = GamePlayer> {
      */
     participantFilter?: (playerId: string, player: P | undefined) => boolean;
     /**
+     * @deprecated 请改用独立 AutoStopComponent 监听真实 membership 变化。
+     * 仅为旧代码兼容保留：此选项现在也会在主动 leave 后检查空房。
      * release 后若当前监控 scope 已没有 participant，是否自动 stopGame，默认 false。
-     * 未设置 scope 时等价于检查整个游戏。
      */
     stopGameWhenEmpty?: boolean;
     /**玩家掉线并开始计时时触发。*/
@@ -59,6 +60,39 @@ export class DisconnectTimeoutComponent<
     private readonly timers = new Map<string, string>();
 
     protected override onAttach(): void {
+        // Online /game:hub and /game:l release membership without a connection event.
+        // Defer the stop check so leave() callers can finish their own state transition.
+        this.subscribe(this.state.participation.changed, (event) => {
+            const { playerId } = event;
+            if (event.type === "left") {
+                this.cancelTimeout(playerId, "participation-released");
+                if (this.options?.stopGameWhenEmpty) {
+                    this.runner.runDelay(() => this.stopIfScopedEmpty(), 1);
+                }
+                return;
+            }
+
+            // Runtime join(playerId) can restore an offline participant after
+            // this component has attached, without another connection event.
+            // Wait until join()/joinAll() have finished creating wrappers and
+            // adding players to any configured group scope.
+            this.runner.runDelay(() => {
+                if (!this.isAttached || !this.isInScope(playerId)) return;
+                const onlinePlayer = Game.server.getPlayer(playerId);
+                if (onlinePlayer) this.state.playerManager.get(onlinePlayer);
+                else this.startTimeout(playerId);
+            }, 1);
+        });
+        // A scoped offline player may enter the group AFTER their participation
+        // join notification. Observe the group itself so that this member does
+        // not wait forever for a connection event that will never arrive.
+        if (this.options?.groupSet) {
+            this.subscribe(this.options.groupSet.changed, () => {
+                for (const playerId of this.getScopedParticipantIds()) {
+                    if (!Game.server.isOnline(playerId)) this.startTimeout(playerId);
+                }
+            });
+        }
         this.subscribe(Game.events.connection, (event) => {
             if (event.type === "online") {
                 this.handleOnline(event.playerId, event.player);
@@ -76,7 +110,9 @@ export class DisconnectTimeoutComponent<
             if (onlinePlayer) {
                 this.state.playerManager.get(onlinePlayer);
             } else {
-                this.startTimeout(playerId);
+                // Never stop the Game synchronously while this component is
+                // still inside _onAttach() and not yet registered on its State.
+                this.startTimeout(playerId, true);
             }
         }
     }
@@ -101,7 +137,7 @@ export class DisconnectTimeoutComponent<
         this.startTimeout(playerId);
     }
 
-    private startTimeout(playerId: string) {
+    private startTimeout(playerId: string, deferImmediate = false) {
         if (this.timers.has(playerId)) return;
 
         const timeout = this.options?.timeout ?? Duration.fromSeconds(30);
@@ -113,7 +149,15 @@ export class DisconnectTimeoutComponent<
             timeoutTicks: timeout.ticks,
         });
         if (timeout.ticks <= 0) {
-            this.handleTimeout(playerId);
+            if (deferImmediate) {
+                const runnerId = this.runner.runDelay(() => {
+                    this.timers.delete(playerId);
+                    this.handleTimeout(playerId);
+                }, 1);
+                this.timers.set(playerId, runnerId);
+            } else {
+                this.handleTimeout(playerId);
+            }
             return;
         }
 
@@ -150,21 +194,31 @@ export class DisconnectTimeoutComponent<
         this.trace.builtin(BuiltinTraceEventType.DisconnectTimeoutExpired, {
             player: this.trace.player(playerId, gamePlayer?.name),
         });
-        this.options?.onTimeout?.(playerId, gamePlayer);
-
-        const releaseOnTimeout =
-            this.options?.releaseOnTimeout ??
-            this.options?.shouldRelease ??
-            false;
-        if (releaseOnTimeout) {
-            this.state.playerManager.leave(playerId, "disconnect-timeout");
+        // An application callback may throw or stop/recreate this Game.
+        // A failed callback must not skip the configured membership release,
+        // and an expired callback from an old Game must not mutate a new Game
+        // that happens to reuse the same gameKey.
+        try {
+            this.options?.onTimeout?.(playerId, gamePlayer);
+        } finally {
+            if (this.state.isGameActive) {
+                const releaseOnTimeout =
+                    this.options?.releaseOnTimeout ??
+                    this.options?.shouldRelease ??
+                    false;
+                if (releaseOnTimeout && this.state.playerManager.hasParticipant(playerId)) {
+                    this.state.playerManager.leave(playerId, "disconnect-timeout");
+                }
+                this.stopIfScopedEmpty();
+            }
         }
+    }
 
-        if (
-            (this.options?.stopGameWhenEmpty ?? false) &&
-            this.getScopedParticipantIds().length === 0
-        ) {
-            this.state.stopGame("disconnect-timeout-empty");
+    private stopIfScopedEmpty(): void {
+        if (!this.isAttached || !this.options?.stopGameWhenEmpty) return;
+        // Re-evaluate at execution time: another player may have joined this tick.
+        if (this.getScopedParticipantIds().length === 0) {
+            this.state.stopGame("participants-empty");
         }
     }
 
