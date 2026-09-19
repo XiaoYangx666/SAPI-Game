@@ -1,8 +1,6 @@
-import {
-    decodeBase64,
-    decodeBegTrace,
-    type DecodedTraceSession,
-} from "@begame/trace-core";
+import { decodeBase64 } from "./base64";
+import { decodeBegTrace } from "./decoder";
+import type { DecodedTraceSession } from "./types";
 
 export const TRACE_LOG_MARKER = "BEGAME_TRACE";
 

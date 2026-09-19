@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { encodeBegTrace } from "../packages/trace-core/dist/index.js";
+import { encodeBegTrace } from "../packages/trace/dist/index.js";
 import { createApp } from "../packages/observatory/server/app.ts";
 
 function makeTraceBytes(sessionId) {

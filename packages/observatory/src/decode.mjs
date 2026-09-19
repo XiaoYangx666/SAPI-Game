@@ -1,8 +1,9 @@
 import {
     collectTraceExports,
+    decodeBegTrace,
     decodeTraceLog,
-} from "@begame/trace-tools";
-import { decodeBegTrace, TRACE_MAGIC } from "@begame/trace-core";
+    TRACE_MAGIC,
+} from "@begame/trace";
 
 const decoder = new TextDecoder("utf-8", { fatal: false });
 

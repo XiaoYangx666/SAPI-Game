@@ -21,16 +21,13 @@ function buildInput(files: string[], base: string) {
 const coreRoot = "packages/core/src";
 const testRoot = "packages/test/src";
 const traceSpecRoot = "packages/trace-spec/src";
-const traceCoreRoot = "packages/trace-core/src";
 const traceRoot = "packages/trace/src";
-const traceToolsRoot = "packages/trace-tools/src";
 const observatoryEntry = path.resolve("packages/observatory/src/main.tsx");
 const observatoryServerEntry = path.resolve("packages/observatory/server/index.ts");
 
 const traceSpecExternal = /^@begame\/trace-spec(\/|$)/;
-const traceCoreExternal = /^@begame\/trace-core(\/|$)/;
 const traceExternal = /^@begame\/trace(\/|$)/;
-/** Keeps every @begame/core subpath (notably ./trace) external, not just the root. */
+/** Keeps every @begame/core subpath (notably ./world-ready) external. */
 const coreExternal = /^@begame\/core(\/|$)/;
 
 const coreInput = buildInput(
@@ -54,25 +51,11 @@ const traceSpecInput = buildInput(
     traceSpecRoot
 );
 
-const traceCoreInput = buildInput(
-    globSync(`${traceCoreRoot}/**/*.ts`, {
-        ignore: [`${traceCoreRoot}/**/*.d.ts`],
-    }),
-    traceCoreRoot
-);
-
 const traceInput = buildInput(
     globSync(`${traceRoot}/**/*.ts`, {
         ignore: [`${traceRoot}/**/*.d.ts`],
     }),
     traceRoot
-);
-
-const traceToolsInput = buildInput(
-    globSync(`${traceToolsRoot}/**/*.ts`, {
-        ignore: [`${traceToolsRoot}/**/*.d.ts`],
-    }),
-    traceToolsRoot
 );
 
 export default defineConfig([
@@ -88,22 +71,12 @@ export default defineConfig([
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
     {
-        input: traceCoreInput,
-        external: [traceSpecExternal],
-        output: {
-            dir: "packages/trace-core/dist",
-            format: "esm",
-            preserveModules: true,
-            preserveModulesRoot: traceCoreRoot,
-            entryFileNames: "[name].js",
-        },
-        plugins: [dts({ tsconfig: "./tsconfig.json" })],
-    },
-    {
+        // Only ./minecraft reaches for @minecraft/server and @begame/core; the
+        // rest of the package is platform-independent.
         input: traceInput,
         external: [
+            traceSpecExternal,
             coreExternal,
-            traceCoreExternal,
             "@minecraft/server",
         ],
         output: {
@@ -142,25 +115,12 @@ export default defineConfig([
             "node:url",
             "vitest/config",
             traceExternal,
-            traceCoreExternal,
         ],
         output: {
             dir: "packages/test/dist",
             format: "esm",
             preserveModules: true,
             preserveModulesRoot: testRoot,
-            entryFileNames: "[name].js",
-        },
-        plugins: [dts({ tsconfig: "./tsconfig.json" })],
-    },
-    {
-        input: traceToolsInput,
-        external: [traceCoreExternal, traceSpecExternal],
-        output: {
-            dir: "packages/trace-tools/dist",
-            format: "esm",
-            preserveModules: true,
-            preserveModulesRoot: traceToolsRoot,
             entryFileNames: "[name].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],

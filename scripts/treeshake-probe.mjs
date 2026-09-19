@@ -7,7 +7,7 @@
  * source alone.
  *
  * Detection is by module id, never by scanning the output text: identifiers like
- * `Timer` or `DisconnectTimeout` also occur as members of trace-core's
+ * `Timer` or `DisconnectTimeout` also occur as members of the trace
  * BuiltinTraceEventType enum, so substring matching reports false positives.
  *
  * Usage: node scripts/treeshake-probe.mjs [--json]
@@ -39,12 +39,12 @@ const COMPONENT_MODULES = [
 ];
 
 const RUNTIME_TRACE_MODULES = [
-    "trace-core/dist/manager",
-    "trace-core/dist/historyStore",
-    "trace-core/dist/session",
-    "trace-core/dist/binary",
-    "trace-core/dist/container",
-    "trace-core/dist/consoleExporter",
+    "trace/dist/manager",
+    "trace/dist/historyStore",
+    "trace/dist/session",
+    "trace/dist/binary",
+    "trace/dist/container",
+    "trace/dist/consoleExporter",
 ];
 
 /** @param {string[]} modules */
@@ -85,12 +85,12 @@ const CASES = [
         ],
     },
     {
-        // The runtime lives in its own package and is injected at the consumer's
+        // The Minecraft binding is a separate entry, injected at the consumer's
         // composition root. Importing it must bring the implementation, and must
         // still leave the game/component layer behind.
-        name: "trace-runtime-injected",
-        entry: `import { createTraceRuntime } from "@begame/trace";\nexport const probe = createTraceRuntime;\n`,
-        import: "@begame/trace",
+        name: "trace-minecraft-binding",
+        entry: `import { createTraceRuntime } from "@begame/trace/minecraft";\nexport const probe = createTraceRuntime;\n`,
+        import: "@begame/trace/minecraft",
         forbid: [
             ...COMPONENT_MODULES,
             "core/dist/gameState/gameState",
@@ -99,10 +99,24 @@ const CASES = [
         ],
         require: [
             "trace/dist/minecraft",
-            "trace-core/dist/manager",
-            "trace-core/dist/historyStore",
-            "trace-core/dist/session",
+            "trace/dist/manager",
+            "trace/dist/historyStore",
+            "trace/dist/session",
             "trace-spec/dist/types",
+        ],
+    },
+    {
+        // The platform-independent half: decoding a log must not drag Minecraft
+        // or the game runtime in, which is what lets the observatory run in
+        // plain Node.
+        name: "trace-codec-root",
+        entry: `import { decodeTraceLog, decodeBegTrace } from "@begame/trace";\nexport const probe = [decodeTraceLog, decodeBegTrace];\n`,
+        import: "@begame/trace",
+        forbid: [
+            ...COMPONENT_MODULES,
+            "trace/dist/minecraft",
+            "trace/dist/manager",
+            "trace-spec/dist/management",
         ],
     },
     {
@@ -110,7 +124,7 @@ const CASES = [
         name: "core-has-no-trace-dependency",
         entry: `import { Game, initBEGame } from "@begame/core";\nexport const probe = [Game, initBEGame];\n`,
         import: "@begame/core",
-        forbid: ["trace/dist/", "trace-core/dist/"],
+        forbid: ["trace/dist/"],
         require: ["trace-spec/dist/types"],
     },
 ];

@@ -34,11 +34,11 @@ interface TraceHistoryMetaV1 {
  *
  * Writes session chunks through the injected {@link TraceStorage} seams, so the
  * bookkeeping here — ordering, retention, reload recovery, "an accepted session
- * must finish atomically" — is platform-independent. `@begame/trace` supplies
+ * must finish atomically" — is platform-independent. `./minecraft` supplies
  * Minecraft dynamic properties; the default is an in-memory map.
  *
- * This is a history store, not an export transport: `@begame/trace-tools` and
- * the console exporter read completed sessions back out of it.
+ * This is a history store, not an export transport: the log parser and the
+ * console exporter read completed sessions back out of it.
  */
 export class TraceHistoryStore implements TraceSink {
     private options: Required<TraceStoreOptions> = {

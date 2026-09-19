@@ -101,17 +101,28 @@ better for reasons that are worth keeping in mind before "simplifying" it back:
 
 ## Where the platform boundary sits
 
-`@begame/trace-core` holds the codec *and* the session/history logic, because
-none of it actually needs Minecraft: the tick source is injected into
-`TraceManager`, and the storage substrate is injected into `TraceHistoryStore`
-through the seams in `packages/trace-core/src/storage.ts`. `@begame/trace` is
-only the binding — dynamic properties, `system.runInterval`, the worldLoad gate.
+`@begame/trace` is one package with two halves. Its root entry holds the codec
+*and* the session/history logic, because none of that actually needs Minecraft:
+the tick source is injected into `TraceManager`, and the storage substrate is
+injected into `TraceHistoryStore` through the seams in
+`packages/trace/src/storage.ts`. The `./minecraft` entry is the binding —
+dynamic properties, `system.runInterval`, the worldLoad gate.
 
-That boundary is enforced rather than merely intended.
-`tests/trace-isolation.test.mjs` scans the built output and fails if anything
-under `packages/trace-core/dist` imports `@minecraft/*` or `@begame/core`, or if
-`packages/core/dist` reaches either trace package. It reads `dist` rather than
-source because that is what consumers actually load.
+That split is why `@begame/core` and `@minecraft/server` are **optional peers**
+of the package: without that, `npm i @begame/trace` in a Node-only consumer
+would pull the game framework and, through its own peers, the Mojang packages —
+for a decoder.
+
+The boundary is enforced rather than merely intended. Because it is a convention
+rather than a package-graph guarantee, `tests/trace-isolation.test.mjs` asserts
+it mechanically on the built output:
+
+- only `dist/minecraft.js` may import `@minecraft/*` or `@begame/core`;
+- `dist/index.js` must not re-export `./minecraft`, since that would silently
+  give every codec consumer a Minecraft dependency;
+- `packages/core/dist` must not reach `@begame/trace` at all.
+
+It reads `dist` rather than source because that is what consumers actually load.
 
 ## Why not a dynamic `import()`
 

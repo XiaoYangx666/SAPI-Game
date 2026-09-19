@@ -4,7 +4,7 @@ import {
     BinaryWriter,
     truncateUtf8,
     utf8ByteLength,
-} from "../packages/trace-core/dist/binary.js";
+} from "../packages/trace/dist/binary.js";
 
 const wellFormed = [
     "",
@@ -29,7 +29,7 @@ function readString(bytes) {
     return value;
 }
 
-test("trace-core UTF-8 encoder matches TextEncoder byte-for-byte", () => {
+test("trace UTF-8 encoder matches TextEncoder byte-for-byte", () => {
     const encoder = new TextEncoder();
     for (const value of wellFormed) {
         const encoded = writeString(value);
@@ -41,13 +41,13 @@ test("trace-core UTF-8 encoder matches TextEncoder byte-for-byte", () => {
     }
 });
 
-test("trace-core UTF-8 round-trips unpaired surrogates for legacy compatibility", () => {
+test("trace UTF-8 round-trips unpaired surrogates for legacy compatibility", () => {
     for (const value of ["\ud83d", "\udc00", "a\ud800b"]) {
         expect(readString(writeString(value))).toBe(value);
     }
 });
 
-test("trace-core UTF-8 decoder rejects corrupted byte streams", () => {
+test("trace UTF-8 decoder rejects corrupted byte streams", () => {
     expect(() => readString(Uint8Array.from([1, 0x80]))).toThrow(
         /Invalid UTF-8 leading byte/
     );

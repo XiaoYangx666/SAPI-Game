@@ -6,11 +6,9 @@ const root = process.cwd();
 const outputDir = resolve(root, "artifacts");
 const workspaces = [
     "@begame/trace-spec",
-    "@begame/trace-core",
     "@begame/core",
     "@begame/trace",
     "@begame/test",
-    "@begame/trace-tools",
 ];
 
 function runNpm(args) {

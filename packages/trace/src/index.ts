@@ -1,55 +1,37 @@
 /**
- * BEGame Trace for Minecraft.
+ * BEGame Trace — everything that does not need Minecraft.
  *
- * This package is the *binding*, not the logic. The sessions, the history store
- * and the codec all live in the platform-independent `@begame/trace-core`; all
- * that is Minecraft-specific is the storage substrate in `./minecraft.ts` and
- * the runtime assembly below.
+ * This root entry is the platform-independent half: the wire vocabulary
+ * (re-exported from `@begame/trace-spec`), the binary codec, session
+ * primitives, the history store and its storage seams, the session manager, and
+ * the Minecraft Content Log parser. The observatory server and offline tooling
+ * import exactly this, in plain Node.
  *
- * `@begame/core` carries no trace implementation: its hot path only needs the
- * vocabulary from `@begame/trace-spec` and an inert runtime. The consumer wires
- * the two together at its own composition root:
+ * The Minecraft binding lives in `./minecraft` and is deliberately **not**
+ * re-exported here: doing so would drag `@minecraft/server` and `@begame/core`
+ * into every consumer that only wants to decode a `.begtrace` file. Games import
+ * it explicitly:
  *
  * ```ts
  * import { initBEGame } from "@begame/core";
- * import { createTraceRuntime } from "@begame/trace";
+ * import { createTraceRuntime } from "@begame/trace/minecraft";
  *
  * initBEGame({ trace: createTraceRuntime(), traceStore: true });
  * ```
  *
- * That is a value call rather than a module-level side effect on purpose. A
- * bundler cannot eliminate it, so "I want tracing" is stated where the consumer
- * can read it, `@begame/core` needs no `sideEffects` allowance to keep it alive,
- * and installation does not depend on which module was evaluated first.
+ * `tests/trace-isolation.test.mjs` fails CI if this entry starts reaching for
+ * either of those, or if any module other than `minecraft` does.
  */
-import { system } from "@minecraft/server";
-import { TraceManager, type TraceSessionOptions } from "@begame/trace-core";
-import { createMinecraftTraceStorage } from "./minecraft";
-
-export * from "@begame/trace-core";
-export * from "./minecraft";
-
-export interface CreateTraceRuntimeOptions extends TraceSessionOptions {
-    /** Tick source used to stamp events. Defaults to `system.currentTick`. */
-    readonly tick?: () => number;
-}
-
-/**
- * Builds the trace runtime to hand to `@begame/core`.
- *
- * Internal trace failures are reported through `onInternalError` and never
- * propagate into gameplay; the default writes to the Content Log so a broken
- * sink is visible during development.
- */
-export function createTraceRuntime(
-    options: CreateTraceRuntimeOptions = {}
-): TraceManager {
-    const { tick, ...sessionOptions } = options;
-    return new TraceManager(tick ?? (() => system.currentTick), {
-        onInternalError(error) {
-            console.error("[BEGame] Trace internal error:", error);
-        },
-        ...sessionOptions,
-        storage: createMinecraftTraceStorage(),
-    });
-}
+export * from "./types";
+export * from "./format";
+export * from "./binary";
+export * from "./base64";
+export * from "./container";
+export * from "./decoder";
+export * from "./schema";
+export * from "./session";
+export * from "./consoleExporter";
+export * from "./storage";
+export * from "./historyStore";
+export * from "./manager";
+export * from "./logParser";

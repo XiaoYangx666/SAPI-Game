@@ -37,16 +37,16 @@ Game / State / Component / Participation / Runner / Timer
                 Minecraft Content Log / GUI
                             |
                             v
-                  @begame/trace-tools
+                  @begame/trace
 ```
 
 `TraceSession` owns ordering and encoding. Gameplay code emits logical events through `TraceScope`. Sink membership is snapshotted when the session starts, so a runtime storage toggle cannot create a deliberately truncated stored session. Sink failures are isolated from game execution.
 
-`@begame/trace-spec` is the shared, zero-dependency vocabulary: event ids, value and schema types, the management-side option shapes and the deferred error marker. `@begame/trace-core` is everything platform-independent: the binary codec, chunk container, decoder, schema/session primitives, the console exporter, and the two runtime pieces — `TraceManager` and `TraceHistoryStore`. `@begame/trace` is only the Minecraft binding: it supplies the storage seams (world dynamic properties, the tick scheduler, the worldLoad gate) and the `createTraceRuntime` factory. `TraceHistoryStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
+`@begame/trace-spec` is the shared, zero-dependency vocabulary: event ids, value and schema types, the management-side option shapes and the deferred error marker. `@begame/trace` is everything else, split by platform: its root entry holds the codec, chunk container, decoder, schema/session primitives, the console exporter, the log parser and the two runtime pieces (`TraceManager`, `TraceHistoryStore`), while the `./minecraft` entry holds the storage seams (world dynamic properties, the tick scheduler, the worldLoad gate) and the `createTraceRuntime` factory. `TraceHistoryStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand.
 
 ### The storage seam
 
-`TraceHistoryStore` never touches Minecraft. Chunking sessions, the retention policy (count / bytes / age), reload recovery and the "an accepted session must finish even after storage is disabled" invariant are all pure bookkeeping, so the substrate is injected through `TraceStorage` (`packages/trace-core/src/storage.ts`):
+`TraceHistoryStore` never touches Minecraft. Chunking sessions, the retention policy (count / bytes / age), reload recovery and the "an accepted session must finish even after storage is disabled" invariant are all pure bookkeeping, so the substrate is injected through `TraceStorage` (`packages/trace/src/storage.ts`):
 
 | Seam | Minecraft supplies | Tests supply |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ The value type is deliberately `string \| number \| boolean \| undefined` to mir
 
 Two consequences worth keeping:
 
-- `@begame/trace-core` runs in plain Node, which is what lets the observatory server and offline tooling import it with no Minecraft runtime present. `tests/trace-isolation.test.mjs` fails CI if anything under `packages/trace-core/dist` starts importing `@minecraft/*` or `@begame/core`.
+- The root entry runs in plain Node, which is what lets the observatory server and offline tooling import it with no Minecraft runtime present. `tests/trace-isolation.test.mjs` fails CI if any module other than `dist/minecraft.js` imports `@minecraft/*` or `@begame/core`.
 - The store's behaviour is unit-testable without the virtual world. `tests/trace-history-store.test.mjs` drives it through its `TraceSink` contract with fake seams.
 
 ### Enabling tracing
@@ -69,20 +69,20 @@ so tracing is wired in by the consumer rather than switched on by an option:
 
 ```ts
 import { initBEGame } from "@begame/core";
-import { createTraceRuntime } from "@begame/trace";
+import { createTraceRuntime } from "@begame/trace/minecraft";
 
 initBEGame({ trace: createTraceRuntime(), traceStore: true });
 ```
 
 Outside `initBEGame`, `Game.attachTrace(runtime)` does the same. A game that
-never imports `@begame/trace` ships no trace code at all; `npm run
+never imports the Minecraft entry ships no trace code at all; `npm run
 test:treeshake` asserts that in CI, and `docs/packaging.md` explains why
 injection is used instead of an install-on-import entry.
 
 Consequences worth knowing:
 
 - Trace symbols are not exported from `@begame/core`. Import the codec from
-  `@begame/trace` or `@begame/trace-core`, and the runtime factory from
+  `@begame/trace`, and the runtime factory from
   `@begame/trace`.
 - `initBEGame({ traceStore: true })` without an injected runtime is inert and
   logs an error, rather than silently recording nothing.
@@ -300,28 +300,30 @@ Minecraft Content Log normally wraps that as, for example:
 
 The marker deliberately does not depend on Minecraft's surrounding log prefix, because Content Log can contain Localization, Sound and unrelated Scripting messages around it.
 
-## @begame/trace-core
+## @begame/trace
 
-`@begame/trace-core` is the platform-independent Trace package shared by the runtime and tooling:
+`@begame/trace` is the whole Trace package. Its root entry is platform-independent and shared by the runtime and tooling:
 
-- vocabulary and constants: session header/end/chunk types, built-in event ids, source kinds;
+- vocabulary and constants: session header/end/chunk types, built-in event ids, source kinds (re-exported from `@begame/trace-spec`);
 - codec: varint/zigzag, UTF-8, `BinaryReader`/`BinaryWriter`, `.begtrace` container, chunk encoder/decoder;
-- session primitives: `TraceScope`, `TraceSession`, `defineTraceEvent`, `ConsoleTraceExporter`.
+- session primitives: `TraceScope`, `TraceSession`, `defineTraceEvent`, `ConsoleTraceExporter`;
+- the runtime: `TraceManager`, `TraceHistoryStore` and the `TraceStorage` seams;
+- the offline Content Log parser (see below).
 
-It has no `@minecraft/server` dependency; its only dependency is `@begame/trace-spec`, which holds the shared vocabulary and is itself dependency-free. The Minecraft binding (`@begame/trace`) is injected into `@begame/core` rather than reached from it.
+Its only dependency is `@begame/trace-spec`. `@begame/core` and `@minecraft/server` are **optional peers**, used solely by the `./minecraft` subpath, which is the Minecraft binding: storage seams plus `createTraceRuntime`. Nothing else in the package may reach for either, and `tests/trace-isolation.test.mjs` enforces that on the built output.
 
-Consumers that install BEGame packages from a local checkout (`"@begame/core": "file:../begame/packages/core"`) must also declare the trace packages they use, with the same version (`@begame/trace-spec`, `@begame/trace-core` and `@begame/trace` as `file:` paths or the packed tarballs). Like all npm `file:` dependencies, the packages are copied into `node_modules`, so re-run `npm install` after rebuilding BEGame.
+Consumers that install BEGame packages from a local checkout (`"@begame/core": "file:../begame/packages/core"`) must also declare the trace packages they use, with the same version (`@begame/trace-spec` and `@begame/trace` as `file:` paths or the packed tarballs). Like all npm `file:` dependencies, the packages are copied into `node_modules`, so re-run `npm install` after rebuilding BEGame.
 
-## @begame/trace-tools
+## Content Log parsing
 
-`@begame/trace-tools` is the offline parsing/diagnostic package. Its first feature is extracting Console Trace exports from raw Minecraft Content Log text. It depends only on `@begame/trace-core`, so plain Node.js can import it without installing `@minecraft/server`.
+The parser extracts Console Trace exports from raw Minecraft Content Log text. It lives in the platform-independent root entry, so plain Node.js can import it without a Minecraft runtime.
 
 ```ts
 import {
     collectTraceExports,
     decodeTraceLog,
     extractBegTraceBytes,
-} from "@begame/trace-tools";
+} from "@begame/trace";
 
 const sessions = collectTraceExports(contentLogText);
 const bytes = extractBegTraceBytes(contentLogText); // latest complete export
@@ -372,7 +374,7 @@ POST /api/ingest            → Minecraft pushes trace data
 GET  /api/live              → browser subscribes via SSE
 ```
 
-Real-time Minecraft connections, live streaming and analysis are intentionally not implemented yet. The Observatory imports only `@begame/trace-tools` and `@begame/trace-core`, so the future live adapter can feed the same decode endpoint without changing the UI.
+Real-time Minecraft connections, live streaming and analysis are intentionally not implemented yet. The Observatory imports only the platform-independent root of `@begame/trace`, so the future live adapter can feed the same decode endpoint without changing the UI.
 
 ## Deferred adapters / tools
 

@@ -1,7 +1,7 @@
 {
     "name": "@begame/trace",
     "version": "0.0.2",
-    "description": "BEGame Trace runtime: session manager and world history store",
+    "description": "BEGame Trace: codec, session manager and history store, plus the Minecraft binding",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -12,17 +12,29 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
         },
+        "./minecraft": {
+            "types": "./dist/minecraft.d.ts",
+            "import": "./dist/minecraft.js"
+        },
         "./*": {
             "types": "./dist/*.d.ts",
             "import": "./dist/*.js"
         }
     },
     "dependencies": {
-        "@begame/core": "0.0.2",
-        "@begame/trace-core": "0.0.2"
+        "@begame/trace-spec": "0.0.2"
     },
     "peerDependencies": {
+        "@begame/core": "0.0.2",
         "@minecraft/server": ">=2.9.0"
+    },
+    "peerDependenciesMeta": {
+        "@begame/core": {
+            "optional": true
+        },
+        "@minecraft/server": {
+            "optional": true
+        }
     },
     "license": "MIT",
     "repository": {

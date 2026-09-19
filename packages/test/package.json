@@ -22,8 +22,7 @@
     },
     "dependencies": {
         "@begame/core": "0.0.2",
-        "@begame/trace": "0.0.2",
-        "@begame/trace-core": "0.0.2"
+        "@begame/trace": "0.0.2"
     },
     "peerDependencies": {
         "vitest": ">=5.0.0 <6.0.0"

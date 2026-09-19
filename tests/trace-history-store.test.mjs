@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import {
     TraceHistoryStore,
     decodeBegTraceContainer,
-} from "../packages/trace-core/dist/index.js";
+} from "../packages/trace/dist/index.js";
 
 /**
  * These drive the history store directly through its TraceSink contract, with

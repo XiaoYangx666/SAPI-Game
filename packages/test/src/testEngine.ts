@@ -1,6 +1,6 @@
 import { Game } from "@begame/core";
 import type { GameEngine, ManagedGameConstructor } from "@begame/core";
-import { createTraceRuntime } from "@begame/trace";
+import { createTraceRuntime } from "@begame/trace/minecraft";
 import { TestTraceSink } from "./traceSink";
 import { virtualMinecraft, Player } from "./virtualMinecraft";
 import { virtualMinecraftUi } from "./virtualMinecraftUi";

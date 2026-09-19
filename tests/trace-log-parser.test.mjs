@@ -2,13 +2,13 @@ import { expect, test } from "vitest";
 import {
     encodeBase64,
     encodeBegTrace,
-} from "../packages/trace-core/dist/index.js";
+} from "../packages/trace/dist/index.js";
 import {
     collectTraceExports,
     decodeTraceLog,
     extractBegTraceBytes,
     extractTraceLogParts,
-} from "../packages/trace-tools/dist/index.js";
+} from "../packages/trace/dist/index.js";
 
 function makeTraceBytes() {
     const header = {
@@ -32,7 +32,7 @@ function makeTraceBytes() {
     return encodeBegTrace(header, [], end);
 }
 
-test("trace-tools extracts multipart warning records from a normal Minecraft Content Log", () => {
+test("the log parser extracts multipart warning records from a normal Minecraft Content Log", () => {
     const bytes = makeTraceBytes();
     const base64 = encodeBase64(bytes);
     const cut = Math.floor(base64.length / 2);
@@ -67,7 +67,7 @@ test("trace-tools extracts multipart warning records from a normal Minecraft Con
     expect(decoded.end.endReason).toBe("test");
 });
 
-test("trace-tools reports incomplete multipart exports", () => {
+test("the log parser reports incomplete multipart exports", () => {
     const contentLog =
         "[Scripting][warning]-[BEGAME_TRACE:v1:missing-test:1/2]QUJD\n";
     const collected = collectTraceExports(contentLog);

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { encodeBase64, encodeBegTrace } from "../packages/trace-core/dist/index.js";
+import { encodeBase64, encodeBegTrace } from "../packages/trace/dist/index.js";
 import {
     buildContext,
     decodeTracePayload,
