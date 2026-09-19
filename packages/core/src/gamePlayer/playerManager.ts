@@ -1,5 +1,4 @@
 import { Player } from "@minecraft/server";
-import type { CustomEventSignal } from "../gameEvent/eventSignal";
 import type { Subscription } from "../gameEvent/subscription";
 import { GameParticipation } from "../participation/gameParticipation";
 import type { ParticipationBatchDecision } from "../participation/gameParticipation";
@@ -16,34 +15,11 @@ export type GamePlayerBatchJoinDecision<T extends GamePlayer> =
     | { allowed: true; players: T[] }
     | { allowed: false; playerId: string; reason?: string };
 
-/** Transitional game-local notification. Phase 1 moves this to ParticipationManager. */
-class ParticipationReleasedSignal implements CustomEventSignal<{ playerId: string; reason: string }> {
-    private readonly callbacks = new Set<(event: { playerId: string; reason: string }) => void>();
-
-    subscribe(callback: (event: { playerId: string; reason: string }) => void): Subscription {
-        this.callbacks.add(callback);
-        let active = true;
-        return { unsubscribe: () => {
-            if (!active) return;
-            active = false;
-            this.callbacks.delete(callback);
-        } };
-    }
-
-    publish(event: { playerId: string; reason: string }): void {
-        for (const callback of [...this.callbacks]) {
-            try { callback(event); }
-            catch (error) { console.error("Participation release callback error:", error); }
-        }
-    }
-}
-
 /**游戏实例内的 GamePlayer wrapper 管理器。*/
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
     private readonly tracedOnlinePlayers = new Set<string>();
-    /** @internal Transitional signal; only actual leave() releases publish. */
-    readonly participationReleased = new ParticipationReleasedSignal();
+    private readonly membershipSubscription: Subscription;
     public readonly playerConstructor: GamePlayerConstructor<T>;
 
     /**玩家组构建器 */
@@ -56,6 +32,10 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     ) {
         this.playerConstructor = playerConstructor;
         this.groupBuilder = new PlayerGroupBuilder(this);
+        // Also honor external leaveAll()/leave() calls that bypass this wrapper manager.
+        this.membershipSubscription = participation.changed.subscribe((event) => {
+            if (event.type === "left") this.players.get(event.playerId)?._setActive(false);
+        });
     }
 
     /**
@@ -213,20 +193,15 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     leave(playerId: string, reason = "leave"): boolean {
         const gamePlayer = this.players.get(playerId);
         if (gamePlayer) gamePlayer._setActive(false);
-        const released = this.participation.leave(playerId);
+        const released = this.participation.leave(playerId, reason);
         if (released) {
-            try {
-                this.traceSession?.participation.builtin(
-                    BuiltinTraceEventType.ParticipationReleased,
-                    {
-                        player: this.traceSession.player(playerId, gamePlayer?.name),
-                        reason,
-                    }
-                );
-            } finally {
-                // Authoritative membership is already gone; game teardown is silent.
-                this.participationReleased.publish({ playerId, reason });
-            }
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationReleased,
+                {
+                    player: this.traceSession.player(playerId, gamePlayer?.name),
+                    reason,
+                }
+            );
         }
         return gamePlayer !== undefined || released;
     }
@@ -250,6 +225,7 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     dispose() {
+        this.membershipSubscription.unsubscribe();
         const participantIds = [...this.participation.getAll()];
         for (const player of this.players.values()) {
             player._setActive(false);
