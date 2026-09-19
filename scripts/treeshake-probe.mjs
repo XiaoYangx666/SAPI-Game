@@ -39,8 +39,8 @@ const COMPONENT_MODULES = [
 ];
 
 const RUNTIME_TRACE_MODULES = [
-    "core/dist/trace/manager",
-    "core/dist/trace/worldStore",
+    "trace/dist/manager",
+    "trace/dist/worldStore",
     "trace-core/dist/session",
     "trace-core/dist/binary",
     "trace-core/dist/container",
@@ -85,12 +85,12 @@ const CASES = [
         ],
     },
     {
-        // The opt-in trace entry is the only thing that pulls the trace runtime.
-        // It must bring the implementation (otherwise tracing would silently do
-        // nothing) and must still leave the game/component layer behind.
-        name: "trace-entry",
-        entry: `import { decodeBegTrace } from "@begame/core/trace";\nexport const probe = decodeBegTrace;\n`,
-        import: "@begame/core/trace",
+        // The runtime lives in its own package and is injected at the consumer's
+        // composition root. Importing it must bring the implementation, and must
+        // still leave the game/component layer behind.
+        name: "trace-runtime-injected",
+        entry: `import { createTraceRuntime } from "@begame/trace";\nexport const probe = createTraceRuntime;\n`,
+        import: "@begame/trace",
         forbid: [
             ...COMPONENT_MODULES,
             "core/dist/gameState/gameState",
@@ -98,11 +98,19 @@ const CASES = [
             "core/dist/gamePlayer/playerManager",
         ],
         require: [
-            "core/dist/trace/manager",
-            "core/dist/trace/worldStore",
-            "core/dist/system/worldReady",
+            "trace/dist/manager",
+            "trace/dist/worldStore",
             "trace-core/dist/session",
+            "trace-spec/dist/types",
         ],
+    },
+    {
+        // @begame/core must not drag the codec or the runtime in for anyone.
+        name: "core-has-no-trace-dependency",
+        entry: `import { Game, initBEGame } from "@begame/core";\nexport const probe = [Game, initBEGame];\n`,
+        import: "@begame/core",
+        forbid: ["trace/dist/", "trace-core/dist/"],
+        require: ["trace-spec/dist/types"],
     },
 ];
 

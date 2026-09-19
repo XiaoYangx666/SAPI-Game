@@ -1,5 +1,6 @@
 import { Game } from "@begame/core";
 import type { GameEngine, ManagedGameConstructor } from "@begame/core";
+import { createTraceRuntime } from "@begame/trace";
 import { TestTraceSink } from "./traceSink";
 import { virtualMinecraft, Player } from "./virtualMinecraft";
 import { virtualMinecraftUi } from "./virtualMinecraftUi";
@@ -30,6 +31,9 @@ export class BEGameTestEngine {
     readonly gameTrace = new TestTraceSink();
 
     constructor() {
+        // The test engine drives structured Trace Sessions, so it injects the
+        // runtime itself rather than relying on an import side effect.
+        Game.attachTrace(createTraceRuntime());
         Game.trace.setSink(this.gameTrace);
         // Core / SAPI-Pro modules subscribe during import. Creating a test
         // environment represents a loaded world, so finish that initialization.

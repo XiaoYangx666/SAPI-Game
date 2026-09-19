@@ -9,7 +9,9 @@ BEGame 关注 **GameEngine → GameState → GameComponent** 的运行时生命�
 ```text
 @begame/core         游戏运行时
 @begame/test         无头生命周期测试引擎
+@begame/trace-spec   Trace 词汇表：事件 ID、值/schema 类型、错误标记
 @begame/trace-core   平台无关的 Trace 格式、编解码与会话模型
+@begame/trace        Trace 运行时：会话管理与世界历史存储
 @begame/trace-tools  Content Log / .begtrace 离线解析工具
 @begame/observatory  本地 Trace 分析工作台与服务（private，不发布）
 ```
@@ -83,7 +85,7 @@ test("玩家掉线与重连", async () => {
 
 ### Trace / Observatory
 
-每个 `GameEngine` 实例可以把自己完整的一次执行导出成 `.begtrace`。`@begame/trace-core` 负责平台无关的格式与编解码，`@begame/trace-tools` 负责离线解析 Minecraft Content Log，`@begame/observatory` 把这个能力包装成本地分析工作台：
+每个 `GameEngine` 实例可以把自己完整的一次执行导出成 `.begtrace`。`@begame/trace-spec` 是共享词汇表，`@begame/trace-core` 负责平台无关的格式与编解码，`@begame/trace` 是运行时，`@begame/trace-tools` 负责离线解析 Minecraft Content Log，`@begame/observatory` 把这个能力包装成本地分析工作台：
 
 ```bash
 npm run observatory   # 打开 http://127.0.0.1:8787
@@ -91,15 +93,18 @@ npm run observatory   # 打开 http://127.0.0.1:8787
 
 工作台围绕会话与数据源组织，提供分析概览、活动流和事件检索三个视图，可粘贴 Content Log 或拖入 `.log` / `.txt` / `.begtrace` 文件。详见 [Game Trace 文档](./docs/game-trace.md)。
 
-Trace 是**按需引入**的：`@begame/core` 本身不依赖 `@begame/trace-core`，只有显式加载 trace 入口时才启用，不用的项目不会把它打进产物。
+Trace 是**自己组装后注入**的：`@begame/core` 既不含 trace 实现也不依赖它，只有显式引入 `@begame/trace` 并传进去才会启用，不用的项目不会把它打进产物。
 
 ```ts
-import "@begame/core/trace";   // 不使用 trace 就完全不用写这一行
+import { initBEGame } from "@begame/core";
+import { createTraceRuntime } from "@begame/trace";
+
+initBEGame({ trace: createTraceRuntime(), traceStore: true });
 ```
 
 ## Packaging
 
-包按「未使用即不打包」设计：`sideEffects` 精确声明到文件级，可选能力（`@begame/core/server`、`@begame/core/trace`）通过**引入入口**而不是调用开关来启用，所以不用的功能不会进入产物。`npm run test:treeshake` 会真的打包单符号消费者并断言结果，在 CI 中运行。详见[打包与 tree-shaking](./docs/packaging.md)。
+包按「未使用即不打包」设计：`sideEffects` 精确声明到文件级，可选能力要么走独立入口（`@begame/core/server`），要么由使用方自己组装后注入（`@begame/trace`），所以不用的功能不会进入产物。`npm run test:treeshake` 会真的打包单符号消费者并断言结果，在 CI 中运行。详见[打包与 tree-shaking](./docs/packaging.md)。
 
 ## Runtime architecture
 

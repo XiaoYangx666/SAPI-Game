@@ -16,14 +16,14 @@ import {
     BuiltinTraceEventType,
     defineTraceEvent,
     traceError,
-} from "../packages/core/dist/trace/index.js";
+} from "../packages/trace-core/dist/index.js";
 import { isTraceErrorPayload } from "../packages/core/dist/trace/contract.js";
 import {
     BinaryReader,
     BinaryWriter,
     utf8ByteLength,
     writeRawValue,
-} from "../packages/core/dist/trace/binary.js";
+} from "../packages/trace-core/dist/binary.js";
 import { BEGameTestEngine } from "../packages/test/dist/index.js";
 
 const businessEvent = defineTraceEvent("test.player.scored", {

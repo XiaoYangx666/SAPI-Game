@@ -17,9 +17,14 @@
         "jsx": "react-jsx",
         "paths": {
             "@begame/core": ["./packages/core/src/main.ts"],
+            "@begame/core/world-ready": ["./packages/core/src/system/worldReady.ts"],
             "@begame/core/*": ["./packages/core/src/*"],
             "@begame/test": ["./packages/test/src/index.ts"],
             "@begame/test/*": ["./packages/test/src/*"],
+            "@begame/trace": ["./packages/trace/src/index.ts"],
+            "@begame/trace/*": ["./packages/trace/src/*"],
+            "@begame/trace-spec": ["./packages/trace-spec/src/index.ts"],
+            "@begame/trace-spec/*": ["./packages/trace-spec/src/*"],
             "@begame/trace-core": ["./packages/trace-core/src/index.ts"],
             "@begame/trace-core/*": ["./packages/trace-core/src/*"],
             "@begame/trace-tools": ["./packages/trace-tools/src/index.ts"],
@@ -30,6 +35,8 @@
     "include": [
         "./packages/core/src",
         "./packages/test/src",
+        "./packages/trace/src",
+        "./packages/trace-spec/src",
         "./packages/trace-core/src",
         "./packages/trace-tools/src",
         "./packages/observatory/src"

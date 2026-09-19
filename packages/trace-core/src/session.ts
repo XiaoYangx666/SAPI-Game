@@ -10,9 +10,12 @@ import {
     BuiltinTraceEventType,
     TRACE_CHUNK_MAGIC,
     TRACE_FORMAT_VERSION,
+    playerMarker,
     type TraceChunk,
     type TraceEventSchema,
+    type TraceInputValue,
     type TracePayload,
+    type TracePlayerMarker,
     type TraceSchemaShape,
     type TraceSessionEnd,
     type TraceSessionHeader,
@@ -36,28 +39,6 @@ const MAX_ERROR_DEPTH = 6;
 const MAX_ERROR_ENTRIES = 16;
 /** UTF-8 byte budget shared by all messages/stacks in one traceError() value. */
 const MAX_ERROR_TEXT_BYTES = 8 * 1024;
-const playerMarker = Symbol("begame.trace.player");
-
-interface TracePlayerMarker {
-    readonly [playerMarker]: true;
-    readonly id: string;
-    readonly name?: string;
-}
-
-/**
- * Any value a trace payload may carry.
- *
- * Exported because `@begame/core` builds payloads against it without importing
- * this package at runtime (it uses `import type`, which erases).
- */
-export type TraceInputValue =
-    | null
-    | boolean
-    | number
-    | string
-    | TracePlayerMarker
-    | TraceInputValue[]
-    | { [key: string]: TraceInputValue };
 
 interface CustomSchemaRecord {
     readonly typeId: number;

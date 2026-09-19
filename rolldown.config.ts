@@ -20,12 +20,16 @@ function buildInput(files: string[], base: string) {
 
 const coreRoot = "packages/core/src";
 const testRoot = "packages/test/src";
+const traceSpecRoot = "packages/trace-spec/src";
 const traceCoreRoot = "packages/trace-core/src";
+const traceRoot = "packages/trace/src";
 const traceToolsRoot = "packages/trace-tools/src";
 const observatoryEntry = path.resolve("packages/observatory/src/main.tsx");
 const observatoryServerEntry = path.resolve("packages/observatory/server/index.ts");
 
+const traceSpecExternal = /^@begame\/trace-spec(\/|$)/;
 const traceCoreExternal = /^@begame\/trace-core(\/|$)/;
+const traceExternal = /^@begame\/trace(\/|$)/;
 /** Keeps every @begame/core subpath (notably ./trace) external, not just the root. */
 const coreExternal = /^@begame\/core(\/|$)/;
 
@@ -43,11 +47,25 @@ const testInput = buildInput(
     testRoot
 );
 
+const traceSpecInput = buildInput(
+    globSync(`${traceSpecRoot}/**/*.ts`, {
+        ignore: [`${traceSpecRoot}/**/*.d.ts`],
+    }),
+    traceSpecRoot
+);
+
 const traceCoreInput = buildInput(
     globSync(`${traceCoreRoot}/**/*.ts`, {
         ignore: [`${traceCoreRoot}/**/*.d.ts`],
     }),
     traceCoreRoot
+);
+
+const traceInput = buildInput(
+    globSync(`${traceRoot}/**/*.ts`, {
+        ignore: [`${traceRoot}/**/*.d.ts`],
+    }),
+    traceRoot
 );
 
 const traceToolsInput = buildInput(
@@ -59,7 +77,19 @@ const traceToolsInput = buildInput(
 
 export default defineConfig([
     {
+        input: traceSpecInput,
+        output: {
+            dir: "packages/trace-spec/dist",
+            format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: traceSpecRoot,
+            entryFileNames: "[name].js",
+        },
+        plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
         input: traceCoreInput,
+        external: [traceSpecExternal],
         output: {
             dir: "packages/trace-core/dist",
             format: "esm",
@@ -70,9 +100,25 @@ export default defineConfig([
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
     {
+        input: traceInput,
+        external: [
+            coreExternal,
+            traceCoreExternal,
+            "@minecraft/server",
+        ],
+        output: {
+            dir: "packages/trace/dist",
+            format: "esm",
+            preserveModules: true,
+            preserveModulesRoot: traceRoot,
+            entryFileNames: "[name].js",
+        },
+        plugins: [dts({ tsconfig: "./tsconfig.json" })],
+    },
+    {
         input: coreInput,
         external: [
-            traceCoreExternal,
+            traceSpecExternal,
             "@minecraft/server",
             "@minecraft/server-ui",
         ],
@@ -95,6 +141,8 @@ export default defineConfig([
             "node:module",
             "node:url",
             "vitest/config",
+            traceExternal,
+            traceCoreExternal,
         ],
         output: {
             dir: "packages/test/dist",
@@ -107,7 +155,7 @@ export default defineConfig([
     },
     {
         input: traceToolsInput,
-        external: [traceCoreExternal],
+        external: [traceCoreExternal, traceSpecExternal],
         output: {
             dir: "packages/trace-tools/dist",
             format: "esm",

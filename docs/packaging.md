@@ -23,8 +23,8 @@ It asserts both directions:
   drops the worldLoad gating that several past fixes depend on.
 
 Detection is by module id. Never scan the output text for identifiers: names
-like `Timer` and `DisconnectTimeout` also occur as members of trace-core's
-`BuiltinEventType` enum and produce false positives.
+like `Timer` and `DisconnectTimeout` also occur as members of the trace event
+vocabulary and produce false positives.
 
 ## `sideEffects`
 
@@ -38,11 +38,9 @@ own sake", which lets bundlers drop unused re-exports from barrels.
 | `dist/constants.js` | subscribes to `world.afterEvents.worldLoad` |
 | `dist/system/worldReady.js` | subscribes to `world.afterEvents.worldLoad` |
 | `dist/main.js` | builds the global manager / events singleton |
-| `dist/trace/index.js` | installs the trace runtime (see below) |
 
 So it uses the array form, listing only those. `@begame/test` lists
-`dist/register.js` (it installs Node module hooks). `@begame/trace-core` and
-`@begame/trace-tools` are `false`.
+`dist/register.js` (it installs Node module hooks). Everything else is `false`.
 
 Two traps learned the hard way:
 
@@ -52,34 +50,57 @@ Two traps learned the hard way:
   value import, which cannot be eliminated.
 - Subpath specifiers need their own `external` entry when building a sibling
   package. An exact-string `external: ["@begame/core"]` does not cover
-  `@begame/core/trace`, and rolldown will then try to inline it and emit
-  broken relative paths. Use the `^@begame/core(\/|$)` regex.
+  `@begame/core/trace`, and rolldown will then try to inline it and emit broken
+  relative paths. Use regexes such as `^@begame/core(\/|$)`.
 
 ## Import-time vs call-time opt-in
 
 A feature that is only enabled by a *call* cannot be tree-shaken away, because
-the bundler cannot know the call will not happen. Unused features are therefore
-enabled by *importing an entry*:
+the bundler cannot know the call will not happen. Features therefore have to be
+separated by **reachability**, which means the implementation must live somewhere
+the default entry cannot reach:
 
-| Entry | Enables |
+| Entry | Pulls in |
 | --- | --- |
-| `@begame/core` | the runtime and its global manager singleton |
+| `@begame/core` | the runtime, its global manager singleton, and `@begame/trace-spec` |
 | `@begame/core/server` | server integration, `/game` commands, player tracking |
-| `@begame/core/trace` | the trace runtime and codec |
+| `@begame/trace` | the trace runtime and codec, injected into core by the consumer |
 
-`@begame/core` never imports `@begame/trace-core` at runtime. Its hot path uses
-a dependency-free contract (`packages/core/src/trace/contract.ts`) holding the
-numeric event ids, a no-op scope and a deferred error marker; the real
-`TraceManager` installs itself when `@begame/core/trace` is evaluated.
+## Trace is injected, not installed
 
-The installation is resolved on first `Game.trace` access rather than at module
-evaluation, so the entry may be imported before or after `@begame/core`. Do not
-turn `Game.trace` back into a plain property: reading it while `main.ts` is
-still evaluating freezes the inert runtime in place and tracing silently stops
-working.
+`@begame/core` has no trace implementation and no dependency on one. Its hot
+path only needs the vocabulary, which lives in the zero-dependency
+`@begame/trace-spec`, plus the contract in `packages/core/src/trace/contract.ts`
+(scope/session/runtime interfaces and inert stand-ins).
+
+The consumer wires the implementation in at its own composition root:
+
+```ts
+import { initBEGame } from "@begame/core";
+import { createTraceRuntime } from "@begame/trace";
+
+initBEGame({ trace: createTraceRuntime(), traceStore: true });
+```
+
+`Game.attachTrace(runtime)` does the same outside `initBEGame`.
+
+This replaced an earlier design where importing `@begame/core/trace` installed
+the runtime through a module-level side effect into a registry. Injection is
+better for reasons that are worth keeping in mind before "simplifying" it back:
+
+- **The guarantee stops depending on the bundler.** An install-on-import design
+  only works if every consumer's bundler honours `sideEffects`; the same
+  mechanism already silently dropped a side-effect import during this repo's own
+  `@begame/test` build. A `createTraceRuntime()` call is a value use and cannot
+  be eliminated.
+- **No hidden mutable module state**, so no "which module was evaluated first"
+  hazard.
+- `Game.trace` must still be a getter. `Game` is built while `main.ts` is
+  evaluating, so a plain property would capture the inert runtime before
+  anything could inject the real one.
 
 ## Why not a dynamic `import()`
 
 Deferring the load would also work, but it makes enabling tracing asynchronous,
 which conflicts with the worldLoad ordering the runtime already depends on. The
-opt-in entry keeps installation synchronous and order-stable.
+opt-in entry keeps the composition synchronous and order-stable.

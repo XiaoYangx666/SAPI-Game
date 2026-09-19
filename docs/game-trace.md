@@ -42,27 +42,38 @@ Game / State / Component / Participation / Runner / Timer
 
 `TraceSession` owns ordering and encoding. Gameplay code emits logical events through `TraceScope`. Sink membership is snapshotted when the session starts, so a runtime storage toggle cannot create a deliberately truncated stored session. Sink failures are isolated from game execution.
 
-`@begame/trace-core` holds the platform-independent part of the subsystem: vocabulary, binary codec, chunk container, decoder, schema/session primitives and the console exporter. `@begame/core` adds the Minecraft adapters (`WorldTraceStore`, `TraceManager`) and exposes them through `@begame/core/trace`. `WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
+`@begame/trace-spec` is the shared, zero-dependency vocabulary: event ids, value and schema types, the management-side option shapes and the deferred error marker. `@begame/trace-core` adds the platform-independent codec: binary format, chunk container, decoder, schema/session primitives and the console exporter. `@begame/trace` adds the Minecraft adapters (`TraceManager`, `WorldTraceStore`) and the `createTraceRuntime` factory. `WorldTraceStore` is a history store, not an export transport. `ConsoleTraceExporter` reads a completed history session and emits a copyable Base64 representation on demand. `@begame/trace-tools` is the offline parsing/tooling package and depends only on `@begame/trace-core`.
 
 ### Enabling tracing
 
-Tracing is opt-in at **import** time, not at call time:
+`@begame/core` never imports the trace runtime or the codec. It only knows
+`@begame/trace-spec` and the contract in `packages/core/src/trace/contract.ts`,
+so tracing is wired in by the consumer rather than switched on by an option:
 
 ```ts
-import "@begame/core/trace";
-// or, when you also need the codec:
-import { decodeBegTrace } from "@begame/core/trace";
+import { initBEGame } from "@begame/core";
+import { createTraceRuntime } from "@begame/trace";
+
+initBEGame({ trace: createTraceRuntime(), traceStore: true });
 ```
 
-`@begame/core` never imports `@begame/trace-core` at runtime. Its hot path only carries a dependency-free contract (`packages/core/src/trace/contract.ts`): the numeric event ids, a no-op scope, and a deferred error marker. The real `TraceManager` installs itself into that contract when `@begame/core/trace` is evaluated. A game that never imports the trace entry ships no trace code at all; `npm run test:treeshake` asserts that in CI.
+Outside `initBEGame`, `Game.attachTrace(runtime)` does the same. A game that
+never imports `@begame/trace` ships no trace code at all; `npm run
+test:treeshake` asserts that in CI, and `docs/packaging.md` explains why
+injection is used instead of an install-on-import entry.
 
 Consequences worth knowing:
 
-- `@begame/core` no longer re-exports trace symbols from its package root. Import them from `@begame/core/trace`.
-- `initBEGame({ traceStore: true })` without the trace entry loaded is inert and logs an error, rather than silently recording nothing.
-- Import order does not matter: the runtime is resolved on first `Game.trace` access, so the entry may be evaluated before or after `@begame/core`.
-- Errors cross the runtime boundary as a deferred marker rather than a serialized value, so `traceError` — which walks `cause` chains under UTF-8 byte budgets — only runs when a session is actually listening.
-- The event id table exists twice (contract and trace-core) because core may not import the codec package. `tests/trace-contract.test.mjs` fails CI if they drift.
+- Trace symbols are not exported from `@begame/core`. Import the codec from
+  `@begame/trace` or `@begame/trace-core`, and the runtime factory from
+  `@begame/trace`.
+- `initBEGame({ traceStore: true })` without an injected runtime is inert and
+  logs an error, rather than silently recording nothing.
+- Injection order relative to `@begame/core` does not matter, because
+  `Game.trace` resolves on access rather than at module evaluation.
+- Errors cross the runtime boundary as a deferred marker rather than a
+  serialized value, so `traceError` — which walks `cause` chains under UTF-8
+  byte budgets — only runs when a session is actually listening.
 
 ## Session model
 
@@ -278,9 +289,9 @@ The marker deliberately does not depend on Minecraft's surrounding log prefix, b
 - codec: varint/zigzag, UTF-8, `BinaryReader`/`BinaryWriter`, `.begtrace` container, chunk encoder/decoder;
 - session primitives: `TraceScope`, `TraceSession`, `defineTraceEvent`, `ConsoleTraceExporter`.
 
-It has no `@minecraft/server` dependency and no runtime dependencies at all. `@begame/core` owns the Minecraft adapters (`WorldTraceStore`, `TraceManager`) and re-exports trace-core from `@begame/core/trace`, so `@begame/core/trace/*` deep imports remain valid.
+It has no `@minecraft/server` dependency; its only dependency is `@begame/trace-spec`, which holds the shared vocabulary and is itself dependency-free. The Minecraft adapters (`WorldTraceStore`, `TraceManager`) live in `@begame/trace`, which is injected into `@begame/core` rather than reached from it.
 
-Consumers that install `@begame/core` from a local checkout (`"@begame/core": "file:../begame/packages/core"`) must also declare `@begame/trace-core` with the same version (`file:../begame/packages/trace-core` or the packed tarball). Like all npm `file:` dependencies, the packages are copied into `node_modules`, so re-run `npm install` after rebuilding BEGame.
+Consumers that install BEGame packages from a local checkout (`"@begame/core": "file:../begame/packages/core"`) must also declare the trace packages they use, with the same version (`@begame/trace-spec`, `@begame/trace-core` and `@begame/trace` as `file:` paths or the packed tarballs). Like all npm `file:` dependencies, the packages are copied into `node_modules`, so re-run `npm install` after rebuilding BEGame.
 
 ## @begame/trace-tools
 

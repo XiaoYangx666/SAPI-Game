@@ -9,13 +9,14 @@ import {
     ParticipationManager,
     ParticipationPolicy,
 } from "../participation/participationManager";
-import type { TraceConnectionSource, TraceManager } from "../trace/manager";
 import {
     BuiltinTraceEventType,
+    NOOP_TRACE_RUNTIME,
     traceErrorValue,
+    type TraceConnectionSource,
     type TraceInputValue,
+    type TraceRuntime,
 } from "../trace/contract";
-import { createTraceRuntime } from "../trace/registry";
 import { GameManagerError } from "../utils/GameError";
 import { classConstructor } from "../utils/interfaces";
 import { Logger } from "../utils/logger";
@@ -39,7 +40,7 @@ export class GameManager implements GameEngineOwner {
     private games: Map<string, GameEngine<any, any>> = new Map();
     private readonly logger = new Logger(this.constructor.name);
     public readonly participation: ParticipationManager;
-    private traceRuntime?: TraceManager;
+    private traceRuntime?: TraceRuntime;
     private traceConnectionSource?: TraceConnectionSource;
 
     constructor(
@@ -49,33 +50,37 @@ export class GameManager implements GameEngineOwner {
     }
 
     /**
-     * Resolved on first access rather than in the constructor.
+     * The injected trace runtime, or the inert stand-in.
      *
-     * The entry that installs the trace runtime (`@begame/core/trace`) may be
-     * evaluated after `@begame/core`, so resolving lazily makes installation
-     * order irrelevant. Until it is imported this is the inert runtime, which
-     * keeps the trace implementation out of the default bundle.
+     * A getter rather than a field because `Game.trace` is read from module
+     * scope (see main.ts) and injection happens later; a field would freeze the
+     * inert runtime in place and tracing would silently never start.
      */
-    public get trace(): TraceManager {
-        if (!this.traceRuntime) {
-            this.traceRuntime = createTraceRuntime(
-                () => system.currentTick,
-                (error) => {
-                    try {
-                        this.logger.error("Trace internal error:", error);
-                    } catch {
-                        // Trace diagnostics must never affect game execution.
-                    }
-                }
-            );
-            this.traceRuntime.bindConnectionSource(this.traceConnectionSource);
-        }
-        return this.traceRuntime;
+    public get trace(): TraceRuntime {
+        return this.traceRuntime ?? NOOP_TRACE_RUNTIME;
     }
 
     /**
-     * Records the connection event source and binds it once a trace runtime
-     * exists. Called during module evaluation, so it must not create the runtime.
+     * Injects the trace implementation, which `@begame/core` does not own.
+     *
+     * Passing `undefined` detaches it. Kept separate from `initBEGame` so the
+     * test engine and custom composition roots can wire it directly.
+     */
+    attachTrace(runtime?: TraceRuntime) {
+        this.traceRuntime = runtime;
+        // The connection source is recorded during module evaluation, before any
+        // runtime can exist, so bind it now.
+        runtime?.bindConnectionSource(this.traceConnectionSource);
+    }
+
+    /** Whether a trace runtime has been injected. */
+    hasTraceRuntime(): boolean {
+        return this.traceRuntime !== undefined;
+    }
+
+    /**
+     * Records the connection event source and binds it once a trace runtime is
+     * injected. Called during module evaluation, so it must not need a runtime.
      */
     bindTraceConnectionSource(source?: TraceConnectionSource) {
         this.traceConnectionSource = source;

@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import {
     encodeBase64,
     encodeBegTrace,
-} from "../packages/core/dist/trace/index.js";
+} from "../packages/trace-core/dist/index.js";
 import {
     collectTraceExports,
     decodeTraceLog,

@@ -1,37 +1,33 @@
 {
-    "name": "@begame/test",
+    "name": "@begame/trace",
     "version": "0.0.2",
-    "description": "Headless lifecycle test engine for BEGame",
+    "description": "BEGame Trace runtime: session manager and world history store",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "files": ["dist"],
-    "sideEffects": ["./dist/register.js"],
+    "sideEffects": false,
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
         },
-        "./register": {
-            "import": "./dist/register.js"
-        },
-        "./vitest": {
-            "types": "./dist/vitest.d.ts",
-            "import": "./dist/vitest.js"
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.js"
         }
     },
     "dependencies": {
         "@begame/core": "0.0.2",
-        "@begame/trace": "0.0.2",
         "@begame/trace-core": "0.0.2"
     },
     "peerDependencies": {
-        "vitest": ">=5.0.0 <6.0.0"
+        "@minecraft/server": ">=2.9.0"
     },
     "license": "MIT",
     "repository": {
         "type": "git",
         "url": "https://github.com/XiaoYangx666/SAPI-Game.git"
     },
-    "keywords": ["minecraft", "bedrock", "testing", "vitest", "headless"]
+    "keywords": ["minecraft", "bedrock", "trace", "runtime"]
 }

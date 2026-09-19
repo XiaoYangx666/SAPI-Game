@@ -3,37 +3,16 @@ import {
     snapshotTraceValue,
     TraceSession,
     TRACE_FORMAT_VERSION,
+    type BeginTraceSessionOptions,
+    type TraceConnectionSource,
+    type TraceConnectionSubscription,
     type TraceSessionEnd,
     type TraceSessionOptions,
     type TraceSink,
     type TraceValue,
-} from "@begame/trace-core";
-import {
-    WorldTraceStore,
     type WorldTraceStoreOptions,
-} from "./worldStore";
-
-export interface BeginTraceSessionOptions {
-    readonly gameType: string;
-    readonly gameKey: string;
-    readonly initialConfig?: unknown;
-    readonly begameVersion?: string;
-    readonly packVersion?: string;
-}
-
-export interface TraceConnectionEvent {
-    readonly type: "online" | "offline";
-    readonly playerId: string;
-    readonly playerName?: string;
-}
-
-export interface TraceConnectionSubscription {
-    unsubscribe(): void;
-}
-
-export interface TraceConnectionSource {
-    subscribe(callback: (event: TraceConnectionEvent) => void): TraceConnectionSubscription;
-}
+} from "@begame/trace-core";
+import { WorldTraceStore } from "./worldStore";
 
 export class TraceManager {
     /** Optional compatibility/testing sink. Production history uses `store`. */

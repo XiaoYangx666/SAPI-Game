@@ -1,5 +1,5 @@
 import { encodeBase64 } from "./base64";
-import { TRACE_FORMAT_VERSION } from "./types";
+import { TRACE_FORMAT_VERSION, type ConsoleTraceExportResult } from "./types";
 
 export const TRACE_CONSOLE_MARKER = "BEGAME_TRACE";
 export const DEFAULT_TRACE_CONSOLE_PAYLOAD_CHARS = 24_000;
@@ -13,13 +13,6 @@ export interface TraceExportStore {
 export interface ConsoleTraceExporterOptions {
     /** Base64 payload characters per console.warn call. */
     readonly maxPayloadChars?: number;
-}
-
-export interface ConsoleTraceExportResult {
-    readonly sessionId: string;
-    readonly binaryBytes: number;
-    readonly base64Chars: number;
-    readonly partCount: number;
 }
 
 /**

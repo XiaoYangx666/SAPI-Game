@@ -9,8 +9,7 @@
     "sideEffects": [
         "./dist/constants.js",
         "./dist/main.js",
-        "./dist/system/worldReady.js",
-        "./dist/trace/index.js"
+        "./dist/system/worldReady.js"
     ],
     "exports": {
         ".": {
@@ -46,8 +45,12 @@
             "import": "./dist/gameState/index.js"
         },
         "./trace": {
-            "types": "./dist/trace/index.d.ts",
-            "import": "./dist/trace/index.js"
+            "types": "./dist/trace/contract.d.ts",
+            "import": "./dist/trace/contract.js"
+        },
+        "./world-ready": {
+            "types": "./dist/system/worldReady.d.ts",
+            "import": "./dist/system/worldReady.js"
         },
         "./utils": {
             "types": "./dist/utils/index.d.ts",
@@ -63,7 +66,7 @@
         }
     },
     "dependencies": {
-        "@begame/trace-core": "0.0.2"
+        "@begame/trace-spec": "0.0.2"
     },
     "peerDependencies": {
         "@minecraft/server": ">=2.9.0",

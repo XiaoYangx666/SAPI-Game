@@ -1,16 +1,18 @@
 import { system, world } from "@minecraft/server";
-import { isWorldLoaded, runAfterWorldLoad } from "../system/worldReady";
+import { isWorldLoaded, runAfterWorldLoad } from "@begame/core/world-ready";
 import {
     decodeBase64,
     encodeBase64,
     encodeBegTrace,
     TRACE_FORMAT_VERSION,
     type BegTraceContainer,
+    type StoredTraceSummary,
     type TraceChunk,
     type TraceSessionEnd,
     type TraceSessionHeader,
     type TraceSessionStatus,
     type TraceSink,
+    type WorldTraceStoreOptions,
 } from "@begame/trace-core";
 
 const STORE_PREFIX = `begame.trace.v${TRACE_FORMAT_VERSION}.`;
@@ -18,32 +20,6 @@ const DEFAULT_MAX_SESSIONS = 50;
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_CLEANUP_INTERVAL_TICKS = 6000;
-
-export interface WorldTraceStoreOptions {
-    /** Maximum completed sessions retained in this world. */
-    readonly maxSessions?: number;
-    /** Approximate Base64 payload bytes retained by BEGame Trace. */
-    readonly maxBytes?: number;
-    /** Maximum age of a completed session. */
-    readonly maxAgeMs?: number;
-    /** Periodic cleanup cadence in Minecraft ticks. */
-    readonly cleanupIntervalTicks?: number;
-}
-
-export interface StoredTraceSummary {
-    readonly sessionId: string;
-    readonly gameType: string;
-    readonly gameKey: string;
-    readonly status: TraceSessionStatus;
-    readonly startTick: number;
-    readonly startWallTime: number;
-    readonly endTick?: number;
-    readonly endWallTime?: number;
-    readonly endReason?: string;
-    readonly eventCount: number;
-    readonly chunkCount: number;
-    readonly storedBytes: number;
-}
 
 interface WorldTraceStoreMetaV1 {
     readonly storageVersion: 1;

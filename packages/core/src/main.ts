@@ -4,9 +4,9 @@ import { gameEvents } from "./gameEvent/gameEvent";
 import { ParticipationPolicy } from "./participation/participationManager";
 import { GameManager } from "./system/gameManager";
 import { gameServer } from "./system/server";
-import { isTraceRuntimeInstalled } from "./trace/registry";
+import type { TraceRuntime } from "./trace/contract";
 import { Logger } from "./utils/logger";
-import type { WorldTraceStoreOptions } from "./trace/worldStore";
+import type { WorldTraceStoreOptions } from "@begame/trace-spec";
 
 export { BEGameConfig, SAPIGameConfig } from "./config";
 export type { BEGameConfigOptions, SAPIGameConfigOptions } from "./config";
@@ -18,6 +18,14 @@ export interface BEGameTraceStoreInitOptions extends WorldTraceStoreOptions {
 
 export interface BEGameInitOptions extends BEGameConfigOptions {
     participationPolicy?: ParticipationPolicy;
+    /**
+     * The trace runtime to use, built by `@begame/trace`.
+     *
+     * `@begame/core` does not depend on the trace implementation, so tracing is
+     * wired here rather than switched on by an option. Omit it and the inert
+     * runtime is used and no trace code is bundled.
+     */
+    trace?: TraceRuntime;
     /**
      * Persistent Game Trace history in World Dynamic Properties.
      * Omit to leave the current runtime setting unchanged; boolean toggles storage,
@@ -31,9 +39,7 @@ export type SAPIGameInitOptions = BEGameInitOptions;
 
 const manager = new GameManager();
 const events = new gameEvents();
-// Recorded, not bound: the trace runtime is created lazily, so this stays
-// correct no matter whether the consumer's trace entry is evaluated before or
-// after `@begame/core`.
+// Recorded, not bound: no trace runtime exists yet during module evaluation.
 manager.bindTraceConnectionSource(events.connection);
 
 /** BEGame 核心全局入口。命令/onJoin 等服务器集成能力仍需显式启用 `@begame/core/server`。 */
@@ -42,32 +48,45 @@ export const Game = {
     server: gameServer,
     manager,
     participation: manager.participation,
-    // Must stay a getter: reading it here would resolve the trace runtime while
-    // this module is still evaluating, before an opt-in entry could install it.
+    // Must stay a getter: reading it here would capture the inert runtime while
+    // this module is still evaluating, before anything could inject the real one.
     get trace() {
         return manager.trace;
     },
     constants: Constants,
     config: BEGameConfig,
+    /**
+     * Injects the trace runtime outside of `initBEGame`.
+     *
+     * Equivalent to `initBEGame({ trace })`; useful for composition roots that
+     * configure the runtime themselves (the headless test engine does this).
+     */
+    attachTrace(runtime?: TraceRuntime) {
+        manager.attachTrace(runtime);
+    },
 } as const;
 
 /** 初始化 BEGame Core；不会注册服务器命令或玩家轮询。 */
 export function initBEGame(options: BEGameInitOptions = {}) {
-    const { participationPolicy, traceStore, ...config } = options;
+    const { participationPolicy, traceStore, trace, ...config } = options;
     BEGameConfig.update(config);
     if (participationPolicy) {
         manager.participation.setPolicy(participationPolicy);
+    }
+    if (trace) {
+        manager.attachTrace(trace);
     }
     if (traceStore !== undefined) {
         const wantsTrace =
             typeof traceStore === "boolean"
                 ? traceStore
                 : traceStore.enabled !== false;
-        if (wantsTrace && !isTraceRuntimeInstalled()) {
-            // Otherwise this silently does nothing and the missing history looks
-            // like a framework bug rather than a missing import.
+        if (wantsTrace && !manager.hasTraceRuntime()) {
+            // Otherwise this silently records nothing, and the missing history
+            // looks like a framework bug rather than a missing injection.
             new Logger("BEGame").error(
-                'traceStore 已启用，但 Trace 运行时未加载。请在使用 Trace 的入口 import "@begame/core/trace"。'
+                "traceStore 已启用，但没有注入 Trace 运行时。" +
+                    '请 import { createTraceRuntime } from "@begame/trace" 并传给 initBEGame({ trace })。'
             );
         }
         if (typeof traceStore === "boolean") {

@@ -10,14 +10,14 @@ import {
     GameParticipation,
     ParticipationManager,
 } from "./participation/participationManager";
-import type { TraceManager } from "./trace/manager";
 import {
     BuiltinTraceEventType,
     NOOP_TRACE_SCOPE,
     traceErrorValue,
+    type TraceRuntime,
     type TraceScopeLike as TraceScope,
+    type TraceSessionLike as TraceSession,
 } from "./trace/contract";
-import type { TraceSession } from "@begame/trace-core";
 import { GameEngineError } from "./utils/GameError";
 import { classConstructor } from "./utils/interfaces";
 import { Logger } from "./utils/logger";
@@ -38,7 +38,7 @@ export type GameLifecycleState =
 /**GameEngine 的创建者只需要提供停止能力、共享 participation 与 trace 服务。*/
 export interface GameEngineOwner {
     readonly participation: ParticipationManager;
-    readonly trace: TraceManager;
+    readonly trace: TraceRuntime;
     stopGameByKey(key: string, reason?: string): void;
 }
 
