@@ -203,6 +203,20 @@ test("reconnect rebinds the existing GamePlayer wrapper to a new native Player h
     manager.dispose();
 });
 
+test("Game.server online lookups reflect the current world without cached connection state", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    expect(Game.server.getPlayer("alice")).toBeUndefined();
+    expect(Game.server.isOnline("alice")).toBe(false);
+    const alice = env.connectPlayer("alice", "Alice");
+    expect(Game.server.getPlayer("alice")).toBe(alice);
+    expect(Game.server.isOnline("alice")).toBe(true);
+    env.disconnectPlayer("alice");
+    expect(Game.server.getPlayer("alice")).toBeUndefined();
+    expect(Game.server.isOnline("alice")).toBe(false);
+    env.reset();
+});
+
 test("reload keeps virtual world players but rebuilds game runtime from snapshot", async () => {
     const env = new BEGameTestEngine();
     env.reset();
