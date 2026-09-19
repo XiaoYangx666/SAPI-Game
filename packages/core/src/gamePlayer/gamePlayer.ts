@@ -9,7 +9,7 @@ import {
 
 /**游戏玩家基类 */
 export class GamePlayer {
-    private readonly _player: Player;
+    private _player: Player;
     private _isActive = true;
     public readonly id: string;
     public readonly name: string;
@@ -41,6 +41,18 @@ export class GamePlayer {
      */
     _setActive(active: boolean) {
         this._isActive = active;
+    }
+
+    /**
+     * @internal A reconnect can provide a new Minecraft Player object for the
+     * same stable player ID. Keep the existing GamePlayer wrapper (and group
+     * references) but replace the stale native handle.
+     */
+    _bind(player: Player): void {
+        if (player.id !== this.id) {
+            throw new Error("Cannot bind GamePlayer to a different player ID");
+        }
+        this._player = player;
     }
 
     /**获取player
