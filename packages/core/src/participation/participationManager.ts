@@ -4,6 +4,16 @@ import {
     ParticipationPolicy,
 } from "./policy";
 import type { ParticipationBatchDecision } from "./gameParticipation";
+import type { CustomEventSignal } from "../gameEvent/eventSignal";
+import type { Subscription } from "../gameEvent/subscription";
+
+export interface ParticipationChange {
+    readonly gameKey: string;
+    readonly playerId: string;
+    readonly type: "joined" | "left";
+    readonly reason?: string;
+}
+
 
 /**
  * 维护玩家与游戏实例之间的参与关系。
@@ -13,6 +23,34 @@ import type { ParticipationBatchDecision } from "./gameParticipation";
  */
 export class ParticipationManager {
     private readonly memberships = new Map<string, Set<string>>();
+    // Subscribers belong to the game instance, not to its current member count.
+    // An empty-but-running game must keep receiving future join/leave events.
+    private readonly changeSubscribers = new Map<string, Set<(event: ParticipationChange) => void>>();
+
+    changesFor(gameKey: string): CustomEventSignal<ParticipationChange> {
+        return {
+            subscribe: (callback: (event: ParticipationChange) => void): Subscription => {
+                const callbacks = this.changeSubscribers.get(gameKey) ?? new Set();
+                callbacks.add(callback);
+                this.changeSubscribers.set(gameKey, callbacks);
+                let active = true;
+                return { unsubscribe: () => {
+                    if (!active) return;
+                    active = false;
+                    callbacks.delete(callback);
+                    if (callbacks.size === 0) this.changeSubscribers.delete(gameKey);
+                } };
+            },
+        };
+    }
+
+    private emitChange(event: ParticipationChange): void {
+        for (const callback of [...(this.changeSubscribers.get(event.gameKey) ?? [])]) {
+            try { callback(event); }
+            catch (error) { console.error("Participation change callback error:", error); }
+        }
+    }
+
 
     constructor(
         private policy: ParticipationPolicy = new ExclusiveParticipationPolicy()
@@ -35,6 +73,7 @@ export class ParticipationManager {
         if (!decision.allowed) return decision;
 
         this.addMembership(playerId, gameKey);
+        this.emitChange({ gameKey, playerId, type: "joined" });
         return decision;
     }
 
@@ -62,8 +101,11 @@ export class ParticipationManager {
             }
         }
 
-        for (const playerId of uniquePlayerIds) {
-            this.addMembership(playerId, gameKey);
+        const newPlayerIds = uniquePlayerIds.filter((id) => !this.has(id, gameKey));
+        for (const playerId of newPlayerIds) this.addMembership(playerId, gameKey);
+        // Announce only after the entire atomic batch is committed.
+        for (const playerId of newPlayerIds) {
+            this.emitChange({ gameKey, playerId, type: "joined" });
         }
         return { allowed: true };
     }
@@ -86,10 +128,11 @@ export class ParticipationManager {
         this.memberships.set(playerId, memberships);
     }
 
-    leave(playerId: string, gameKey: string): boolean {
+    leave(playerId: string, gameKey: string, reason = "leave"): boolean {
         const memberships = this.memberships.get(playerId);
         if (!memberships?.delete(gameKey)) return false;
         if (memberships.size === 0) this.memberships.delete(playerId);
+        this.emitChange({ gameKey, playerId, type: "left", reason });
         return true;
     }
 
@@ -98,9 +141,13 @@ export class ParticipationManager {
         if (!memberships) return [];
         const gameKeys = [...memberships];
         this.memberships.delete(playerId);
+        for (const gameKey of gameKeys) {
+            this.emitChange({ gameKey, playerId, type: "left", reason: "leave-all" });
+        }
         return gameKeys;
     }
 
+    /** Game teardown only: releases memberships without re-entering game observers. */
     releaseGame(gameKey: string): readonly string[] {
         const releasedPlayers: string[] = [];
         for (const [playerId, memberships] of this.memberships) {
