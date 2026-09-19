@@ -1,5 +1,6 @@
 import type { ParticipationDecision } from "./policy";
-import { ParticipationManager } from "./participationManager";
+import { ParticipationManager, type ParticipationChange } from "./participationManager";
+import type { CustomEventSignal } from "../gameEvent/eventSignal";
 
 export type ParticipationBatchDecision =
     | { allowed: true }
@@ -16,11 +17,16 @@ export type ParticipationBatchDecision =
  * 应使用 GamePlayerManager.view()，而不是依赖 join() 的无 ownership 语义。
  */
 export class GameParticipation {
+    /** Game-local change signal. Subscriptions are detached by State/EventManager cleanup. */
+    readonly changed: CustomEventSignal<ParticipationChange>;
+
     constructor(
         private readonly manager: ParticipationManager,
         public readonly gameKey: string,
         private readonly tracked: boolean = true
-    ) {}
+    ) {
+        this.changed = manager.changesFor(gameKey);
+    }
 
     join(playerId: string): ParticipationDecision {
         if (!this.tracked) return { allowed: true };
@@ -33,9 +39,9 @@ export class GameParticipation {
         return this.manager.joinAll(playerIds, this.gameKey);
     }
 
-    leave(playerId: string): boolean {
+    leave(playerId: string, reason = "leave"): boolean {
         if (!this.tracked) return false;
-        return this.manager.leave(playerId, this.gameKey);
+        return this.manager.leave(playerId, this.gameKey, reason);
     }
 
     has(playerId: string): boolean {
@@ -52,8 +58,15 @@ export class GameParticipation {
         return this.getAll().length;
     }
 
-    clear(): readonly string[] {
+    /** Ordinary runtime clear broadcasts membership removals to room policies. */
+    clear(reason = "game-clear"): readonly string[] {
         if (!this.tracked) return [];
-        return this.manager.releaseGame(this.gameKey);
+        return this.manager.releaseGame(this.gameKey, { reason });
+    }
+
+    /** @internal Game teardown: release ownership without re-entering subscribers. */
+    _clearForDispose(): readonly string[] {
+        if (!this.tracked) return [];
+        return this.manager.releaseGame(this.gameKey, { silent: true });
     }
 }
