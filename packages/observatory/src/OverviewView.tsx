@@ -1,7 +1,7 @@
 import type { SeatChange, SelectedSession } from "./types";
 import { nodeColor, seatColor, type ViewModel } from "./model";
 import { Chip, describeEvent } from "./describe";
-import { fmtDate, fmtDuration, fmtRel, fmtSeconds } from "./format";
+import { fmtRel, fmtSeconds } from "./format";
 
 interface ViewProps {
     selected: SelectedSession;
@@ -12,25 +12,24 @@ export function OverviewView({ selected, view }: ViewProps) {
     return (
         <>
             <Summary selected={selected} view={view} />
-            <Participants selected={selected} />
-            <Issues selected={selected} view={view} />
+            <div className="overview-split">
+                <Participants selected={selected} />
+                <Issues selected={selected} view={view} />
+            </div>
             <Timeline selected={selected} view={view} />
             <Histogram selected={selected} />
         </>
     );
 }
 
-function Summary({ selected, view }: ViewProps) {
+function Summary({ selected }: ViewProps) {
     const { header, end, stats, context } = selected;
     const issues = context.errors.length;
     const cards: Array<{ label: string; value: string; tone?: "bad" | "ok" }> = [
-        { label: "会话", value: header.sessionId },
-        { label: "状态", value: `${end.status}${end.endReason ? ` · ${end.endReason}` : ""}` },
-        { label: "游戏", value: `${header.gameType} · ${header.gameKey}` },
-        { label: "开始时间", value: fmtDate(header.startWallTime) },
-        { label: "时长", value: `${fmtDuration(stats.wallSpanMs)} · ${stats.tickSpan} ticks` },
-        { label: "Tick", value: `${header.startTick} → ${end.endTick}` },
-        { label: "事件 / 分块", value: `${stats.eventCount} / ${stats.chunkCount}` },
+        { label: "运行结果", value: `${end.status}${end.endReason ? ` · ${end.endReason}` : ""}` },
+        { label: "游戏内时间", value: `${stats.tickSpan.toLocaleString("zh-CN")} ticks` },
+        { label: "记录区间", value: `${header.startTick} → ${end.endTick}` },
+        { label: "事件密度", value: `${(stats.eventCount / Math.max(stats.tickSpan / 20, 1)).toFixed(1)} / 秒` },
         {
             label: "参与者",
             value:
@@ -39,7 +38,7 @@ function Summary({ selected, view }: ViewProps) {
                     : `${context.players.length} 位`,
         },
         {
-            label: "异常",
+            label: "诊断信号",
             value: issues > 0 ? `${issues} 条` : "无",
             tone: issues > 0 ? "bad" : "ok",
         },
@@ -161,17 +160,17 @@ function Issues({ selected, view }: ViewProps) {
         return (
             <div className="panel">
                 <div className="panel-head">
-                    <h2>异常事件</h2>
+                    <h2>诊断信号</h2>
                     <span className="meta">无</span>
                 </div>
-                <div className="issue-empty">没有发现失败/错误事件</div>
+                <div className="issue-empty">没有发现失败、拒绝或错误事件</div>
             </div>
         );
     }
     return (
         <div className="panel">
             <div className="panel-head">
-                <h2>异常事件</h2>
+                <h2>诊断信号</h2>
                 <span className="meta">{issues.length} 条</span>
             </div>
             <div className="issues">

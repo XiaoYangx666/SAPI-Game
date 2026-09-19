@@ -238,7 +238,13 @@ function payloadChips(
 export function describeEvent(event: TraceEvent, view: ViewModel): EventDescription {
     const payload = asRecord(event.payload);
     let severity: Severity = "";
-    if (ERROR_TYPES.has(event.type) || event.type.endsWith("_failed") || event.type.endsWith("_rejected")) {
+    if (
+        ERROR_TYPES.has(event.type) ||
+        event.type.endsWith("_failed") ||
+        event.type.endsWith("_rejected") ||
+        event.type.endsWith(".failed") ||
+        event.type.endsWith(".rejected")
+    ) {
         severity = "error";
     } else if (MUTED_TYPES.has(event.type)) {
         severity = "muted";

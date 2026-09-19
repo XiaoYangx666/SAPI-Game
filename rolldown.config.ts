@@ -22,8 +22,8 @@ const coreRoot = "packages/core/src";
 const testRoot = "packages/test/src";
 const traceCoreRoot = "packages/trace-core/src";
 const traceToolsRoot = "packages/trace-tools/src";
-const viewerEntry = path.resolve("packages/trace-viewer/src/main.tsx");
-const viewerServerEntry = path.resolve("packages/trace-viewer/server/index.ts");
+const observatoryEntry = path.resolve("packages/observatory/src/main.tsx");
+const observatoryServerEntry = path.resolve("packages/observatory/server/index.ts");
 
 const traceCoreExternal = /^@begame\/trace-core(\/|$)/;
 
@@ -116,23 +116,23 @@ export default defineConfig([
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
     {
-        input: { app: viewerEntry },
+        input: { app: observatoryEntry },
         platform: "browser",
         define: {
             "process.env.NODE_ENV": JSON.stringify("production"),
         },
         output: {
-            dir: "packages/trace-viewer/public/build",
+            dir: "packages/observatory/public/build",
             format: "esm",
             entryFileNames: "[name].js",
             minify: true,
         },
     },
     {
-        input: { server: viewerServerEntry },
+        input: { server: observatoryServerEntry },
         platform: "node",
         output: {
-            dir: "packages/trace-viewer/dist",
+            dir: "packages/observatory/dist",
             format: "esm",
             entryFileNames: "[name].js",
         },

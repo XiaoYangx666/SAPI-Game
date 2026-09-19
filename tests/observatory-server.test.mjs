@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { encodeBegTrace } from "../packages/core/dist/trace/index.js";
-import { createApp } from "../packages/trace-viewer/server/app.ts";
+import { createApp } from "../packages/observatory/server/app.ts";
 
 function makeTraceBytes(sessionId) {
     return encodeBegTrace(
@@ -26,7 +26,7 @@ function makeTraceBytes(sessionId) {
     );
 }
 
-test("viewer server exposes health, decode and static assets", async () => {
+test("observatory server exposes health, decode and static assets", async () => {
     const app = createApp();
 
     const health = await app.request("/api/health");

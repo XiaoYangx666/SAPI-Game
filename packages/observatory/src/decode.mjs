@@ -116,7 +116,13 @@ const ERROR_TYPES = new Set([
 ]);
 
 function isErrorEvent(type) {
-    return ERROR_TYPES.has(type) || type.endsWith("_failed") || type.endsWith("_rejected");
+    return (
+        ERROR_TYPES.has(type) ||
+        type.endsWith("_failed") ||
+        type.endsWith("_rejected") ||
+        type.endsWith(".failed") ||
+        type.endsWith(".rejected")
+    );
 }
 
 function asRecord(value) {

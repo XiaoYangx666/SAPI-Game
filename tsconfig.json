@@ -32,7 +32,7 @@
         "./packages/test/src",
         "./packages/trace-core/src",
         "./packages/trace-tools/src",
-        "./packages/trace-viewer/src"
+        "./packages/observatory/src"
     ],
     "compileOnSave": false
 }

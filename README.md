@@ -7,8 +7,11 @@ BEGame 关注 **GameEngine → GameState → GameComponent** 的运行时生命�
 ## Packages
 
 ```text
-@begame/core   游戏运行时
-@begame/test   无头生命周期测试引擎
+@begame/core         游戏运行时
+@begame/test         无头生命周期测试引擎
+@begame/trace-core   平台无关的 Trace 格式、编解码与会话模型
+@begame/trace-tools  Content Log / .begtrace 离线解析工具
+@begame/observatory  本地 Trace 分析工作台与服务（private，不发布）
 ```
 
 ### @begame/core
@@ -77,6 +80,16 @@ test("玩家掉线与重连", async () => {
 ```
 
 测试引擎只模拟框架生命周期和必要的 ScriptAPI 宿主能力，不模拟 Minecraft 物理、红石、渲染或实体 AI。详见 [无头测试引擎文档](./docs/TEST_ENGINE.md)。
+
+### Trace / Observatory
+
+每个 `GameEngine` 实例可以把自己完整的一次执行导出成 `.begtrace`。`@begame/trace-core` 负责平台无关的格式与编解码，`@begame/trace-tools` 负责离线解析 Minecraft Content Log，`@begame/observatory` 把这个能力包装成本地分析工作台：
+
+```bash
+npm run observatory   # 打开 http://127.0.0.1:8787
+```
+
+工作台围绕会话与数据源组织，提供分析概览、活动流和事件检索三个视图，可粘贴 Content Log 或拖入 `.log` / `.txt` / `.begtrace` 文件。详见 [Game Trace 文档](./docs/game-trace.md)。
 
 ## Runtime architecture
 

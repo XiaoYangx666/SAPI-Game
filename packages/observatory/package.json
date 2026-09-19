@@ -1,8 +1,8 @@
 {
-    "name": "@begame/trace-viewer",
+    "name": "@begame/observatory",
     "version": "0.0.2",
     "private": true,
-    "description": "Local web viewer for BEGame Trace Content Log exports",
+    "description": "BEGame trace analysis workspace and service",
     "type": "module",
     "main": "./dist/server.js",
     "scripts": {

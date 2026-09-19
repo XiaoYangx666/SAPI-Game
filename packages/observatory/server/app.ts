@@ -13,7 +13,7 @@ export function createApp() {
     const app = new Hono();
 
     app.get("/api/health", (c) =>
-        c.json({ ok: true, name: "@begame/trace-viewer", version: VERSION })
+        c.json({ ok: true, name: "@begame/observatory", version: VERSION })
     );
 
     app.use("/api/decode", async (c, next) => {

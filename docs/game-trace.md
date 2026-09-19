@@ -82,7 +82,7 @@ Core reserves type ids below 128. Current families are:
 
 A connection event never implies participation release. `DisconnectTimeoutComponent` emits timeout lifecycle independently and, when configured to release, `GamePlayerManager.leave()` emits a separate `participation.released` with reason `disconnect-timeout`.
 
-`state.subscribe` / `component.subscribe` callbacks are a synchronous contract. Async work belongs in `runner.run(...)`, where failures become `runner.uncaught_error`. A callback that returns a thenable triggers a one-time `debugMode` warning; its Promise rejection is not captured by the Trace Session. An `event.callback_error` marks that an issue happened and turns the event red in the viewer, but it never by itself flips the session status to `crashed`; only a failed game lifecycle does that.
+`state.subscribe` / `component.subscribe` callbacks are a synchronous contract. Async work belongs in `runner.run(...)`, where failures become `runner.uncaught_error`. A callback that returns a thenable triggers a one-time `debugMode` warning; its Promise rejection is not captured by the Trace Session. An `event.callback_error` marks that an issue happened and turns the event red in the Observatory, but it never by itself flips the session status to `crashed`; only a failed game lifecycle does that.
 
 ## Automatic emit points
 
@@ -289,21 +289,21 @@ The parser:
 - can select a specific `sessionId` or default to the latest complete export;
 - can return raw `.begtrace` bytes or a fully decoded logical session.
 
-Future viewer, summary, timeline, comparison and Agent-facing analysis helpers belong in this package rather than in the Minecraft runtime package.
+Future Observatory views, summary, timeline, comparison and Agent-facing analysis helpers belong in this package rather than in the Minecraft runtime package.
 
-## Trace Viewer
+## BEGame Observatory
 
-`packages/trace-viewer` is a local web viewer with a built-in HTTP server. One command starts both:
+`packages/observatory` is the BEGame trace analysis workspace and its built-in HTTP service. One command starts both:
 
 ```shell
-npm run viewer
+npm run observatory
 ```
 
-Then open `http://127.0.0.1:8787` (override with `PORT=xxxx npm run viewer`). It currently provides decoding and preview only. The UI is a React app (React 19, bundled by rolldown into `packages/trace-viewer/public/build/app.js`). The API is a Hono app (`packages/trace-viewer/server/`, TypeScript) bundled by rolldown into `packages/trace-viewer/dist/server.js` with Hono inlined, so running it still needs no installed dependencies:
+Then open `http://127.0.0.1:8787` (override with `PORT=xxxx npm run observatory`). The product is organized around sessions and data sources rather than a single upload form, so the same workspace can grow into a persistent multi-game and live analysis service. The UI is a React app (React 19, bundled by rolldown into `packages/observatory/public/build/app.js`). The API is a Hono app (`packages/observatory/server/`, TypeScript) bundled by rolldown into `packages/observatory/dist/server.js` with Hono inlined, so running it still needs no installed dependencies:
 
-- **故事线** (default): the decoded session is grouped into consecutive state phases; events are translated into readable titles, seat/player ids are resolved to names with stable colors, component attach pairs are merged, and times are shown relative to session start.
-- **概览**: session cards, participant/seat cards with change history, failure/error events, state timeline and event-type histogram.
-- **原始事件**: the full event table with owning-state scope, text filter, source-kind filter and payload inspector.
+- **分析概览** (default): runtime outcome and density metrics, participants/seats, failures, state spans and event distribution.
+- **活动流**: the decoded session is grouped into consecutive state phases; events are translated into readable titles, seat/player ids are resolved to names with stable colors, component attach pairs are merged, and times are shown relative to session start.
+- **事件检索**: the full event table with owning-state scope, text filter, source-kind filter and payload inspector.
 - paste a Content Log, or drop a `.log` / `.txt` / raw `.begtrace` file; multiple exports in the same log can be switched with missing parts reported;
 - every view can be exported as JSON.
 
@@ -315,14 +315,14 @@ POST /api/decode            → decoded session JSON; body is log text or raw .b
 POST /api/decode?session=ID → select a specific export
 ```
 
-Routes reserved for the future live pipeline are marked in `server/app.ts`:
+Routes reserved for the future live pipeline are marked in `server/app.ts`. The sidebar already treats local imports and a future live connection as data sources, but does not claim to connect yet:
 
 ```text
 POST /api/ingest            → Minecraft pushes trace data
 GET  /api/live              → browser subscribes via SSE
 ```
 
-Real-time Minecraft connections, live streaming and analysis are intentionally not implemented yet. The viewer imports only `@begame/trace-tools` and `@begame/trace-core`, so the future live adapter can feed the same decode endpoint without changing the UI.
+Real-time Minecraft connections, live streaming and analysis are intentionally not implemented yet. The Observatory imports only `@begame/trace-tools` and `@begame/trace-core`, so the future live adapter can feed the same decode endpoint without changing the UI.
 
 ## Deferred adapters / tools
 
@@ -330,7 +330,7 @@ Still deferred:
 
 - `/connect` development bridge
 - `@minecraft/server-net` HTTP/WebSocket upload adapter
-- live/real-time Trace Viewer updates
+- live/real-time Observatory updates
 - diagnostic high-frequency mode
 - rich Agent analyzer/query API
 - pin/bug-report retention policy
