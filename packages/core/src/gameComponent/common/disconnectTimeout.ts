@@ -61,7 +61,9 @@ export class DisconnectTimeoutComponent<
     protected override onAttach(): void {
         // Online /game:hub and /game:l release membership without a connection event.
         // Defer the stop check so leave() callers can finish their own state transition.
-        this.subscribe(this.state.playerManager.participationReleased, ({ playerId }) => {
+        this.subscribe(this.state.participation.changed, (event) => {
+            if (event.type !== "left") return;
+            const { playerId } = event;
             this.cancelTimeout(playerId, "participation-released");
             if (this.options?.stopGameWhenEmpty) {
                 this.runner.runDelay(() => this.stopIfScopedEmpty(), 1);
