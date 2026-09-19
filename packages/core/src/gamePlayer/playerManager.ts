@@ -243,6 +243,9 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         if (!gamePlayer) {
             gamePlayer = new this.playerConstructor(p);
             this.players.set(p.id, gamePlayer);
+        } else {
+            // Native Player handles can change across disconnect / reconnect.
+            gamePlayer._bind(p);
         }
         gamePlayer._setActive(true);
         return gamePlayer;
