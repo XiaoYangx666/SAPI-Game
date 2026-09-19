@@ -15,6 +15,14 @@ BEGame 关注 **GameEngine → GameState → GameComponent** 的运行时生命�
 @begame/observatory  本地 Trace 分析工作台与服务（private，不发布）
 ```
 
+> **尚未发布到 npm。** 下面的 `npm i` 命令目前会失败（registry 上还没有 `@begame/*`）。
+> 现阶段请从本地引用：`npm run pack` 会产出 tarball 到 `artifacts/`，或者直接用
+> `"@begame/core": "file:../begame/packages/core"` 这类路径依赖。
+>
+> 用 `file:` 引用时注意：被引用的包在 package.json 里写的是**版本号**（如
+> `@begame/trace-spec: 0.0.2`），npm 会去 registry 找它。所以这类兄弟包必须在顶层
+> 一并声明，否则 `npm install` 会**静默成功**但装出一棵缺依赖的树，运行时才报错。
+
 ### @begame/core
 
 ```bash
