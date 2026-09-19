@@ -179,6 +179,45 @@ test("disconnect grace period can reconnect before timeout or leave after timeou
     env.reset();
 });
 
+test("last online player explicitly leaving stops an empty game without a disconnect event", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const trace = [];
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(DisconnectGame, {
+        trace, initialPlayer: alice, timeoutTicks: 5, stopGameWhenEmpty: true,
+    });
+
+    expect(game.playerManager.leave("alice", "hub")).toBe(true);
+    expect(game.participation.size).toBe(0);
+    // Empty-room checks run after the caller finishes its leave transition.
+    expect(game.lifecycle).toBe("running");
+    await env.advanceTicks(1);
+    expect(env.getGame(DisconnectGame)).toBeUndefined();
+    expect(game.lifecycle).toBe("disposed");
+    expect(trace.filter(item => item === "game:stop")).toHaveLength(1);
+    env.reset();
+});
+
+test("same-tick replacement participant prevents an obsolete empty-room stop", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const trace = [];
+    const alice = env.connectPlayer("alice", "Alice");
+    const bob = env.connectPlayer("bob", "Bob");
+    const game = env.startGame(DisconnectGame, {
+        trace, initialPlayer: alice, timeoutTicks: 5, stopGameWhenEmpty: true,
+    });
+
+    game.playerManager.leave("alice", "hub");
+    expect(game.playerManager.join(bob).allowed).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("running");
+    expect(game.participation.getAll()).toEqual(["bob"]);
+    expect(trace).not.toContain("game:stop");
+    env.reset();
+});
+
 test("reload keeps virtual world players but rebuilds game runtime from snapshot", async () => {
     const env = new BEGameTestEngine();
     env.reset();
