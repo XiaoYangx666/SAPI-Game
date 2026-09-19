@@ -90,6 +90,16 @@ export abstract class GameState<
         return this.engine.playerManager;
     }
 
+    /** Current game-scoped participation membership and its change signal. */
+    get participation() {
+        return this.engine.participation;
+    }
+
+    /** Whether this game can still accept active lifecycle policy decisions. */
+    get isGameActive(): boolean {
+        return this.engine.isActive;
+    }
+
     get gameKey() {
         return this.engine.key;
     }

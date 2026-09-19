@@ -3,6 +3,7 @@ export * from "./common/lazyLoader";
 export * from "./common/timer/timer";
 export * from "./common/stopWatch/stopWatch";
 export * from "./common/disconnectTimeout";
+export * from "./common/autoStop";
 export * from "./gameComponent";
 export * from "./player/blockInteractionBlocker";
 export * from "./player/entityInteractionBlocker";
