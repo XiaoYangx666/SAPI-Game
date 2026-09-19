@@ -19,6 +19,9 @@
         "observatory": "npm run build && node packages/observatory/dist/server.js"
     },
     "devDependencies": {
+        "@minecraft/server": "2.10.0",
+        "@minecraft/server-ui": "2.2.0",
+        "@minecraft/vanilla-data": "1.26.51",
         "rimraf": "^6.1.2",
         "rolldown": "^1.1.5",
         "rolldown-plugin-dts": "^0.27.6",

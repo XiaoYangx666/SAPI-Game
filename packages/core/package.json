@@ -69,8 +69,8 @@
         "@begame/trace-spec": "0.0.2"
     },
     "peerDependencies": {
-        "@minecraft/server": ">=2.9.0",
-        "@minecraft/server-ui": ">=2.1.0"
+        "@minecraft/server": ">=2.10.0",
+        "@minecraft/server-ui": ">=2.2.0"
     },
     "license": "MIT",
     "repository": {
