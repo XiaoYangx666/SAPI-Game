@@ -600,7 +600,15 @@ class VirtualScoreboard {
 
 class VirtualMinecraftRuntime {
     readonly system = new VirtualSystem();
-    private readonly afterSignals = new SignalCollection(["worldLoad"]);
+    // Module-level BEGame services subscribe to these signals for the lifetime
+    // of the imported script. Clearing native callbacks while their shared
+    // signal still believes it is subscribed silently breaks later reconnects
+    // and disconnect timeouts across env.reset()/reload().
+    private readonly afterSignals = new SignalCollection([
+        "worldLoad",
+        "playerSpawn",
+        "playerLeave",
+    ]);
     private readonly beforeSignals = new SignalCollection();
     private readonly dimensions = new Map<string, Dimension>();
     private readonly players = new Map<string, Player>();
