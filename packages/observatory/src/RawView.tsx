@@ -1,33 +1,132 @@
 import { useMemo, useState } from "react";
-import type { SelectedSession, TraceEvent } from "./types";
-import { nodeName, type ViewModel } from "./model";
+import type { EventFamily, SelectedSession, SessionAnalysis } from "./types";
+import {
+    eventFamily,
+    eventSubtype,
+    eventTitle,
+    isInternalEvent,
+    summarizeEvent,
+} from "./analysis.mjs";
+import {
+    FAMILY_LABELS,
+    FAMILY_ORDER,
+    FamilyBadge,
+    CopyButton,
+    PayloadChips,
+} from "./components";
 import { fmtRel } from "./format";
 
 const PAGE_SIZE = 300;
 
-interface RawViewProps {
+type Mode = "events" | "analysis" | "session";
+
+interface Props {
     selected: SelectedSession;
-    view: ViewModel;
+    analysis: SessionAnalysis;
 }
 
-export function RawView({ selected, view }: RawViewProps) {
-    const [filter, setFilter] = useState("");
-    const [kind, setKind] = useState("all");
-    const [limit, setLimit] = useState(PAGE_SIZE);
+export function RawView({ selected, analysis }: Props) {
+    const [mode, setMode] = useState<Mode>("events");
 
-    const kinds = useMemo(
-        () => Object.keys(selected.stats.sourceCounts).sort(),
+    const sessionJson = useMemo(
+        () =>
+            JSON.stringify(
+                {
+                    header: selected.header,
+                    end: selected.end,
+                    stats: selected.stats,
+                    context: selected.context,
+                    events: selected.events,
+                },
+                null,
+                2
+            ),
         [selected]
     );
+    const analysisJson = useMemo(() => JSON.stringify(analysis, null, 2), [analysis]);
+
+    const download = (name: string, text: string) => {
+        const blob = new Blob([text], { type: "application/json" });
+        const anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(blob);
+        anchor.download = name;
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(anchor.href), 60000);
+    };
+
+    return (
+        <div className="panel">
+            <header className="panel-head">
+                <div className="panel-title">
+                    <h2>原始数据</h2>
+                    <span className="meta">供人直接查看，也供 agent 读取</span>
+                </div>
+                <div className="toolbar">
+                    <div className="segmented">
+                        <button className={mode === "events" ? "active" : ""} onClick={() => setMode("events")}>
+                            事件
+                        </button>
+                        <button className={mode === "analysis" ? "active" : ""} onClick={() => setMode("analysis")}>
+                            分析 JSON
+                        </button>
+                        <button className={mode === "session" ? "active" : ""} onClick={() => setMode("session")}>
+                            会话 JSON
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            {mode === "events" ? (
+                <RawEvents selected={selected} analysis={analysis} />
+            ) : (
+                <>
+                    <div className="json-actions">
+                        <CopyButton text={mode === "analysis" ? analysisJson : sessionJson} label="复制 JSON" />
+                        <button
+                            className="btn"
+                            onClick={() =>
+                                download(
+                                    `${analysis.sessionId}.${mode === "analysis" ? "analysis" : "session"}.json`,
+                                    mode === "analysis" ? analysisJson : sessionJson
+                                )
+                            }
+                        >
+                            下载 JSON
+                        </button>
+                        <span className="meta">
+                            {mode === "analysis"
+                                ? "通用分析模型：事件族、参与者、状态树、组件、诊断"
+                                : "解码后的完整会话：header / end / stats / context / events"}
+                        </span>
+                    </div>
+                    <pre className="json-block">{mode === "analysis" ? analysisJson : sessionJson}</pre>
+                </>
+            )}
+        </div>
+    );
+}
+
+function RawEvents({ selected, analysis }: { selected: SelectedSession; analysis: SessionAnalysis }) {
+    const [search, setSearch] = useState("");
+    const [family, setFamily] = useState<EventFamily | "all">("all");
+    const [source, setSource] = useState("all");
+    const [showInternal, setShowInternal] = useState(true);
+    const [limit, setLimit] = useState(PAGE_SIZE);
+
+    const sources = useMemo(() => Object.keys(selected.stats.sourceCounts).sort(), [selected]);
 
     const matched = useMemo(() => {
-        const needle = filter.trim().toLowerCase();
-        const result: Array<{ event: TraceEvent; index: number }> = [];
+        const needle = search.trim().toLowerCase();
+        const list: Array<{ event: SelectedSession["events"][number]; index: number }> = [];
         selected.events.forEach((event, index) => {
-            if (kind !== "all" && event.source.kind !== kind) return;
+            if (family !== "all" && eventFamily(event.type) !== family) return;
+            if (source !== "all" && event.source.kind !== source) return;
+            if (!showInternal && isInternalEvent(event.type)) return;
             if (needle) {
+                const subtype = eventSubtype(event);
                 const haystack = [
                     event.type,
+                    subtype ?? "",
                     event.source.kind,
                     event.source.name ?? "",
                     JSON.stringify(event.payload),
@@ -36,94 +135,100 @@ export function RawView({ selected, view }: RawViewProps) {
                     .toLowerCase();
                 if (!haystack.includes(needle)) return;
             }
-            result.push({ event, index });
+            list.push({ event, index });
         });
-        return result;
-    }, [selected, filter, kind]);
+        return list;
+    }, [selected, family, source, showInternal, search]);
 
     const shown = matched.slice(0, limit);
-    const remaining = matched.length - shown.length;
 
     return (
-        <div className="panel">
-            <div className="panel-head">
-                <h2>原始事件</h2>
-                <div className="toolbar">
+        <>
+            <div className="toolbar raw-toolbar">
+                <input
+                    className="filter"
+                    placeholder="搜索 type / source / payload"
+                    value={search}
+                    onChange={(event) => {
+                        setSearch(event.target.value);
+                        setLimit(PAGE_SIZE);
+                    }}
+                />
+                <select
+                    value={family}
+                    onChange={(event) => {
+                        setFamily(event.target.value as EventFamily | "all");
+                        setLimit(PAGE_SIZE);
+                    }}
+                >
+                    <option value="all">全部事件族</option>
+                    {FAMILY_ORDER.map((name) => (
+                        <option key={name} value={name}>
+                            {FAMILY_LABELS[name]} ({analysis.families[name] ?? 0})
+                        </option>
+                    ))}
+                </select>
+                <select
+                    value={source}
+                    onChange={(event) => {
+                        setSource(event.target.value);
+                        setLimit(PAGE_SIZE);
+                    }}
+                >
+                    <option value="all">全部来源</option>
+                    {sources.map((name) => (
+                        <option key={name} value={name}>
+                            {name} ({selected.stats.sourceCounts[name]})
+                        </option>
+                    ))}
+                </select>
+                <label className="toggle">
                     <input
-                        className="filter"
-                        placeholder="过滤 type / source / payload"
-                        value={filter}
+                        type="checkbox"
+                        checked={showInternal}
                         onChange={(event) => {
-                            setFilter(event.target.value);
+                            setShowInternal(event.target.checked);
                             setLimit(PAGE_SIZE);
                         }}
                     />
-                    <select
-                        id="kind-filter"
-                        value={kind}
-                        onChange={(event) => {
-                            setKind(event.target.value);
-                            setLimit(PAGE_SIZE);
-                        }}
-                    >
-                        <option value="all">全部来源</option>
-                        {kinds.map((entry) => (
-                            <option key={entry} value={entry}>
-                                {entry} ({selected.stats.sourceCounts[entry]})
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                    显示内部事件
+                </label>
             </div>
             <div className="meta">
                 显示 {shown.length} / 匹配 {matched.length} / 共 {selected.events.length} 条
             </div>
             <div className="events">
-                {shown.map(({ event, index }) => (
-                    <RawEvent
-                        key={event.sequence}
-                        event={event}
-                        scope={nodeName(view.owners[index] ?? "session", view)}
-                        startTick={view.startTick}
-                    />
-                ))}
+                {shown.map(({ event, index }) => {
+                    const title = eventTitle(event);
+                    const summary = summarizeEvent(event);
+                    return (
+                        <details className="event" key={event.sequence}>
+                            <summary>
+                                <span className="seq">#{event.sequence}</span>
+                                <span className="tick">{fmtRel(analysis.startTick, event.tick)}</span>
+                                <FamilyBadge family={eventFamily(event.type) as EventFamily} />
+                                <span className="scope" title={analysis.stateTree.find((n) => n.key === selected.context.eventOwners[index])?.name}>
+                                    {analysis.stateTree.find((n) => n.key === selected.context.eventOwners[index])?.name ?? "会话"}
+                                </span>
+                                <span className="type">
+                                    {title}
+                                    {title !== event.type ? <code className="raw-type">{event.type}</code> : null}
+                                </span>
+                                <span className="payload-preview">{summary}</span>
+                            </summary>
+                            <div className="row-detail">
+                                <PayloadChips payload={event.payload} />
+                                <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+                            </div>
+                        </details>
+                    );
+                })}
             </div>
-            {remaining > 0 ? (
+            {matched.length > shown.length ? (
                 <button className="btn more" onClick={() => setLimit(limit + PAGE_SIZE)}>
-                    加载更多（剩余 {remaining}）
+                    加载更多（剩余 {matched.length - shown.length}）
                 </button>
             ) : null}
-        </div>
-    );
-}
-
-function RawEvent({
-    event,
-    scope,
-    startTick,
-}: {
-    event: TraceEvent;
-    scope: string;
-    startTick: number;
-}) {
-    const payload = JSON.stringify(event.payload);
-    const preview = payload.length > 160 ? `${payload.slice(0, 160)}…` : payload;
-    return (
-        <details className="event">
-            <summary>
-                <span className="seq">#{event.sequence}</span>
-                <span className="tick" title={`tick ${event.tick}`}>
-                    {fmtRel(startTick, event.tick)}
-                </span>
-                <span className="scope" title={scope}>
-                    {scope}
-                </span>
-                <span className="type" title={event.type}>
-                    {event.type}
-                </span>
-                <span className="payload-preview">{preview}</span>
-            </summary>
-            <pre>{JSON.stringify(event.payload, null, 2)}</pre>
-        </details>
+        </>
     );
 }

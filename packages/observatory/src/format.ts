@@ -29,6 +29,10 @@ export function fmtBytes(size: number): string {
     return `${(size / 1024 / 1024).toFixed(2)} MiB`;
 }
 
+export function fmtCount(value: number): string {
+    return Number(value ?? 0).toLocaleString("zh-CN");
+}
+
 export function formatValue(value: unknown): string {
     if (value === null) return "null";
     if (value === undefined) return "";
@@ -37,3 +41,10 @@ export function formatValue(value: unknown): string {
     if (Array.isArray(value)) return value.map(formatValue).join(", ");
     return JSON.stringify(value);
 }
+
+/** Ticks expressed as game seconds, e.g. "1.2s". */
+export function fmtTicks(ticks: number): string {
+    return fmtSeconds(ticks / TICKS_PER_SECOND);
+}
+
+export { TICKS_PER_SECOND };

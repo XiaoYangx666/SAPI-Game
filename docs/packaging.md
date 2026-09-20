@@ -105,7 +105,7 @@ better for reasons that are worth keeping in mind before "simplifying" it back:
 *and* the session/history logic, because none of that actually needs Minecraft:
 the tick source is injected into `TraceManager`, and the storage substrate is
 injected into `TraceHistoryStore` through the seams in
-`packages/trace/src/storage.ts`. The `./minecraft` entry is the binding —
+`packages/trace/src/runtime/storage.ts`. The `./minecraft` entry is the binding —
 dynamic properties, `system.runInterval`, the worldLoad gate.
 
 That split is why `@begame/core` and `@minecraft/server` are **optional peers**

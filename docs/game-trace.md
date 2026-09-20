@@ -19,7 +19,8 @@ registerTraceConnectCommands(trace);
 initBEGame({ trace, traceStore: { enabled: true, maxSessions: 500, maxBytes: 32 * 1024 * 1024 } });
 ```
 
-Start the Observatory with `npm run observatory`, then run
+Build once with `npm run build`, then start the Observatory with
+`npm run observatory:connect` (or `--connect`), and run
 `/connect ws://127.0.0.1:18789` in the Bedrock world. Open
 `http://127.0.0.1:8787` to inspect sessions and export all as a ZIP of
 `.begtrace` files. The connection uses unencrypted WebSocket bound only to
@@ -75,7 +76,7 @@ Game / State / Component / Participation / Runner / Timer
 
 ### The storage seam
 
-`TraceHistoryStore` never touches Minecraft. Chunking sessions, the retention policy (count / bytes / age), reload recovery and the "an accepted session must finish even after storage is disabled" invariant are all pure bookkeeping, so the substrate is injected through `TraceStorage` (`packages/trace/src/storage.ts`):
+`TraceHistoryStore` never touches Minecraft. Chunking sessions, the retention policy (count / bytes / age), reload recovery and the "an accepted session must finish even after storage is disabled" invariant are all pure bookkeeping, so the substrate is injected through `TraceStorage` (`packages/trace/src/runtime/storage.ts`):
 
 | Seam | Minecraft supplies | Tests supply |
 | --- | --- | --- |
@@ -374,36 +375,69 @@ Future Observatory views, summary, timeline, comparison and Agent-facing analysi
 
 ## BEGame Observatory
 
-`packages/observatory` is the BEGame trace analysis workspace and its built-in HTTP service. One command starts both:
+`packages/observatory` is the BEGame trace analysis workspace and its built-in HTTP service. Build once, then start with the transport you need:
 
 ```shell
-npm run observatory
+npm run build                  # 构建前端 bundle 与服务端（与启动分离）
+npm run observatory            # 只有 UI + 解码 API
+npm run observatory:connect    # 额外开启 /connect 桥
+npm run observatory:net        # 额外开启 BDS server-net 桥
 ```
 
-Then open `http://127.0.0.1:8787` (override with `PORT=xxxx npm run observatory`). The product is organized around sessions and data sources rather than a single upload form, so the same workspace can grow into a persistent multi-game and live analysis service. The UI is a React app (React 19, bundled by rolldown into `packages/observatory/public/build/app.js`). The API is a Hono app (`packages/observatory/server/`, TypeScript) bundled by rolldown into `packages/observatory/dist/server.js` with Hono inlined, so running it still needs no installed dependencies:
+Then open `http://127.0.0.1:8787` (override with `--port <n>` or `PORT=xxxx`). The UI is a React app (React 19, bundled by rolldown into `packages/observatory/public/build/app.js`). The API is a Hono app (`packages/observatory/server/`, TypeScript) bundled by rolldown into `packages/observatory/dist/server.js` with Hono inlined, so running it still needs no installed dependencies.
 
-- **分析概览** (default): runtime outcome and density metrics, participants/seats, failures, state spans and event distribution.
-- **活动流**: the decoded session is grouped into consecutive state phases; events are translated into readable titles, seat/player ids are resolved to names with stable colors, component attach pairs are merged, and times are shown relative to session start.
-- **事件检索**: the full event table with owning-state scope, text filter, source-kind filter and payload inspector.
+### 按需端口
+
+默认只监听 HTTP。`/connect` 桥与 BDS `server-net` 桥对应两种互斥的游戏接入方式，必须显式开启，且不能同时开启；HTTP 上传 sink 默认关闭。完整选项见 `--help`。
+
+| 开关 | 端口 | 用途 |
+| --- | --- | --- |
+| （默认） | 8787 | HTTP + 工作台 UI + 解码 API |
+| `--connect` | 18789 | 客户端 `/connect` 桥 |
+| `--net` | 18790 | BDS trace net |
+| `--ingest` | 复用 HTTP 端口 | `POST /api/ingest` 上传 sink |
+
+`--connect` 与 `--net` 同时给出会直接报错退出；`--no-http` 可以只跑桥不跑工作台。
+
+### 视图（通用）
+
+工作台不针对任何具体游戏：它只认识 BEGame 自己的内置事件族，以及「自定义事件把具体类型放在 `payload.type`」这一通用约定。因此同一套视图适用于任何基于 BEGame 的包。
+
+- **概览**：事件族分布（点击即筛选事件流）、会话信息、诊断信号、参与者/组件摘要。
+- **事件流**：按归属状态分段的统一时间线；按事件族筛选；默认折叠框架内部事件（状态/组件挂载、被取消的运行时任务等）；文本搜索。
+- **结构**：状态树与组件生命周期。
+- **参与者**：玩家、座位变更、参与/连接时间线。
+- **原始**：可筛选的事件表，以及可复制的「分析 JSON / 会话 JSON」。
+
 - paste a Content Log, or drop a `.log` / `.txt` / raw `.begtrace` file; multiple exports in the same log can be switched with missing parts reported;
-- every view can be exported as JSON.
+- 会话可以来自本地导入，也可以来自已开启的数据源（`/connect`、BDS net、HTTP ingest）。
 
-Server API:
+### Agent 接口
+
+面向 agent 的结构化接口，与分析模型同源：
 
 ```text
-GET  /api/health            → { ok, name, version }
+GET  /api/health                       → { ok, name, version, capabilities }
+GET  /api/sources                      → 已配置的数据源
+GET  /api/sessions                     → 汇总所有数据源及其会话
+GET  /api/session/:id?source=&pack=    → 某会话的原始 .begtrace 字节
+                                         加 &format=json 则返回解码后的完整会话
+POST /api/analyze                      → body = 日志文本或 .begtrace，返回结构化分析
+GET  /api/analyze?source=&pack=&id=    → 直接分析已连接 / 已存会话
+POST /api/decode                       → 解码结果 + 顶层 analysis
+```
+
+`analysis` 完全通用：`families` / `severities` / `typeCounts` / `sourceCounts`、`players` / `seats`、`stateTree`、`components`、`diagnostics`、`domainTypes` / `domainEvents`。它不含任何游戏专有字段，自定义事件只按 `payload.type` 归类。`source` 取值为 `connect` / `net` / `ingest`；`net` 需要额外的 `pack` 参数。
+
+基础 API 仍然保留：
+
+```text
+GET  /api/health            → { ok, name, version, capabilities }
 POST /api/decode            → decoded session JSON; body is log text or raw .begtrace bytes
 POST /api/decode?session=ID → select a specific export
 ```
 
-Routes reserved for the future live pipeline are marked in `server/app.ts`. The sidebar already treats local imports and a future live connection as data sources, but does not claim to connect yet:
-
-```text
-POST /api/ingest            → Minecraft pushes trace data
-GET  /api/live              → browser subscribes via SSE
-```
-
-Real-time Minecraft connections, live streaming and analysis are intentionally not implemented yet. The Observatory imports only the platform-independent root of `@begame/trace`, so the future live adapter can feed the same decode endpoint without changing the UI.
+The Observatory imports only the platform-independent root of `@begame/trace`, so the same decode endpoint serves offline imports and live sources.
 
 ## Deferred adapters / tools
 
@@ -415,9 +449,8 @@ Implemented elsewhere:
 
 Still deferred:
 
-- live/real-time Observatory updates
 - diagnostic high-frequency mode
-- rich Agent analyzer/query API
+- richer Agent query API (the current `/api/analyze` is a structured summary, not a query language)
 - pin/bug-report retention policy
 
-They can build on the existing `.begtrace`, Store and decoder contracts without changing gameplay lifecycle tracing.
+They can build on the existing `.begtrace`, Store, analysis model and decoder contracts without changing gameplay lifecycle tracing.

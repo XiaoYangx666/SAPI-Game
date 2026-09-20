@@ -138,10 +138,13 @@ test("玩家掉线与重连", async () => {
 每个 `GameEngine` 实例可以把自己完整的一次执行导出成 `.begtrace`。`@begame/trace-spec` 是共享词汇表，`@begame/trace` 承载其余全部（编解码、会话、历史存储、Content Log 解析），`@begame/observatory` 把这个能力包装成本地分析工作台：
 
 ```bash
-npm run observatory   # 打开 http://127.0.0.1:8787
+npm run build                # 先构建（前端 bundle + 服务端），与启动分离
+npm run observatory          # 默认只开 HTTP 工作台：http://127.0.0.1:8787
+npm run observatory:net      # 额外开启 BDS server-net 桥（18790）
+npm run observatory:connect  # 额外开启 /connect 桥（18789），与 --net 互斥
 ```
 
-工作台围绕会话与数据源组织，提供分析概览、活动流和事件检索三个视图，可粘贴 Content Log 或拖入 `.log` / `.txt` / `.begtrace` 文件。详见 [Game Trace 文档](./docs/game-trace.md)。
+工作台是通用的：只认识 BEGame 内置事件族，以及「自定义事件把具体类型放在 `payload.type`」这一约定，不针对任何具体游戏。视图包括概览（事件族分布/诊断/参与者）、事件流（按状态分段、事件族筛选、默认折叠内部事件）、结构（状态树/组件生命周期）、参与者、原始（事件表 + 分析 JSON）。可粘贴 Content Log 或拖入 `.log` / `.txt` / `.begtrace` 文件。端口按需开启，默认不占用 `/connect` 与 BDS 端口；面向 agent 的结构化接口见 [Game Trace 文档](./docs/game-trace.md)。
 
 Trace 是**自己组装后注入**的：`@begame/core` 既不含 trace 实现也不依赖它，只有显式引入 Minecraft 入口并传进去才会启用，不用的项目不会把它打进产物。根入口是平台无关的，所以纯 Node 工具（如 observatory）不会碰到 Minecraft。
 

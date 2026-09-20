@@ -1,282 +1,197 @@
-import type { SeatChange, SelectedSession } from "./types";
-import { nodeColor, seatColor, type ViewModel } from "./model";
-import { Chip, describeEvent } from "./describe";
-import { fmtRel, fmtSeconds } from "./format";
+import type { EventFamily, SelectedSession, SessionAnalysis } from "./types";
+import { eventTitle } from "./analysis.mjs";
+import { FAMILY_LABELS, FAMILY_ORDER, FamilyBadge, Panel, PayloadChips, Stat, statusTone } from "./components";
+import { fmtCount, fmtDate, fmtDuration, fmtRel, fmtTicks } from "./format";
 
-interface ViewProps {
+interface Props {
     selected: SelectedSession;
-    view: ViewModel;
+    analysis: SessionAnalysis;
+    onInspectFamily: (family: EventFamily) => void;
 }
 
-export function OverviewView({ selected, view }: ViewProps) {
+export function OverviewView({ selected, analysis, onInspectFamily }: Props) {
+    const nodeNames = new Map(analysis.stateTree.map((node) => [node.key, node.name]));
+    const families = FAMILY_ORDER.map((family) => ({ family, count: analysis.families[family] ?? 0 })).filter(
+        (entry) => entry.count > 0
+    );
+    const maxFamily = Math.max(1, ...families.map((entry) => entry.count));
+    const tone = statusTone(analysis.status);
+
     return (
         <>
-            <Summary selected={selected} view={view} />
-            <div className="overview-split">
-                <Participants selected={selected} />
-                <Issues selected={selected} view={view} />
+            <div className="stat-grid">
+                <Stat
+                    label="运行结果"
+                    value={analysis.status === "completed" ? "已完成" : analysis.status}
+                    tone={tone}
+                    hint={analysis.endReason}
+                />
+                <Stat label="持续时间" value={fmtDuration(analysis.durationMs)} />
+                <Stat label="游戏内时间" value={`${fmtCount(analysis.tickSpan)} ticks`} hint={fmtTicks(analysis.tickSpan)} />
+                <Stat label="事件" value={fmtCount(analysis.eventCount)} hint={`${analysis.chunkCount} 个分片`} />
+                <Stat
+                    label="内部事件"
+                    value={fmtCount(analysis.internalCount)}
+                    hint="状态/组件挂载、被取消的运行时任务等框架内部事件"
+                />
+                <Stat
+                    label="参与者"
+                    value={fmtCount(analysis.playerCount)}
+                    hint={analysis.seatCount > 0 ? `${analysis.seatCount} 个座位` : undefined}
+                />
+                <Stat
+                    label="业务事件"
+                    value={fmtCount(analysis.domainCount)}
+                    hint="自定义命名空间的事件"
+                />
+                <Stat
+                    label="诊断"
+                    value={analysis.errorCount === 0 ? "无" : fmtCount(analysis.errorCount)}
+                    tone={analysis.errorCount > 0 ? "bad" : "ok"}
+                />
             </div>
-            <Timeline selected={selected} view={view} />
-            <Histogram selected={selected} />
-        </>
-    );
-}
 
-function Summary({ selected }: ViewProps) {
-    const { header, end, stats, context } = selected;
-    const issues = context.errors.length;
-    const cards: Array<{ label: string; value: string; tone?: "bad" | "ok" }> = [
-        { label: "运行结果", value: `${end.status}${end.endReason ? ` · ${end.endReason}` : ""}` },
-        { label: "游戏内时间", value: `${stats.tickSpan.toLocaleString("zh-CN")} ticks` },
-        { label: "记录区间", value: `${header.startTick} → ${end.endTick}` },
-        { label: "事件密度", value: `${(stats.eventCount / Math.max(stats.tickSpan / 20, 1)).toFixed(1)} / 秒` },
-        {
-            label: "参与者",
-            value:
-                context.seats.length > 0
-                    ? `${context.seats.length} 个座位 · ${context.players.length} 位`
-                    : `${context.players.length} 位`,
-        },
-        {
-            label: "诊断信号",
-            value: issues > 0 ? `${issues} 条` : "无",
-            tone: issues > 0 ? "bad" : "ok",
-        },
-    ];
-
-    return (
-        <div className="summary-grid">
-            {cards.map((card) => (
-                <div className="card" key={card.label}>
-                    <div className="label">{card.label}</div>
-                    <div
-                        className="value"
-                        style={
-                            card.tone === "bad"
-                                ? { color: "var(--danger)" }
-                                : card.tone === "ok"
-                                  ? { color: "var(--accent-2)" }
-                                  : undefined
-                        }
-                    >
-                        {card.value}
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function Participants({ selected }: { selected: SelectedSession }) {
-    const { seats, players } = selected.context;
-    const startTick = selected.header.startTick;
-    const seatless = players.filter((player) => player.seats.length === 0);
-    const firstEvent = selected.events[0];
-    const tickOf = (sequence: number) => {
-        if (!firstEvent) return startTick;
-        const index = sequence - firstEvent.sequence;
-        return selected.events[index]?.tick ?? startTick;
-    };
-
-    return (
-        <div className="panel">
-            <div className="panel-head">
-                <h2>参与者与座位</h2>
-                <span className="meta">
-                    {seats.length} 个座位 · {players.length} 位参与者
-                </span>
-            </div>
-            <div className="participants">
-                {seats.map((seat) => (
-                    <div className="participant" key={`seat-${seat.seat}`}>
-                        <div className="participant-head">
-                            <span
-                                className="dot"
-                                style={{ background: seatColor(seat.seat) }}
-                            />
-                            <span className="name">
-                                {seat.name ?? `座位 ${seat.seat}`}
-                            </span>
-                            <span className="kind">{kindLabel(seat.kind)}</span>
-                        </div>
-                        <div className="participant-history">
-                            {seat.changes.map((change, index) => (
-                                <div key={index}>
-                                    {fmtRel(startTick, change.tick)} · {changeLabel(change)}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-                {seatless.map((player) => (
-                    <div className="participant" key={`player-${player.id}`}>
-                        <div className="participant-head">
-                            <span className="dot" style={{ background: "#4aa8ff" }} />
-                            <span className="name">{player.name ?? player.id}</span>
-                            <span className="kind">参与者</span>
-                        </div>
-                        <div className="participant-history">
-                            <div>
-                                首次出现 {fmtRel(startTick, tickOf(player.firstSequence))}
-                            </div>
-                            <div>
-                                最近活跃 {fmtRel(startTick, tickOf(player.lastSequence))}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                {seats.length === 0 && players.length === 0 ? (
-                    <div className="issue-empty">本局没有参与/座位事件</div>
-                ) : null}
-            </div>
-        </div>
-    );
-}
-
-function kindLabel(kind: string | undefined): string {
-    if (kind === "human") return "玩家";
-    if (kind === "bot") return "人机";
-    if (kind === "empty") return "空位";
-    return kind ?? "未知";
-}
-
-function changeLabel(change: SeatChange): string {
-    if (change.kind === "empty") return "座位清空";
-    const who = change.name ?? change.participantId ?? "?";
-    const kind =
-        change.kind === "bot"
-            ? "（人机）"
-            : change.kind === "human"
-              ? "（玩家）"
-              : change.kind
-                ? `（${change.kind}）`
-                : "";
-    return `${who} 入座${kind}`;
-}
-
-function Issues({ selected, view }: ViewProps) {
-    const issues = selected.context.errors;
-    if (issues.length === 0) {
-        return (
-            <div className="panel">
-                <div className="panel-head">
-                    <h2>诊断信号</h2>
-                    <span className="meta">无</span>
-                </div>
-                <div className="issue-empty">没有发现失败、拒绝或错误事件</div>
-            </div>
-        );
-    }
-    return (
-        <div className="panel">
-            <div className="panel-head">
-                <h2>诊断信号</h2>
-                <span className="meta">{issues.length} 条</span>
-            </div>
-            <div className="issues">
-                {issues.map((issue) => {
-                    const event = selected.events[issue.eventIndex];
-                    const description = describeEvent(event, view);
-                    const node = view.nodes.get(issue.nodeKey);
-                    return (
-                        <div className="issue" key={issue.eventIndex}>
-                            <span className="time">{fmtRel(view.startTick, event.tick)}</span>
-                            <div>
-                                <div>
-                                    {description.title}
-                                    <span className="scope">
-                                        {node?.name ?? "会话"} · {event.type}
-                                    </span>
-                                </div>
-                                {description.chips.length > 0 ? (
-                                    <div className="story-chips">
-                                        {description.chips.map((chip, index) => (
-                                            <Chip key={index} data={chip} />
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-
-function Timeline({ selected, view }: ViewProps) {
-    const { header, stats } = selected;
-    const span = Math.max(1, stats.tickSpan);
-    return (
-        <div className="panel">
-            <div className="panel-head">
-                <h2>状态时间线</h2>
-                <span className="meta">
-                    {stats.stateSpans.length} 个状态实例 · 共 {stats.tickSpan} ticks
-                </span>
-            </div>
-            <div className="timeline">
-                {stats.stateSpans.map((entry) => {
-                    const left = ((entry.enterTick - header.startTick) / span) * 100;
-                    const width = ((entry.exitTick - entry.enterTick) / span) * 100;
-                    return (
-                        <div className="timeline-row" key={entry.ref}>
-                            <div
-                                className="name"
-                                title={`${entry.name} (ref #${entry.ref})`}
+            <div className="overview-columns">
+                <Panel
+                    title="事件族分布"
+                    meta={`${analysis.typeCounts ? Object.keys(analysis.typeCounts).length : 0} 种类型 · 点击筛选事件流`}
+                >
+                    <div className="family-bars">
+                        {families.map(({ family, count }) => (
+                            <button
+                                key={family}
+                                className="family-bar"
+                                onClick={() => onInspectFamily(family)}
+                                title={`查看 ${FAMILY_LABELS[family]} 事件`}
                             >
-                                {entry.name}
-                                {entry.depth !== null ? `  d${entry.depth}` : ""}
-                            </div>
-                            <div className="timeline-track">
-                                <div
-                                    className="timeline-bar"
-                                    style={{
-                                        left: `${Math.max(0, Math.min(100, left))}%`,
-                                        width: `${Math.max(0.2, Math.min(100 - left, width))}%`,
-                                        background: nodeColor(`state:${entry.ref}`, view),
-                                    }}
-                                    title={`${entry.name}\ntick ${entry.enterTick} → ${entry.exitTick} (${entry.exitTick - entry.enterTick} ticks)`}
-                                />
-                            </div>
-                            <div className="time">
-                                {fmtSeconds((entry.exitTick - entry.enterTick) / 20)}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-
-function Histogram({ selected }: { selected: SelectedSession }) {
-    const entries = Object.entries(selected.stats.typeCounts).sort(
-        (a, b) => b[1] - a[1]
-    );
-    const max = entries.length > 0 ? entries[0][1] : 1;
-    return (
-        <div className="panel">
-            <div className="panel-head">
-                <h2>事件分布</h2>
-                <span className="meta">{entries.length} 种事件类型</span>
-            </div>
-            <div className="histogram">
-                {entries.map(([type, count]) => (
-                    <div className="histogram-row" key={type}>
-                        <div className="name" title={type}>
-                            {type}
-                        </div>
-                        <div className="histogram-track">
-                            <div
-                                className="histogram-bar"
-                                style={{ width: `${(count / max) * 100}%` }}
-                            />
-                        </div>
-                        <div className="count">{count}</div>
+                                <FamilyBadge family={family} />
+                                <span className="family-track">
+                                    <span
+                                        className={`family-fill family-${family}`}
+                                        style={{ width: `${Math.max(2, (count / maxFamily) * 100)}%` }}
+                                    />
+                                </span>
+                                <span className="family-count">{fmtCount(count)}</span>
+                            </button>
+                        ))}
                     </div>
-                ))}
+                </Panel>
+
+                <Panel title="会话信息">
+                    <dl className="facts">
+                        <div>
+                            <dt>对局类型</dt>
+                            <dd>{analysis.gameType}</dd>
+                        </div>
+                        <div>
+                            <dt>对局键</dt>
+                            <dd className="mono">{analysis.gameKey}</dd>
+                        </div>
+                        <div>
+                            <dt>会话 ID</dt>
+                            <dd className="mono">{analysis.sessionId}</dd>
+                        </div>
+                        <div>
+                            <dt>开始</dt>
+                            <dd>{fmtDate(analysis.startWallTime)}</dd>
+                        </div>
+                        <div>
+                            <dt>结束原因</dt>
+                            <dd>{analysis.endReason ?? "—"}</dd>
+                        </div>
+                        <div>
+                            <dt>BEGame 版本</dt>
+                            <dd>{selected.header.begameVersion ?? "—"}</dd>
+                        </div>
+                    </dl>
+                </Panel>
             </div>
-        </div>
+
+            <Panel
+                title="诊断信号"
+                meta={analysis.errorCount === 0 ? "无" : `${analysis.errorCount} 条`}
+            >
+                {analysis.errorCount === 0 ? (
+                    <div className="empty">没有失败、拒绝或错误事件。</div>
+                ) : (
+                    <div className="diagnostic-list">
+                        {analysis.diagnostics.map((diagnostic) => (
+                            <article className="diagnostic" key={diagnostic.sequence}>
+                                <span className="diagnostic-time" title={`tick ${diagnostic.tick}`}>
+                                    {fmtRel(analysis.startTick, diagnostic.tick)}
+                                </span>
+                                <div className="diagnostic-body">
+                                    <div className="diagnostic-head">
+                                        <span className="diagnostic-title">
+                                            {eventTitle(diagnostic)}
+                                        </span>
+                                        {eventTitle(diagnostic) !== diagnostic.type ? (
+                                            <code>{diagnostic.type}</code>
+                                        ) : null}
+                                        <FamilyBadge family={diagnostic.family} />
+                                        <span className="scope">
+                                            {nodeNames.get(diagnostic.scope) ?? "会话"}
+                                        </span>
+                                    </div>
+                                    {diagnostic.message ? (
+                                        <p className="diagnostic-message">{diagnostic.message}</p>
+                                    ) : null}
+                                    <PayloadChips payload={diagnostic.payload} skip={["message"]} />
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </Panel>
+
+            <div className="overview-columns">
+                <Panel
+                    title="参与者"
+                    meta={
+                        analysis.seatCount > 0
+                            ? `${analysis.playerCount} 位 · ${analysis.seatCount} 个座位`
+                            : `${analysis.playerCount} 位`
+                    }
+                >
+                    {analysis.players.length === 0 ? (
+                        <div className="empty">本局没有参与/座位事件。</div>
+                    ) : (
+                        <ul className="summary-list">
+                            {analysis.players.map((player) => (
+                                <li key={player.id}>
+                                    <span className="summary-name">{player.name ?? player.id}</span>
+                                    <span className="summary-meta">
+                                        {player.seats.length > 0 ? `座位 ${player.seats.join(" / ")}` : ""}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </Panel>
+
+                <Panel title="组件" meta={`${analysis.components.length} 个实例`}>
+                    {analysis.components.length === 0 ? (
+                        <div className="empty">本局没有组件事件。</div>
+                    ) : (
+                        <ul className="summary-list">
+                            {analysis.components.map((component) => (
+                                <li key={component.ref}>
+                                    <span className="summary-name">{component.name}</span>
+                                    <span className="summary-meta">
+                                        {component.attachedTick !== null
+                                            ? fmtRel(analysis.startTick, component.attachedTick)
+                                            : "未挂载"}
+                                        {component.detachedTick !== null
+                                            ? ` → ${fmtRel(analysis.startTick, component.detachedTick)}`
+                                            : ""}
+                                        {component.errorCount > 0 ? ` · ${component.errorCount} 错误` : ""}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </Panel>
+            </div>
+        </>
     );
 }

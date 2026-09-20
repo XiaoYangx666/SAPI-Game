@@ -4,6 +4,7 @@ import {
     decodeTraceLog,
     TRACE_MAGIC,
 } from "@begame/trace";
+import { analyzeSession } from "./analysis.mjs";
 
 const decoder = new TextDecoder("utf-8", { fatal: false });
 
@@ -98,8 +99,12 @@ function buildStats(session) {
     };
 }
 
+/**
+ * @param {any} session
+ * @returns {import("./types").SelectedSession}
+ */
 function buildSelected(session) {
-    return {
+    const selected = {
         sessionId: session.header.sessionId,
         header: session.header,
         end: session.end,
@@ -107,6 +112,8 @@ function buildSelected(session) {
         stats: buildStats(session),
         context: buildContext(session),
     };
+    selected.analysis = analyzeSession(selected);
+    return selected;
 }
 
 const ERROR_TYPES = new Set([
@@ -327,12 +334,16 @@ export function buildContext(session) {
 /**
  * Decode one payload: raw .begtrace bytes or Content Log text.
  * Never throws for expected input problems; returns `{ ok: false, error }` instead.
+ * @param {Uint8Array | ArrayBuffer} input
+ * @param {string} [sessionId]
+ * @returns {import("./types").DecodeResponse}
  */
 export function decodeTracePayload(input, sessionId) {
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
 
     if (looksLikeBegTrace(bytes)) {
         const session = decodeBegTrace(bytes);
+        const selected = buildSelected(session);
         return {
             ok: true,
             source: "begtrace",
@@ -347,7 +358,8 @@ export function decodeTracePayload(input, sessionId) {
                     lastOffset: 0,
                 },
             ],
-            selected: buildSelected(session),
+            selected,
+            analysis: selected.analysis,
             warnings: [],
         };
     }
@@ -399,12 +411,14 @@ export function decodeTracePayload(input, sessionId) {
     }
 
     const session = decodeTraceLog(content, chosen.sessionId);
+    const selected = buildSelected(session);
     return {
         ok: true,
         source: "log",
         exports: metadata,
         selectedSessionId: chosen.sessionId,
-        selected: buildSelected(session),
+        selected,
+        analysis: selected.analysis,
         warnings: [],
     };
 }
