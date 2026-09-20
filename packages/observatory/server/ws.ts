@@ -55,6 +55,13 @@ export class RawWebSocketConnection {
         private readonly onClose: () => void
     ) {
         socket.on("data", (data) => this.receive(data));
+        // A peer that vanishes without a close frame (crash, kill, network
+        // drop) only ends its read side. Without this, the connection would
+        // linger as "connected" forever and count against the source limit.
+        socket.on("end", () => {
+            this.socket.end();
+            this.finish();
+        });
         socket.on("close", () => this.finish());
         socket.on("error", () => this.finish());
         if (initial.length > 0) this.receive(initial);

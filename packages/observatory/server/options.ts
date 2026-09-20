@@ -1,0 +1,193 @@
+/**
+ * Command-line / environment configuration for the Observatory process.
+ *
+ * Nothing is opened unless asked for. The HTTP server (workbench UI + decode
+ * API) is the only listener that starts by default; the `/connect` bridge and
+ * the BDS `server-net` bridge are opt-in and mutually exclusive, because a
+ * single Observatory is meant to serve one of the two game transports at a
+ * time.
+ */
+
+export interface ServerOptions {
+    /** Serve the workbench UI and the HTTP API. */
+    http: boolean;
+    host: string;
+    port: number;
+    /** Client-world `/connect` bridge. */
+    connect: boolean;
+    connectPort: number;
+    /** BDS `@minecraft/server-net` trace bridge. */
+    net: boolean;
+    netPort: number;
+    netToken?: string;
+    /** HTTP ingest sink (`POST /api/ingest`). */
+    ingest: boolean;
+    ingestDir?: string;
+    ingestToken?: string;
+}
+
+export type ParseResult =
+    | { ok: true; options: ServerOptions }
+    | { ok: false; error: string };
+
+export const HELP_TEXT = `BEGame Observatory
+
+用法：
+  node packages/observatory/dist/server.js [选项]
+
+默认只启动 HTTP 工作台（UI + 解码 API）。其余端口按需开启。
+
+选项：
+  --port <n>            HTTP 端口（默认 8787，环境变量 PORT）
+  --host <addr>         监听地址（默认 127.0.0.1，环境变量 HOST）
+  --connect             开启客户端 /connect 桥（与 --net 互斥）
+  --connect-port <n>    /connect 端口（默认 18789，环境变量 BEGAME_CONNECT_PORT）
+  --net                 开启 BDS server-net trace 桥（与 --connect 互斥）
+  --net-port <n>        trace net 端口（默认 18790，环境变量 BEGAME_NET_PORT）
+  --net-token <token>   trace net 握手 token（默认 BEGAME_NET_TOKEN）
+  --ingest              开启 HTTP 上传 sink（POST /api/ingest）
+  --ingest-dir <path>   上传落盘目录（默认 BEGAME_INGEST_DIR 或 packages/observatory/data）
+  --ingest-token <t>    上传 token（默认 BEGAME_INGEST_TOKEN）
+  --no-http             不启动 HTTP 工作台，仅运行显式开启的桥
+  -h, --help            显示本帮助
+
+示例：
+  node .../server.js                      # 只有 UI
+  node .../server.js --connect            # UI + /connect 桥
+  node .../server.js --net --ingest       # UI + BDS 桥 + 上传 sink
+  node .../server.js --no-http --net      # 只运行 BDS 桥
+`;
+
+const CONNECT_PORT_DEFAULT = 18789;
+const NET_PORT_DEFAULT = 18790;
+const HTTP_PORT_DEFAULT = 8787;
+
+function parsePort(
+    raw: string,
+    label: string
+): { ok: true; value: number } | { ok: false; error: string } {
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0 || value > 65535) {
+        return { ok: false, error: `${label} 不是有效端口：${raw}` };
+    }
+    return { ok: true, value };
+}
+
+type Env = Record<string, string | undefined>;
+
+/**
+ * Parses argv (without `node` / script) and environment. Environment variables
+ * may supply values, but never turn a listener on by themselves.
+ */
+export function parseServerOptions(argv: readonly string[], env: Env): ParseResult {
+    const options: ServerOptions = {
+        http: true,
+        host: env.HOST ?? "127.0.0.1",
+        port: HTTP_PORT_DEFAULT,
+        connect: false,
+        connectPort: CONNECT_PORT_DEFAULT,
+        net: false,
+        netPort: NET_PORT_DEFAULT,
+        ingest: false,
+    };
+
+    if (env.PORT !== undefined) {
+        const parsed = parsePort(env.PORT, "PORT");
+        if (!parsed.ok) return parsed;
+        options.port = parsed.value;
+    }
+    if (env.BEGAME_CONNECT_PORT !== undefined) {
+        const parsed = parsePort(env.BEGAME_CONNECT_PORT, "BEGAME_CONNECT_PORT");
+        if (!parsed.ok) return parsed;
+        options.connectPort = parsed.value;
+    }
+    if (env.BEGAME_NET_PORT !== undefined) {
+        const parsed = parsePort(env.BEGAME_NET_PORT, "BEGAME_NET_PORT");
+        if (!parsed.ok) return parsed;
+        options.netPort = parsed.value;
+    }
+    options.ingestToken = env.BEGAME_INGEST_TOKEN;
+    options.netToken = env.BEGAME_NET_TOKEN ?? env.BEGAME_INGEST_TOKEN;
+    options.ingestDir = env.BEGAME_INGEST_DIR;
+
+    for (let index = 0; index < argv.length; index++) {
+        const arg = argv[index];
+        const next = (): string | undefined => {
+            const value = argv[++index];
+            return value;
+        };
+        switch (arg) {
+            case "-h":
+            case "--help":
+                return { ok: false, error: HELP_TEXT };
+            case "--no-http":
+                options.http = false;
+                break;
+            case "--connect":
+                options.connect = true;
+                break;
+            case "--net":
+                options.net = true;
+                break;
+            case "--ingest":
+                options.ingest = true;
+                break;
+            case "--host": {
+                const value = next();
+                if (value === undefined) return { ok: false, error: "--host 需要一个地址" };
+                options.host = value;
+                break;
+            }
+            case "--port":
+            case "--connect-port":
+            case "--net-port": {
+                const value = next();
+                if (value === undefined) return { ok: false, error: `${arg} 需要一个端口` };
+                const parsed = parsePort(value, arg);
+                if (!parsed.ok) return parsed;
+                if (arg === "--port") options.port = parsed.value;
+                else if (arg === "--connect-port") options.connectPort = parsed.value;
+                else options.netPort = parsed.value;
+                break;
+            }
+            case "--net-token": {
+                const value = next();
+                if (value === undefined) return { ok: false, error: "--net-token 需要一个值" };
+                options.netToken = value;
+                break;
+            }
+            case "--ingest-token": {
+                const value = next();
+                if (value === undefined) return { ok: false, error: "--ingest-token 需要一个值" };
+                options.ingestToken = value;
+                options.netToken ??= value;
+                break;
+            }
+            case "--ingest-dir": {
+                const value = next();
+                if (value === undefined) return { ok: false, error: "--ingest-dir 需要一个路径" };
+                options.ingestDir = value;
+                options.ingest = true;
+                break;
+            }
+            default:
+                return { ok: false, error: `未知参数：${arg}（用 --help 查看用法）` };
+        }
+    }
+
+    if (options.connect && options.net) {
+        return {
+            ok: false,
+            error:
+                "不能同时开启 --connect 和 --net：/connect 桥与 BDS server-net 桥对应两种互斥的游戏接入方式，请只选其一。",
+        };
+    }
+    if (!options.http && !options.connect && !options.net) {
+        return {
+            ok: false,
+            error: "没有任何可启动的服务：至少需要 HTTP（默认开启）或 --connect / --net 之一。",
+        };
+    }
+
+    return { ok: true, options };
+}

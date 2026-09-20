@@ -6,44 +6,63 @@ import { createApp, PUBLIC_DIR } from "./app";
 import { ConnectBridge } from "./connect";
 import { IngestStore } from "./ingest";
 import { TraceNetBridge } from "./net";
+import { HELP_TEXT, parseServerOptions, type ServerOptions } from "./options";
 
-const PORT = Number(process.env.PORT ?? 8787);
-const HOST = process.env.HOST ?? "127.0.0.1";
-const NET_PORT = Number(process.env.BEGAME_NET_PORT ?? 18790);
-const INGEST_DIR =
-    process.env.BEGAME_INGEST_DIR ??
-    fileURLToPath(new URL("../data", import.meta.url));
-
-if (!existsSync(join(PUBLIC_DIR, "build", "app.js"))) {
-    console.warn("前端 bundle 不存在，请先运行 npm run build（npm run observatory 会自动构建）。");
+const parsed = parseServerOptions(process.argv.slice(2), process.env);
+if (!parsed.ok) {
+    // `--help` also arrives here; print it as information, not as an error.
+    const isHelp = parsed.error === HELP_TEXT;
+    (isHelp ? console.log : console.error)(parsed.error);
+    process.exitCode = isHelp ? 0 : 2;
+} else {
+    start(parsed.options);
 }
 
-const bridge = new ConnectBridge();
-const ingest = new IngestStore(INGEST_DIR, process.env.BEGAME_INGEST_TOKEN);
-const net = new TraceNetBridge(
-    NET_PORT,
-    HOST,
-    process.env.BEGAME_NET_TOKEN ?? process.env.BEGAME_INGEST_TOKEN
-);
-const server = serve(
-    {
-        fetch: createApp(bridge, ingest, net).fetch,
-        port: PORT,
-        hostname: HOST,
-    },
-    (info) => {
-        console.log(`BEGame Observatory: http://${HOST}:${info.port}`);
-        console.log(`BDS trace net: ws://${HOST}:${NET_PORT}/`);
-        console.log(`BDS ingest: POST http://${HOST}:${info.port}/api/ingest (目录 ${INGEST_DIR})`);
-        console.log("Ctrl+C 停止");
-    }
-);
+function start(options: ServerOptions) {
+    const ingestDir =
+        options.ingestDir ??
+        fileURLToPath(new URL("../data", import.meta.url));
 
-server.on("error", (error: NodeJS.ErrnoException) => {
-    if (error.code === "EADDRINUSE") {
-        console.error(`端口 ${PORT} 已被占用，可用 PORT=xxxx npm run observatory 换一个端口。`);
-    } else {
-        console.error(error);
+    const bridge = options.connect ? new ConnectBridge(options.connectPort) : undefined;
+    const ingest = options.ingest ? new IngestStore(ingestDir, options.ingestToken) : undefined;
+    const net = options.net
+        ? new TraceNetBridge(options.netPort, options.host, options.netToken)
+        : undefined;
+
+    if (!options.http) {
+        console.log("HTTP 工作台未启用（--no-http）。");
+        return;
     }
-    process.exitCode = 1;
-});
+
+    if (!existsSync(join(PUBLIC_DIR, "build", "app.js"))) {
+        console.warn("前端 bundle 不存在，请先运行 npm run build（npm run observatory 会自动构建）。");
+    }
+
+    const server = serve(
+        {
+            fetch: createApp(bridge, ingest, net).fetch,
+            port: options.port,
+            hostname: options.host,
+        },
+        (info) => {
+            console.log(`BEGame Observatory: http://${options.host}:${info.port}`);
+            if (bridge) console.log(`/connect 桥: ws://${options.host}:${options.connectPort}`);
+            if (net) console.log(`BDS trace net: ws://${options.host}:${options.netPort}`);
+            if (ingest) {
+                console.log(`BDS ingest: POST http://${options.host}:${info.port}/api/ingest（目录 ${ingestDir}）`);
+            }
+            console.log("Ctrl+C 停止");
+        }
+    );
+
+    server.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code === "EADDRINUSE") {
+            console.error(
+                `端口 ${options.port} 已被占用，可用 --port <n> 或 PORT=<n> 换一个端口。`
+            );
+        } else {
+            console.error(error);
+        }
+        process.exitCode = 1;
+    });
+}

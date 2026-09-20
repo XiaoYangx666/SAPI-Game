@@ -86,26 +86,43 @@ trace.setSink(createServerNetTraceSink({ url: "http://127.0.0.1:8787/api/ingest"
 
 ## Observatory 侧
 
-启动 `npm run observatory` 后会监听：
+Observatory **默认只监听 HTTP 工作台**，其余端口必须显式开启：
 
-| 端口 | 用途 |
-| --- | --- |
-| `8787` | HTTP + 工作台 UI + ingest / net API |
-| `18789` | `/connect` 桥（客户端世界） |
-| `18790` | BDS trace net（`BEGAME_NET_PORT` 可改） |
+```shell
+npm run build                  # 构建前端 bundle 与服务端
+npm run observatory            # 只有 HTTP（UI + 解码 API）
+npm run observatory:net        # 额外开启 BDS trace net
+npm run observatory:connect    # 额外开启 /connect 桥（与 --net 互斥）
+```
 
-环境变量：
+也可以直接调用 `node packages/observatory/dist/server.js --help` 查看全部选项：
+
+| 开关 | 端口 | 用途 |
+| --- | --- | --- |
+| （默认） | `8787` | HTTP + 工作台 UI + 解码 / ingest API |
+| `--connect` | `18789` | `/connect` 桥（客户端世界） |
+| `--net` | `18790` | BDS trace net |
+| `--ingest` | 复用 HTTP 端口 | `POST /api/ingest` 上传 sink |
+
+`--connect` 与 `--net` 不能同时开启；同时给出会报错退出。`--no-http` 可以只跑桥。
+
+对应的环境变量只提供取值，不会自行开启监听：
 
 - `BEGAME_NET_PORT`：trace net 端口，默认 `18790`。
+- `BEGAME_CONNECT_PORT`：`/connect` 端口，默认 `18789`。
 - `BEGAME_NET_TOKEN`：trace net 握手 token；回退 `BEGAME_INGEST_TOKEN`；留空不校验。
 - `BEGAME_INGEST_TOKEN` / `BEGAME_INGEST_DIR`：HTTP ingest 的 token 与落盘目录
   （默认 `packages/observatory/data`）。
 - `PORT` / `HOST`：HTTP 服务地址，默认 `127.0.0.1:8787`。
 
+工作台 UI 会根据实际启用的能力显示数据源；未开启的桥不会出现，也不会占用端口。
+
 ### HTTP API
 
+net 相关：
+
 ```text
-GET    /api/net/status                 → { connected, sources: [{ source, packName?, store }] }
+GET    /api/net/status                 → { enabled, connected, sources: [{ source, packName?, store }] }
 GET    /api/net/sessions               → { sources: [{ source, packName?, store, sessions, error? }] }
 GET    /api/net/session/:id?source=ID  → .begtrace 字节
 DELETE /api/net/session/:id?source=ID  → { deleted }
@@ -114,11 +131,23 @@ POST   /api/net/store                  { source, enabled }   → { store }
 POST   /api/net/export                 { items: [{ source, id }] } → ZIP
 ```
 
+通用 / agent 接口（跨数据源）：
+
+```text
+GET    /api/health                     → { ok, name, version, capabilities }
+GET    /api/sources                    → 已配置的数据源
+GET    /api/sessions                   → 汇总所有数据源及其会话
+GET    /api/session/:id?source=&pack=  → 原始 .begtrace 字节（&format=json 返回解码会话）
+POST   /api/analyze                    → body = 日志或 .begtrace，返回结构化分析
+GET    /api/analyze?source=&pack=&id=  → 直接分析已连接 / 已存会话
+```
+
 一个 Observatory 可同时接受多个包（默认上限 8 个），按各自握手里的 `packId`
 区分；同名包重连会替换掉旧的 socket。旧版本包没有 `packId` 时回退用
 `packName`。
 
-`/api/ingest/*` 是 HTTP sink 的入口，与 trace net 并存，可只用一个。
+`/api/ingest/*` 是 HTTP sink 的入口，与 trace net 并存，可只用一个（且需要
+`--ingest` 才会启用）。
 
 ## 行为包集成：双构建
 

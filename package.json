@@ -16,7 +16,9 @@
         "test:treeshake": "node scripts/treeshake-probe.mjs",
         "test:headless": "vitest run tests/lifecycle.test.mjs",
         "test:watch": "vitest",
-        "observatory": "npm run build && node packages/observatory/dist/server.js"
+        "observatory": "node packages/observatory/dist/server.js",
+        "observatory:connect": "node packages/observatory/dist/server.js --connect",
+        "observatory:net": "node packages/observatory/dist/server.js --net"
     },
     "devDependencies": {
         "@minecraft/server": "2.10.0",

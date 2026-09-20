@@ -3,7 +3,6 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { Socket } from "node:net";
 import { decodeTracePayload } from "../src/decode.mjs";
 
-const WS_PORT = Number(process.env.BEGAME_WS_PORT ?? 18789);
 const PREFIX = "BGTRACE1:";
 const MAX_FRAME = 64 * 1024;
 const MAX_TRACE_BYTES = 64 * 1024 * 1024;
@@ -41,16 +40,25 @@ class BedrockConnection {
     private readonly pending = new Map<string, Pending>();
     private fragmentOpcode = 0;
     private fragments: Buffer[] = [];
+    private closed = false;
 
     constructor(readonly socket: Socket, initial: Buffer, readonly onClose: () => void) {
         socket.on("data", (data) => this.receive(data));
-        socket.on("end", () => console.log("Minecraft WebSocket: 对端结束 TCP 连接"));
+        // A client that vanishes without a close frame only ends its read
+        // side; clean up here so `connected` does not stay true forever.
+        socket.on("end", () => {
+            console.log("Minecraft WebSocket: 对端结束 TCP 连接");
+            this.socket.end();
+            this.close();
+        });
         socket.on("close", (hadError) => { console.log(`Minecraft WebSocket: 已断开 (hadError=${hadError})`); this.close(); });
         socket.on("error", (error) => { console.error("Minecraft WebSocket 错误:", error.message); this.close(); });
         if (initial.length) this.receive(initial);
     }
 
     private close() {
+        if (this.closed) return;
+        this.closed = true;
         for (const item of this.pending.values()) {
             clearTimeout(item.timer);
             item.reject(new Error("Minecraft 已断开连接"));
@@ -144,7 +152,10 @@ export class ConnectBridge {
     private queue = Promise.resolve();
     private readonly server = createServer((_req, response) => response.writeHead(404).end());
 
-    constructor() {
+    constructor(
+        private readonly port = Number(process.env.BEGAME_CONNECT_PORT ?? 18789),
+        private readonly host = process.env.HOST ?? "127.0.0.1"
+    ) {
         this.server.on("upgrade", (request: IncomingMessage, socket: Socket, head: Buffer) => {
             console.log(`Bedrock WebSocket upgrade: path=${request.url} remote=${socket.remoteAddress}`);
             const key = request.headers["sec-websocket-key"];
@@ -156,12 +167,12 @@ export class ConnectBridge {
             this.client = client;
             console.log("Minecraft /connect 已连接");
         });
-        this.server.listen(WS_PORT, "127.0.0.1", () => console.log(`Bedrock /connect: ws://127.0.0.1:${WS_PORT}`));
+        this.server.listen(this.port, this.host, () => console.log(`Bedrock /connect: ws://${this.host}:${this.port}`));
         this.server.on("error", (error) => console.error("Bedrock WebSocket 启动失败:", error));
     }
 
     get connected() { return Boolean(this.client); }
-    get url() { return `ws://127.0.0.1:${WS_PORT}`; }
+    get url() { return `ws://${this.host}:${this.port}`; }
 
     private serial<T>(operation: (client: BedrockConnection) => Promise<T>): Promise<T> {
         const run = this.queue.then(() => {
