@@ -20,6 +20,7 @@
     },
     "devDependencies": {
         "@minecraft/server": "2.10.0",
+        "@minecraft/server-net": "^1.0.0-beta.1.26.51-stable",
         "@minecraft/server-ui": "2.2.0",
         "@minecraft/vanilla-data": "1.26.51",
         "rimraf": "^6.1.2",

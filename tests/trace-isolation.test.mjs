@@ -5,11 +5,11 @@ import path from "node:path";
 /**
  * Architectural guard for the trace package's platform boundary.
  *
- * `@begame/trace` is one package with two halves: the root entry is
- * platform-independent (codec, session manager, history store, log parser) and
- * `./minecraft` is the binding. The observatory server and offline tooling load
- * the root in plain Node, with no Minecraft runtime and no game framework, so
- * only `minecraft.js` may reach for either.
+ * `@begame/trace` is one package with a platform-independent root (codec,
+ * session manager, history store, log parser) and per-platform bindings:
+ * `./minecraft` and the BDS-only `./server-net`. The observatory server and
+ * offline tooling load the root in plain Node, with no Minecraft runtime and no
+ * game framework, so only those two binding modules may reach for either.
  *
  * This is a convention rather than a package-graph guarantee — which is exactly
  * why it is asserted mechanically, against `dist` rather than source, since that
@@ -36,9 +36,10 @@ test("only the Minecraft entry may import Minecraft or the game runtime", () => 
     expect(files.length).toBeGreaterThan(5);
 
     const offenders = [];
+    const allowedBindings = ["trace/dist/minecraft.js", "trace/dist/serverNet.js"];
     for (const file of files) {
         const relative = path.relative(root, file).split("\\").join("/");
-        if (relative.endsWith("trace/dist/minecraft.js")) continue;
+        if (allowedBindings.some((allowed) => relative.endsWith(allowed))) continue;
         for (const match of readFileSync(file, "utf8").matchAll(MINECRAFT_OR_CORE)) {
             offenders.push(`${relative} -> ${match[1]}`);
         }
@@ -65,7 +66,11 @@ test("Minecraft and the game runtime are optional peers, not dependencies", () =
     expect(Object.keys(manifest.dependencies ?? {})).toEqual([
         "@begame/trace-spec",
     ]);
-    for (const peer of ["@begame/core", "@minecraft/server"]) {
+    for (const peer of [
+        "@begame/core",
+        "@minecraft/server",
+        "@minecraft/server-net",
+    ]) {
         expect(manifest.peerDependenciesMeta?.[peer]?.optional).toBe(true);
     }
 });

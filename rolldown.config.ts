@@ -71,13 +71,15 @@ export default defineConfig([
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
     },
     {
-        // Only ./minecraft reaches for @minecraft/server and @begame/core; the
-        // rest of the package is platform-independent.
+        // Only ./minecraft reaches for @minecraft/server and @begame/core, and
+        // only ./server-net reaches for @minecraft/server-net; the rest of the
+        // package is platform-independent.
         input: traceInput,
         external: [
             traceSpecExternal,
             coreExternal,
             "@minecraft/server",
+            "@minecraft/server-net",
         ],
         output: {
             dir: "packages/trace/dist",

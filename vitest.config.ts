@@ -15,6 +15,10 @@ export default defineConfig({
                 find: /^@minecraft\/server-ui$/,
                 replacement: path.resolve(root, "packages/test/dist/virtualMinecraftUi.js"),
             },
+            {
+                find: /^@minecraft\/server-net$/,
+                replacement: path.resolve(root, "tests/fakes/serverNet.mjs"),
+            },
         ],
     },
     test: {

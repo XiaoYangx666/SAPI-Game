@@ -35,3 +35,6 @@ export * from "./storage";
 export * from "./historyStore";
 export * from "./manager";
 export * from "./logParser";
+export * from "./bridgeRegistry";
+export * from "./ingest";
+export * from "./net";

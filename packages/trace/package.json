@@ -16,6 +16,10 @@
             "types": "./dist/minecraft.d.ts",
             "import": "./dist/minecraft.js"
         },
+        "./server-net": {
+            "types": "./dist/serverNet.d.ts",
+            "import": "./dist/serverNet.js"
+        },
         "./*": {
             "types": "./dist/*.d.ts",
             "import": "./dist/*.js"
@@ -26,13 +30,17 @@
     },
     "peerDependencies": {
         "@begame/core": "0.0.2",
-        "@minecraft/server": ">=2.10.0"
+        "@minecraft/server": ">=2.10.0",
+        "@minecraft/server-net": "*"
     },
     "peerDependenciesMeta": {
         "@begame/core": {
             "optional": true
         },
         "@minecraft/server": {
+            "optional": true
+        },
+        "@minecraft/server-net": {
             "optional": true
         }
     },

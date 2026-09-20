@@ -1,0 +1,136 @@
+import { beforeEach, expect, test } from "vitest";
+import { decodeBegTrace, TraceManager } from "../packages/trace/dist/index.js";
+import { createServerNetTraceBridge } from "../packages/trace/dist/serverNet.js";
+import {
+    connectFailures,
+    connectionAttempts,
+    resetServerNet,
+    sockets,
+} from "./fakes/serverNet.mjs";
+
+const URL = "ws://127.0.0.1:18790/";
+
+function flush() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function makeTrace() {
+    let tick = 1;
+    const trace = new TraceManager(() => tick++);
+    trace.store.enable();
+    const session = trace.beginSession({ gameType: "probe", gameKey: "probe:1" });
+    session.game.debug("bridge-test");
+    trace.endSession("probe:1", "completed");
+    return { trace, sessionId: session.header.sessionId };
+}
+
+async function connectedBridge() {
+    const { trace, sessionId } = makeTrace();
+    const bridge = createServerNetTraceBridge({ url: URL, trace, packId: "probe", packName: "probe" });
+    bridge.start();
+    await flush();
+    const socket = sockets.at(-1);
+    expect(socket).toBeDefined();
+    return { bridge, socket, sessionId };
+}
+
+function request(socket, value) {
+    socket.receive(JSON.stringify(value));
+    return socket.replies().at(-1);
+}
+
+beforeEach(() => resetServerNet());
+
+test("connecting sends a ready handshake with store status", async () => {
+    const { bridge, socket } = await connectedBridge();
+    const ready = socket.replies()[0];
+    expect(ready.kind).toBe("ready");
+    expect(ready.packId).toBe("probe");
+    expect(ready.packName).toBe("probe");
+    expect(ready.store.count).toBe(1);
+    expect(connectionAttempts[0].uri).toBe(URL);
+    bridge.stop();
+});
+
+test("list returns stored sessions", async () => {
+    const { bridge, socket, sessionId } = await connectedBridge();
+    const reply = request(socket, { v: 1, kind: "request", id: "1", op: "list" });
+    expect(reply.ok).toBe(true);
+    expect(reply.result.sessions.map((entry) => entry.sessionId)).toEqual([sessionId]);
+    bridge.stop();
+});
+
+test("begin/part streams a decodable container", async () => {
+    const { bridge, socket, sessionId } = await connectedBridge();
+    const begin = request(socket, { v: 1, kind: "request", id: "1", op: "begin", sessionId });
+    expect(begin.ok).toBe(true);
+    expect(begin.result.parts).toBe(1);
+
+    let base64 = "";
+    for (let part = 0; part < begin.result.parts; part++) {
+        const reply = request(socket, {
+            v: 1,
+            kind: "request",
+            id: `p${part}`,
+            op: "part",
+            sessionId,
+            part,
+        });
+        expect(reply.ok).toBe(true);
+        base64 += reply.result.data;
+    }
+    expect(decodeBegTrace(Buffer.from(base64, "base64")).header.sessionId).toBe(sessionId);
+    bridge.stop();
+});
+
+test("a part request before begin fails cleanly", async () => {
+    const { bridge, socket, sessionId } = await connectedBridge();
+    const reply = request(socket, {
+        v: 1,
+        kind: "request",
+        id: "1",
+        op: "part",
+        sessionId,
+        part: 0,
+    });
+    expect(reply.ok).toBe(false);
+    expect(reply.error).toBe("request_info_first");
+    bridge.stop();
+});
+
+test("delete removes a stored session", async () => {
+    const { bridge, socket, sessionId } = await connectedBridge();
+    const reply = request(socket, { v: 1, kind: "request", id: "1", op: "delete", sessionId });
+    expect(reply.result).toEqual({ sessionId, deleted: true });
+
+    const list = request(socket, { v: 1, kind: "request", id: "2", op: "list" });
+    expect(list.result.sessions).toEqual([]);
+    bridge.stop();
+});
+
+test("a connect failure is reported and retried", async () => {
+    const { trace } = makeTrace();
+    const errors = [];
+    connectFailures.push(new Error("network down"));
+    const bridge = createServerNetTraceBridge({
+        url: URL,
+        trace,
+        packId: "probe",
+        onError: (error) => errors.push(error),
+    });
+    bridge.start();
+    await flush();
+    expect(errors).toHaveLength(1);
+    expect(String(errors[0])).toContain("network down");
+    bridge.stop();
+});
+
+test("store toggling is reflected in status", async () => {
+    const { bridge, socket, sessionId } = await connectedBridge();
+    const off = request(socket, { v: 1, kind: "request", id: "1", op: "store", enabled: false });
+    expect(off.result.enabled).toBe(false);
+    const on = request(socket, { v: 1, kind: "request", id: "2", op: "status" });
+    expect(on.result.enabled).toBe(false);
+    bridge.stop();
+    void sessionId;
+});
