@@ -152,6 +152,13 @@ import { createTraceRuntime } from "@begame/trace/minecraft";
 initBEGame({ trace: createTraceRuntime(), traceStore: true });
 ```
 
+### BDS 远程导出（server-net）
+
+BDS 不支持客户端的 `/connect` 命令。服务端改用 `@minecraft/server-net` 的
+WebSocket 桥：行为包把历史对局交给本机 Observatory，Observatory 反过来列出、
+下载、删除并管理这些对局。集成方式（双 bepack 配置、依赖隔离、API 与运行要点）
+见 [BDS server-net 导出](./docs/server-net-export.md)。
+
 ## Packaging
 
 包按「未使用即不打包」设计：`sideEffects` 精确声明到文件级，可选能力要么走独立入口（`@begame/core/server`），要么由使用方自己组装后注入（`@begame/trace`），所以不用的功能不会进入产物。`npm run test:treeshake` 会真的打包单符号消费者并断言结果，在 CI 中运行。详见[打包与 tree-shaking](./docs/packaging.md)。

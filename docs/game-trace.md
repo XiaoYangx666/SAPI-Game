@@ -407,10 +407,14 @@ Real-time Minecraft connections, live streaming and analysis are intentionally n
 
 ## Deferred adapters / tools
 
+Implemented elsewhere:
+
+- `/connect` live inspection is described in [the section above](#connect-live-inspection).
+- `@minecraft/server-net` HTTP/WebSocket upload for Bedrock Dedicated Server is
+  documented in [BDS server-net 导出](./server-net-export.md).
+
 Still deferred:
 
-- `/connect` development bridge
-- `@minecraft/server-net` HTTP/WebSocket upload adapter
 - live/real-time Observatory updates
 - diagnostic high-frequency mode
 - rich Agent analyzer/query API
