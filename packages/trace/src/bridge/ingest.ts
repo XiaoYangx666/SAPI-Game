@@ -9,7 +9,7 @@
  * The protocol is deliberately transport-agnostic: it says nothing about HTTP,
  * auth or storage, only how one upload part looks.
  */
-import { decodeBase64, encodeBase64 } from "./base64";
+import { decodeBase64, encodeBase64 } from "../wire/base64";
 
 export const TRACE_INGEST_VERSION = 1;
 /** Default maximum Base64 characters per part (≈384 KiB of decoded bytes). */

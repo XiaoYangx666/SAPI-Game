@@ -11,19 +11,19 @@
  */
 import { CommandPermissionLevel, CustomCommandParamType, CustomCommandStatus, system, world } from "@minecraft/server";
 import { isWorldLoaded, runAfterWorldLoad } from "@begame/core/world-ready";
-import { TraceManager } from "./manager";
-import { encodeBase64 } from "./base64";
+import { TraceManager } from "./runtime/manager";
+import { encodeBase64 } from "./wire/base64";
 import {
     TRACE_BRIDGE_OBJECTIVE,
     TRACE_BRIDGE_PROTOCOL,
     buildTraceBridgeEntry,
     buildTraceBridgeEntryPrefix,
-} from "./bridgeRegistry";
-import type { TraceBridgeInfo } from "./bridgeRegistry";
-import type { TraceStorage, TraceStoredValue } from "./storage";
-import type { TraceSessionOptions } from "./types";
+} from "./bridge/bridgeRegistry";
+import type { TraceBridgeInfo } from "./bridge/bridgeRegistry";
+import type { TraceStorage, TraceStoredValue } from "./runtime/storage";
+import type { TraceSessionOptions } from "./wire/types";
 
-export * from "./bridgeRegistry";
+export * from "./bridge/bridgeRegistry";
 
 export function createMinecraftTraceStorage(): TraceStorage {
     return {

@@ -39,12 +39,12 @@ const COMPONENT_MODULES = [
 ];
 
 const RUNTIME_TRACE_MODULES = [
-    "trace/dist/manager",
-    "trace/dist/historyStore",
-    "trace/dist/session",
-    "trace/dist/binary",
-    "trace/dist/container",
-    "trace/dist/consoleExporter",
+    "trace/dist/runtime/manager",
+    "trace/dist/runtime/historyStore",
+    "trace/dist/runtime/session",
+    "trace/dist/wire/binary",
+    "trace/dist/wire/container",
+    "trace/dist/runtime/consoleExporter",
 ];
 
 /** @param {string[]} modules */
@@ -99,9 +99,9 @@ const CASES = [
         ],
         require: [
             "trace/dist/minecraft",
-            "trace/dist/manager",
-            "trace/dist/historyStore",
-            "trace/dist/session",
+            "trace/dist/runtime/manager",
+            "trace/dist/runtime/historyStore",
+            "trace/dist/runtime/session",
             "trace-spec/dist/types",
         ],
     },

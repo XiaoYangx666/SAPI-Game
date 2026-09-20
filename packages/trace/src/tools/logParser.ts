@@ -1,6 +1,6 @@
-import { decodeBase64 } from "./base64";
-import { decodeBegTrace } from "./decoder";
-import type { DecodedTraceSession } from "./types";
+import { decodeBase64 } from "../wire/base64";
+import { decodeBegTrace } from "../wire/decoder";
+import type { DecodedTraceSession } from "../wire/types";
 
 export const TRACE_LOG_MARKER = "BEGAME_TRACE";
 

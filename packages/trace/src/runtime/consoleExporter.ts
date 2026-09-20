@@ -1,5 +1,5 @@
-import { encodeBase64 } from "./base64";
-import { TRACE_FORMAT_VERSION, type ConsoleTraceExportResult } from "./types";
+import { encodeBase64 } from "../wire/base64";
+import { TRACE_FORMAT_VERSION, type ConsoleTraceExportResult } from "../wire/types";
 
 export const TRACE_CONSOLE_MARKER = "BEGAME_TRACE";
 export const DEFAULT_TRACE_CONSOLE_PAYLOAD_CHARS = 24_000;

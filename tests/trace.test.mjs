@@ -23,7 +23,7 @@ import {
     BinaryWriter,
     utf8ByteLength,
     writeRawValue,
-} from "../packages/trace/dist/binary.js";
+} from "../packages/trace/dist/wire/binary.js";
 import { BEGameTestEngine } from "../packages/test/dist/index.js";
 
 const businessEvent = defineTraceEvent("test.player.scored", {

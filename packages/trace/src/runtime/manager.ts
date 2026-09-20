@@ -12,7 +12,7 @@ import {
     type TraceSink,
     type TraceStoreOptions,
     type TraceValue,
-} from "./types";
+} from "../wire/types";
 
 export interface TraceManagerOptions extends TraceSessionOptions {
     /** Storage substrate for the history store. Defaults to an in-memory map. */

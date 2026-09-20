@@ -18,9 +18,9 @@ import {
     http,
     websocket,
 } from "@minecraft/server-net";
-import { encodeBase64 } from "./base64";
-import { encodeBegTrace } from "./container";
-import { encodeTraceIngestParts } from "./ingest";
+import { encodeBase64 } from "./wire/base64";
+import { encodeBegTrace } from "./wire/container";
+import { encodeTraceIngestParts } from "./bridge/ingest";
 import {
     TRACE_NET_PART_CHARS,
     TRACE_NET_VERSION,
@@ -29,14 +29,14 @@ import {
     type TraceNetRequest,
     type TraceNetResult,
     type TraceNetStoreStatus,
-} from "./net";
+} from "./bridge/net";
 import type {
     StoredTraceSummary,
     TraceChunk,
     TraceSessionEnd,
     TraceSessionHeader,
     TraceSink,
-} from "./types";
+} from "./wire/types";
 
 export interface ServerNetTraceSinkOptions {
     /** Full ingest endpoint, e.g. `http://127.0.0.1:8787/api/ingest`. */

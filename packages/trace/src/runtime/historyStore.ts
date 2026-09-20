@@ -1,5 +1,5 @@
-import { decodeBase64, encodeBase64 } from "./base64";
-import { encodeBegTrace, type BegTraceContainer } from "./container";
+import { decodeBase64, encodeBase64 } from "../wire/base64";
+import { encodeBegTrace, type BegTraceContainer } from "../wire/container";
 import { createInMemoryStorage, type TraceStorage } from "./storage";
 import {
     TRACE_FORMAT_VERSION,
@@ -10,7 +10,7 @@ import {
     type TraceSessionStatus,
     type TraceSink,
     type TraceStoreOptions,
-} from "./types";
+} from "../wire/types";
 
 const STORE_PREFIX = `begame.trace.v${TRACE_FORMAT_VERSION}.`;
 const DEFAULT_MAX_SESSIONS = 50;

@@ -4,7 +4,7 @@ import {
     BinaryWriter,
     truncateUtf8,
     utf8ByteLength,
-} from "../packages/trace/dist/binary.js";
+} from "../packages/trace/dist/wire/binary.js";
 
 const wellFormed = [
     "",

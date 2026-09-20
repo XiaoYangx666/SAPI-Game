@@ -10,7 +10,7 @@
  * Requests flow Observatory -> game; replies and the initial `ready` handshake
  * flow game -> Observatory.
  */
-import type { StoredTraceSummary } from "./types";
+import type { StoredTraceSummary } from "../wire/types";
 
 export const TRACE_NET_VERSION = 1;
 /** Base64 characters per `part` reply. Keeps each frame well under socket limits. */

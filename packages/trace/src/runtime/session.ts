@@ -1,11 +1,11 @@
-import { BinaryWriter, concatBytes, truncateUtf8, utf8ByteLength } from "./binary";
+import { BinaryWriter, concatBytes, truncateUtf8, utf8ByteLength } from "../wire/binary";
 import {
     TraceFieldTypeCode,
     TraceRecordTag,
     TraceSourceKindCode,
     TraceValueTag,
-} from "./format";
-import { normalizeTraceField } from "./schema";
+} from "../wire/format";
+import { normalizeTraceField } from "../wire/schema";
 import {
     BuiltinTraceEventType,
     TRACE_CHUNK_MAGIC,
@@ -24,7 +24,7 @@ import {
     type TraceSource,
     type TraceSourceKind,
     type TraceValue,
-} from "./types";
+} from "../wire/types";
 
 const DEFAULT_MAX_CHUNK_BYTES = 20 * 1024;
 const DEFAULT_MAX_CHUNK_TICK_SPAN = 1200;
