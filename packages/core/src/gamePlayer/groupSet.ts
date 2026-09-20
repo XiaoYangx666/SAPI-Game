@@ -1,25 +1,59 @@
 import { RawMessage, TitleDisplayOptions } from "@minecraft/server";
 import { GamePlayer, ValidGamePlayer } from "./gamePlayer";
 import { PlayerGroup } from "./playerGroup";
+import { ObservableGroupSignal } from "./groupMembershipSignal";
+import type { Subscription } from "../gameEvent/subscription";
 
 /**玩家组集合 */
 export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
     private groups: PlayerGroup<T, TData>[] = [];
+    private readonly groupSubscriptions = new Map<PlayerGroup<T, TData>, Subscription>();
+    readonly changed = new ObservableGroupSignal<{
+        readonly type: "added" | "removed" | "scope";
+        readonly reason: string;
+        readonly playerId?: string;
+    }>();
 
     constructor(groups?: PlayerGroup<T, TData>[]) {
-        if (groups) this.groups = groups.slice();
+        for (const group of groups ?? []) this.addGroup(group);
+    }
+
+    private attachGroup(group: PlayerGroup<T, TData>): void {
+        if (this.groupSubscriptions.has(group)) return;
+        const subscription = group.changed.subscribe((event) => this.changed.publish({
+            type: event.type,
+            reason: event.reason,
+            playerId: event.player.id,
+        }));
+        this.groupSubscriptions.set(group, subscription);
+    }
+
+    private detachGroup(group: PlayerGroup<T, TData>): void {
+        const subscription = this.groupSubscriptions.get(group);
+        if (!subscription) return;
+        subscription.unsubscribe();
+        this.groupSubscriptions.delete(group);
     }
 
     addGroup(group: PlayerGroup<T, TData>) {
         if (!(group instanceof PlayerGroup))
             throw new Error("只能添加 PlayerGroup 实例");
+        // This is a set of groups: adding the same instance twice is a no-op,
+        // not a membership change or another source of forwarded notifications.
+        if (this.groups.includes(group)) return this;
         this.groups.push(group);
+        this.attachGroup(group);
+        this.changed.publish({ type: "scope", reason: "group-added" });
         return this;
     }
 
     removeGroup(group: PlayerGroup<T, TData>) {
         const index = this.groups.indexOf(group);
-        if (index !== -1) this.groups.splice(index, 1);
+        if (index !== -1) {
+            this.groups.splice(index, 1);
+            if (!this.groups.includes(group)) this.detachGroup(group);
+            this.changed.publish({ type: "scope", reason: "group-removed" });
+        }
         return this;
     }
 
@@ -81,8 +115,12 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
         return this.groups.map((g) => g.filter(predicate)).flat();
     }
 
+    /** Remove groups from this collection; does not clear each group's members. */
     clear() {
+        if (this.groups.length === 0) return this;
         this.groups = [];
+        for (const group of [...this.groupSubscriptions.keys()]) this.detachGroup(group);
+        this.changed.publish({ type: "scope", reason: "groups-cleared" });
         return this;
     }
 

@@ -1,11 +1,14 @@
 import { expect, test, vi } from "vitest";
 import {
     DisconnectTimeoutComponent,
+    AutoStopComponent,
     Game,
     GameComponent,
     GameContext,
     GameEngine,
     GamePlayer,
+    PlayerGroup,
+    PlayerGroupSet,
     GameState,
 } from "../packages/core/dist/main.js";
 import { Logger } from "../packages/core/dist/utils/logger.js";
@@ -19,6 +22,7 @@ class TraceContext extends GameContext {
         this.initialPlayer = config.initialPlayer;
         this.timeoutTicks = config.timeoutTicks ?? 5;
         this.stopGameWhenEmpty = config.stopGameWhenEmpty ?? false;
+        this.throwOnTimeout = config.throwOnTimeout ?? false;
         this.counter = config.counter ?? 0;
     }
 }
@@ -67,7 +71,10 @@ class DisconnectRootState extends GameState {
             stopGameWhenEmpty: this.context.stopGameWhenEmpty,
             onOffline: (id) => this.context.trace.push(`offline:${id}`),
             onOnline: (id) => this.context.trace.push(`online:${id}`),
-            onTimeout: (id) => this.context.trace.push(`timeout:${id}`),
+            onTimeout: (id) => {
+                this.context.trace.push(`timeout:${id}`);
+                if (this.context.throwOnTimeout) throw new Error("intentional-timeout-callback-failure");
+            },
         });
     }
     onExit() { this.context.trace.push("disconnect-root:exit"); }
@@ -81,6 +88,25 @@ class DisconnectGame extends TraceGame {
             expect(this.playerManager.join(this.context.initialPlayer).allowed).toBe(true);
         }
         this.resetState(DisconnectRootState);
+    }
+}
+
+class AutoStopRootState extends GameState {
+    onEnter() {
+        this.addComponent(AutoStopComponent, {
+            canStop: () => this.context.allowStop !== false,
+        });
+    }
+}
+
+class AutoStopGame extends TraceGame {
+    static gameType = "test-autostop";
+    onStart() {
+        this.context.trace.push("game:start");
+        if (this.context.initialPlayer) {
+            expect(this.playerManager.join(this.context.initialPlayer).allowed).toBe(true);
+        }
+        this.resetState(AutoStopRootState);
     }
 }
 
@@ -175,6 +201,348 @@ test("disconnect grace period can reconnect before timeout or leave after timeou
     expect(trace).toContain("timeout:alice");
     expect(game.participation.has("alice")).toBe(false);
     expect(env.getGame(DisconnectGame)).toBeUndefined();
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("last online player explicitly leaving stops an empty game without a disconnect event", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const trace = [];
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(DisconnectGame, {
+        trace, initialPlayer: alice, timeoutTicks: 5, stopGameWhenEmpty: true,
+    });
+
+    expect(game.playerManager.leave("alice", "hub")).toBe(true);
+    expect(game.participation.size).toBe(0);
+    // Empty-room checks run after the caller finishes its leave transition.
+    expect(game.lifecycle).toBe("running");
+    await env.advanceTicks(1);
+    expect(env.getGame(DisconnectGame)).toBeUndefined();
+    expect(game.lifecycle).toBe("disposed");
+    expect(trace.filter(item => item === "game:stop")).toHaveLength(1);
+    env.reset();
+});
+
+test("same-tick replacement participant prevents an obsolete empty-room stop", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const trace = [];
+    const alice = env.connectPlayer("alice", "Alice");
+    const bob = env.connectPlayer("bob", "Bob");
+    const game = env.startGame(DisconnectGame, {
+        trace, initialPlayer: alice, timeoutTicks: 5, stopGameWhenEmpty: true,
+    });
+
+    game.playerManager.leave("alice", "hub");
+    expect(game.playerManager.join(bob).allowed).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("running");
+    expect(game.participation.getAll()).toEqual(["bob"]);
+    expect(trace).not.toContain("game:stop");
+    env.reset();
+});
+
+test("AutoStop reclaims a never-occupied room on its first 10-second fallback check", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(AutoStopGame, { trace: [] });
+    await env.advanceTicks(199);
+    expect(game.lifecycle).toBe("running");
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("AutoStop still reclaims a vacated room within one tick of a membership event", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(AutoStopGame, { trace: [] });
+    const alice = env.connectPlayer("alice", "Alice");
+    expect(game.playerManager.join(alice).allowed).toBe(true);
+    expect(game.playerManager.leave("alice", "hub")).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("AutoStop periodic fallback observes canStop changes without manual reconcile", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    game.context.allowStop = false;
+    game.playerManager.leave("alice", "hub");
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("running");
+    game.context.allowStop = true;
+    await env.advanceTicks(198);
+    expect(game.lifecycle).toBe("running");
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("AutoStop periodic fallback detects silent changes in a custom membership source", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(AutoStopGame, { trace: [] });
+    const state = game.getState(AutoStopRootState);
+    state.deleteComponent(AutoStopComponent);
+    const members = ["alice"];
+    state.addComponent(AutoStopComponent, {
+        getMemberIds: () => members,
+        memberChanged: { subscribe: () => ({ unsubscribe() {} }) },
+    });
+    members.length = 0; // Deliberately simulate a missed notification.
+    await env.advanceTicks(199);
+    expect(game.lifecycle).toBe("running");
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("AutoStop detaches its periodic fallback with the component", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(AutoStopGame, { trace: [] });
+    game.getState(AutoStopRootState).deleteComponent(AutoStopComponent);
+    await env.advanceTicks(220);
+    expect(game.lifecycle).toBe("running");
+    env.reset();
+});
+
+test("AutoStop canStop veto remains recheckable after the room becomes empty", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    game.context.allowStop = false;
+    game.playerManager.leave("alice", "hub");
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("running");
+
+    game.context.allowStop = true;
+    game.getState(AutoStopRootState).getComponent(AutoStopComponent).reconcile();
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("AutoStop does not bypass a disconnected participant's unreleased grace period", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    game.getState(AutoStopRootState).addComponent(DisconnectTimeoutComponent, {
+        timeout: Duration.fromTicks(5),
+        releaseOnTimeout: true,
+    });
+    env.disconnectPlayer("alice");
+    await env.advanceTicks(4);
+    expect(game.lifecycle).toBe("running");
+    expect(game.participation.has("alice")).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.participation.has("alice")).toBe(false);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("AutoStop rejects incomplete or competing membership sources", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(AutoStopGame, { trace: [] });
+    const state = game.getState(AutoStopRootState);
+    state.deleteComponent(AutoStopComponent);
+    const groupSet = new PlayerGroupSet([new PlayerGroup(GamePlayer)]);
+
+    // GameState wraps component errors in ComponentLoadFailedError; assert the
+    // original configuration error survives as its cause and attach rolls back.
+    const expectRejected = (options, expected) => {
+        let error;
+        try {
+            state.addComponent(AutoStopComponent, options);
+        } catch (caught) {
+            error = caught;
+        }
+        expect(error).toBeInstanceOf(Error);
+        expect(error.cause?.message).toMatch(expected);
+        expect(() => state.getComponent(AutoStopComponent)).toThrow();
+    };
+    expectRejected({ memberChanged: groupSet.changed }, /getMemberIds and memberChanged/);
+    expectRejected({ getMemberIds: () => [] }, /getMemberIds and memberChanged/);
+    expectRejected({
+        groupSet, getMemberIds: () => [], memberChanged: groupSet.changed,
+    }, /either groupSet or a custom member source/);
+
+    env.reset();
+});
+
+test("participation-scoped AutoStop preserves offline grace even if an operational group purges invalid wrappers", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    const group = new PlayerGroup(GamePlayer, [game.playerManager.get(alice)]);
+    game.getState(AutoStopRootState).addComponent(DisconnectTimeoutComponent, {
+        timeout: Duration.fromTicks(5),
+        releaseOnTimeout: true,
+    });
+
+    env.disconnectPlayer("alice");
+    group.clearInvalid();
+    expect(group.size).toBe(0);
+    await env.advanceTicks(4);
+    expect(game.lifecycle).toBe("running");
+    expect(game.participation.has("alice")).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.participation.has("alice")).toBe(false);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("group-scoped AutoStop observes group removal and participation release independently", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    const state = game.getState(AutoStopRootState);
+    state.deleteComponent(AutoStopComponent);
+    const group = new PlayerGroup(GamePlayer, [game.playerManager.get(alice)]);
+    const groupSet = new PlayerGroupSet([group]);
+    state.addComponent(AutoStopComponent, { groupSet });
+
+    // Membership remains in the group, but the scope must intersect the
+    // authoritative game participation after an explicit leave.
+    game.playerManager.leave("alice", "hub");
+    expect(group.size).toBe(1);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("group-scoped AutoStop treats a real group deletion as room exit", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    const state = game.getState(AutoStopRootState);
+    state.deleteComponent(AutoStopComponent);
+    const group = new PlayerGroup(GamePlayer, [game.playerManager.get(alice)]);
+    const groupSet = new PlayerGroupSet([group]);
+    state.addComponent(AutoStopComponent, { groupSet });
+
+    group.delete(alice, "region-leave");
+    expect(game.participation.has("alice")).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("Game.server online lookups reflect the current world without cached connection state", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    expect(Game.server.getPlayer("alice")).toBeUndefined();
+    expect(Game.server.isOnline("alice")).toBe(false);
+    const alice = env.connectPlayer("alice", "Alice");
+    expect(Game.server.getPlayer("alice")).toBe(alice);
+    expect(Game.server.isOnline("alice")).toBe(true);
+    env.disconnectPlayer("alice");
+    expect(Game.server.getPlayer("alice")).toBeUndefined();
+    expect(Game.server.isOnline("alice")).toBe(false);
+    env.reset();
+});
+
+test("runtime participation.clear broadcasts removals and allows AutoStop to end the game", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(AutoStopGame, { trace: [], initialPlayer: alice });
+    expect(game.participation.clear()).toEqual(["alice"]);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("disconnect guard observes participants restored offline after component attach", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const trace = [];
+    const game = env.startGame(DisconnectGame, {
+        trace, timeoutTicks: 2, stopGameWhenEmpty: true,
+    });
+    expect(game.participation.join("alice").allowed).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.participation.has("alice")).toBe(true);
+    await env.advanceTicks(2);
+    expect(trace).toContain("timeout:alice");
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("group-scoped disconnect timeout observes an offline member added after attach", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(AutoStopGame, { trace: [] });
+    const state = game.getState(AutoStopRootState);
+    const group = new PlayerGroup(GamePlayer);
+    const groupSet = new PlayerGroupSet([group]);
+    state.addComponent(DisconnectTimeoutComponent, {
+        groupSet, timeout: Duration.fromTicks(2), releaseOnTimeout: true,
+    });
+
+    expect(game.participation.join("alice").allowed).toBe(true);
+    await env.advanceTicks(1);
+    expect(game.participation.has("alice")).toBe(true);
+    group.add(new GamePlayer({ id: "alice", name: "Alice", isValid: false }));
+    await env.advanceTicks(2);
+    expect(game.participation.has("alice")).toBe(false);
+    await env.advanceTicks(1);
+    expect(game.lifecycle).toBe("disposed");
+    env.reset();
+});
+
+test("timeout callback exceptions cannot suppress automatic participant release", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("alice", "Alice");
+    const game = env.startGame(DisconnectGame, {
+        trace: [], initialPlayer: alice, timeoutTicks: 2,
+        stopGameWhenEmpty: true, throwOnTimeout: true,
+    });
+    const errors = [];
+    const spy = vi.spyOn(Logger.prototype, "error").mockImplementation((...args) => errors.push(args));
+    try {
+        env.disconnectPlayer("alice");
+        await env.advanceTicks(3);
+        expect(game.participation.has("alice")).toBe(false);
+        expect(game.lifecycle).toBe("disposed");
+        expect(errors.some(args => args.some(value => String(value).includes("intentional-timeout-callback-failure")))).toBe(true);
+    } finally {
+        spy.mockRestore();
+        env.reset();
+    }
+});
+
+class OfflineAtStartDisconnectGame extends DisconnectGame {
+    static gameType = "test-offline-at-start";
+    onStart() {
+        expect(this.participation.join("alice").allowed).toBe(true);
+        this.resetState(DisconnectRootState);
+    }
+}
+
+test("zero-tick timeout of an offline initial member does not stop inside component attach", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const game = env.startGame(OfflineAtStartDisconnectGame, {
+        trace: [], timeoutTicks: 0, stopGameWhenEmpty: true,
+    });
+    expect(game.lifecycle).toBe("running");
+    await env.advanceTicks(1);
     expect(game.lifecycle).toBe("disposed");
     env.reset();
 });

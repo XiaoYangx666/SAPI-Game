@@ -12,4 +12,11 @@ export const gameServer = {
             .getAllPlayers()
             .filter((player): player is Player => player !== undefined);
     },
+    /** Live server lookup: never keep a second online-player snapshot. */
+    getPlayer(playerId: string): Player | undefined {
+        return this.getAllPlayers().find((player) => player.id === playerId);
+    },
+    isOnline(playerId: string): boolean {
+        return this.getPlayer(playerId) !== undefined;
+    },
 } as const;

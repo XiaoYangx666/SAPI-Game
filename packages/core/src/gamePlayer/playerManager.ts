@@ -1,4 +1,5 @@
 import { Player } from "@minecraft/server";
+import type { Subscription } from "../gameEvent/subscription";
 import { GameParticipation } from "../participation/gameParticipation";
 import type { ParticipationBatchDecision } from "../participation/gameParticipation";
 import type { ParticipationDecision } from "../participation/policy";
@@ -18,6 +19,7 @@ export type GamePlayerBatchJoinDecision<T extends GamePlayer> =
 export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     private readonly players: Map<string, T> = new Map();
     private readonly tracedOnlinePlayers = new Set<string>();
+    private readonly membershipSubscription: Subscription;
     public readonly playerConstructor: GamePlayerConstructor<T>;
 
     /**玩家组构建器 */
@@ -30,6 +32,10 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     ) {
         this.playerConstructor = playerConstructor;
         this.groupBuilder = new PlayerGroupBuilder(this);
+        // Also honor external leaveAll()/leave() calls that bypass this wrapper manager.
+        this.membershipSubscription = participation.changed.subscribe((event) => {
+            if (event.type === "left") this.players.get(event.playerId)?._setActive(false);
+        });
     }
 
     /**
@@ -187,7 +193,7 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     leave(playerId: string, reason = "leave"): boolean {
         const gamePlayer = this.players.get(playerId);
         if (gamePlayer) gamePlayer._setActive(false);
-        const released = this.participation.leave(playerId);
+        const released = this.participation.leave(playerId, reason);
         if (released) {
             this.traceSession?.participation.builtin(
                 BuiltinTraceEventType.ParticipationReleased,
@@ -219,11 +225,12 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     dispose() {
+        this.membershipSubscription.unsubscribe();
         const participantIds = [...this.participation.getAll()];
         for (const player of this.players.values()) {
             player._setActive(false);
         }
-        this.participation.clear();
+        this.participation._clearForDispose();
         for (const playerId of participantIds) {
             this.traceSession?.participation.builtin(
                 BuiltinTraceEventType.ParticipationReleased,
