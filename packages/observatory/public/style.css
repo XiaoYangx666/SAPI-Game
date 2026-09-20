@@ -118,6 +118,11 @@ code, pre { font-family: var(--mono); }
 .connection-mode { color: var(--faint); font: 8.5px var(--mono); letter-spacing: .08em; }
 .source-label { margin-top: 13px; color: var(--faint); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; }
 .source-name { margin-top: 3px; overflow: hidden; color: #9eacb9; font: 10.5px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.source-toggle { display: flex; gap: 6px; margin-top: 8px; }
+.source-toggle button { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); font: 10.5px var(--mono); letter-spacing: .04em; cursor: pointer; }
+.source-toggle button:hover:not(:disabled) { border-color: #466075; background: #1a2530; }
+.source-toggle button.active { border-color: #49b9a8; background: var(--accent-strong); color: #07120f; font-weight: 680; }
+.source-toggle button:disabled { opacity: .4; cursor: default; }
 .live-note { display: flex; align-items: center; gap: 6px; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--faint); font-size: 10.5px; }
 .live-note span { width: 5px; height: 5px; border-radius: 1px; background: var(--faint); }
 .connect-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }

@@ -8,6 +8,7 @@ import { fmtBytes, fmtDate, fmtDuration } from "./format";
 
 type Tab = "overview" | "activity" | "events";
 type Health = "connecting" | "ok" | "bad";
+type LiveSource = "connect" | "net";
 interface LiveSummary {
     sessionId: string;
     gameType: string;
@@ -17,6 +18,19 @@ interface LiveSummary {
     eventCount: number;
     chunkCount: number;
     storedBytes: number;
+    /** Present for BDS sessions: the pack that owns it. */
+    source?: string;
+}
+interface NetStoreStatus {
+    enabled: boolean;
+    acceptingSessions: boolean;
+    count: number;
+    running: number;
+}
+interface NetSourceInfo {
+    source: string;
+    packName?: string;
+    store: NetStoreStatus;
 }
 
 const TEXT_PREVIEW_LIMIT = 2 * 1024 * 1024;
@@ -33,12 +47,17 @@ export function App() {
     const [tab, setTab] = useState<Tab>("overview");
     const [importOpen, setImportOpen] = useState(true);
     const fileRef = useRef<HTMLInputElement>(null);
-    const [liveConnected, setLiveConnected] = useState(false);
-    const [liveUrl, setLiveUrl] = useState("ws://127.0.0.1:18789");
+    const [connectConnected, setConnectConnected] = useState(false);
+    const [connectUrl, setConnectUrl] = useState("ws://127.0.0.1:18789");
+    const [netConnected, setNetConnected] = useState(false);
+    const [netSources, setNetSources] = useState<NetSourceInfo[]>([]);
+    const [netSource, setNetSource] = useState("");
+    const [activeSource, setActiveSource] = useState<LiveSource>("connect");
     const [liveSessions, setLiveSessions] = useState<LiveSummary[]>([]);
     const [liveMode, setLiveMode] = useState(false);
     const [liveBusy, setLiveBusy] = useState(false);
     const selectedLiveId = useRef<string | null>(null);
+    const selectedSourceRef = useRef<string | null>(null);
     const refreshingLive = useRef(false);
 
     useEffect(() => {
@@ -58,22 +77,60 @@ export function App() {
             if (pending) return;
             pending = true;
             try {
-                const status = await (await fetch("/api/connect/status")).json();
+                const [connectStatus, netStatus] = await Promise.all([
+                    fetch("/api/connect/status").then((response) => response.json()).catch(() => ({ connected: false })),
+                    fetch("/api/net/status").then((response) => response.json()).catch(() => ({ connected: false })),
+                ]);
                 if (!active) return;
-                setLiveConnected(Boolean(status.connected));
-                setLiveUrl(String(status.url));
-                if (status.connected && liveMode) {
-                    const response = await fetch("/api/connect/sessions");
-                    const data = await response.json();
-                    if (active && response.ok) setLiveSessions(data.sessions ?? []);
+                setConnectConnected(Boolean(connectStatus.connected));
+                setConnectUrl(String(connectStatus.url ?? "ws://127.0.0.1:18789"));
+                setNetConnected(Boolean(netStatus.connected));
+                setNetSources(Array.isArray(netStatus.sources) ? netStatus.sources : []);
+                if (liveMode) {
+                    if (activeSource === "net") {
+                        const response = await fetch("/api/net/sessions");
+                        const data = await response.json();
+                        if (active && response.ok) {
+                            const flat: LiveSummary[] = [];
+                            for (const source of data.sources ?? []) {
+                                for (const session of source.sessions ?? []) {
+                                    flat.push({ ...session, source: source.source });
+                                }
+                            }
+                            setLiveSessions(flat);
+                        }
+                    } else {
+                        const response = await fetch("/api/connect/sessions");
+                        const data = await response.json();
+                        if (active && response.ok) setLiveSessions(data.sessions ?? []);
+                    }
                 }
-            } catch { if (active) setLiveConnected(false); }
-            finally { pending = false; }
+            } catch {
+                if (active) { setConnectConnected(false); setNetConnected(false); }
+            } finally { pending = false; }
         };
         void refresh();
         const timer = window.setInterval(() => void refresh(), 3000);
         return () => { active = false; window.clearInterval(timer); };
-    }, [liveMode]);
+    }, [liveMode, activeSource]);
+
+    // Follow the only connected source automatically; keep an explicit choice
+    // when both are live.
+    useEffect(() => {
+        if (netConnected && !connectConnected) setActiveSource("net");
+        else if (connectConnected && !netConnected) setActiveSource("connect");
+    }, [connectConnected, netConnected]);
+
+    // Keep a valid pack selected when BDS sources come and go.
+    useEffect(() => {
+        if (netSources.length === 0) {
+            if (netSource !== "") setNetSource("");
+            return;
+        }
+        if (!netSources.some((entry) => entry.source === netSource)) {
+            setNetSource(netSources[0].source);
+        }
+    }, [netSources, netSource]);
 
     const loadLive = useCallback(async (id: string, background = false) => {
         if (background && refreshingLive.current) return;
@@ -84,7 +141,11 @@ export function App() {
             setStatus({ text: `正在读取 ${id}…`, kind: "busy" });
         }
         try {
-            const response = await fetch(`/api/connect/session/${encodeURIComponent(id)}`);
+            const source = selectedSourceRef.current;
+            const endpoint = activeSource === "net"
+                ? `/api/net/session/${encodeURIComponent(id)}${source ? `?source=${encodeURIComponent(source)}` : ""}`
+                : `/api/connect/session/${encodeURIComponent(id)}`;
+            const response = await fetch(endpoint);
             if (!response.ok) throw new Error((await response.json()).error ?? "读取失败");
             const payload = new Uint8Array(await response.arrayBuffer());
             const decoded = await fetch("/api/decode", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: payload as BodyInit });
@@ -93,7 +154,7 @@ export function App() {
             if (selectedLiveId.current !== id) return;
             if (data.selected.end.endReason === "live-snapshot") data.selected.end.status = "running";
             setResult(data);
-            setSourceName(`Minecraft · ${id}`);
+            setSourceName(`${activeSource === "net" ? "BDS" : "Minecraft"} · ${id}`);
             setLiveMode(true);
             setImportOpen(false);
             if (!background) {
@@ -105,7 +166,7 @@ export function App() {
             if (background) refreshingLive.current = false;
             else setLiveBusy(false);
         }
-    }, []);
+    }, [activeSource]);
 
     useEffect(() => {
         const id = result?.selected?.sessionId;
@@ -115,30 +176,88 @@ export function App() {
     }, [liveMode, result?.selected, loadLive]);
 
     const exportLive = useCallback(async () => {
-        const ids = liveSessions.map((entry) => entry.sessionId);
-        if (!ids.length) return;
+        const isNet = activeSource === "net";
+        const count = isNet
+            ? liveSessions.filter((entry) => entry.source).length
+            : liveSessions.length;
+        if (count === 0) return;
         setLiveBusy(true);
-        setStatus({ text: `正在导出 ${ids.length} 局…`, kind: "busy" });
+        setStatus({ text: `正在导出 ${count} 局…`, kind: "busy" });
         try {
-            const response = await fetch("/api/connect/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }) });
+            const endpoint = isNet ? "/api/net/export" : "/api/connect/export";
+            const body = isNet
+                ? { items: liveSessions.filter((entry) => entry.source).map((entry) => ({ source: entry.source, id: entry.sessionId })) }
+                : { ids: liveSessions.map((entry) => entry.sessionId) };
+            const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
             if (!response.ok) throw new Error((await response.json()).error ?? "导出失败");
             const blob = await response.blob();
             const anchor = document.createElement("a");
             anchor.href = URL.createObjectURL(blob);
-            anchor.download = "begame-traces.zip";
+            anchor.download = isNet ? "begame-bds-traces.zip" : "begame-traces.zip";
             anchor.click();
             window.setTimeout(() => URL.revokeObjectURL(anchor.href), 60000);
-            setStatus({ text: `已导出 ${ids.length} 局` });
+            setStatus({ text: `已导出 ${count} 局` });
         } catch (error) { setStatus({ text: (error as Error).message, kind: "error" }); }
         finally { setLiveBusy(false); }
-    }, [liveSessions]);
+    }, [liveSessions, activeSource]);
+
+    const refreshLiveSessions = useCallback(async () => {
+        if (activeSource !== "net") return;
+        try {
+            const response = await fetch("/api/net/sessions");
+            const data = await response.json();
+            if (response.ok) setLiveSessions(data.sessions ?? []);
+        } catch { /* the polling effect retries */ }
+    }, [activeSource]);
+
+    const deleteLiveSession = useCallback(async (id: string, source: string) => {
+        setLiveBusy(true);
+        setStatus({ text: `正在删除 ${id}…`, kind: "busy" });
+        try {
+            const response = await fetch(`/api/net/session/${encodeURIComponent(id)}?source=${encodeURIComponent(source)}`, { method: "DELETE" });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error ?? "删除失败");
+            if (selectedLiveId.current === id) {
+                selectedLiveId.current = null;
+                selectedSourceRef.current = null;
+                setResult(null);
+            }
+            await refreshLiveSessions();
+            setStatus({ text: data.deleted ? `已删除 ${id}` : `未找到 ${id}` });
+        } catch (error) { setStatus({ text: (error as Error).message, kind: "error" }); }
+        finally { setLiveBusy(false); }
+    }, [refreshLiveSessions]);
+
+    const clearLiveSessions = useCallback(async (source: string) => {
+        setLiveBusy(true);
+        setStatus({ text: "正在清空已完成会话…", kind: "busy" });
+        try {
+            const response = await fetch("/api/net/clear", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ source }) });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error ?? "清空失败");
+            await refreshLiveSessions();
+            setStatus({ text: `已删除 ${data.removed} 局` });
+        } catch (error) { setStatus({ text: (error as Error).message, kind: "error" }); }
+        finally { setLiveBusy(false); }
+    }, [refreshLiveSessions]);
+
+    const toggleNetStore = useCallback(async (source: string, enabled: boolean) => {
+        try {
+            const response = await fetch("/api/net/store", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ source, enabled }) });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error ?? "切换失败");
+            setNetSources((current) => current.map((entry) => entry.source === source ? { ...entry, store: data.store } : entry));
+            setStatus({ text: `Trace Store 已${data.store.enabled ? "开启" : "关闭"}` });
+        } catch (error) { setStatus({ text: (error as Error).message, kind: "error" }); }
+    }, []);
 
     const showLiveSessions = () => {
         if (liveMode) return;
         selectedLiveId.current = null;
+        selectedSourceRef.current = null;
         setLiveMode(true);
         setResult(null);
-        setSourceName("Minecraft");
+        setSourceName(activeSource === "net" ? "BDS" : "Minecraft");
         setImportOpen(false);
         setStatus({ text: "请选择左侧游戏会话" });
     };
@@ -229,14 +348,30 @@ export function App() {
                 busy={busy}
                 onImport={() => { selectedLiveId.current = null; setLiveMode(false); setImportOpen(true); }}
                 onSelect={(sessionId) => void decode(sessionId)}
-                liveConnected={liveConnected}
-                liveUrl={liveUrl}
+                connectConnected={connectConnected}
+                connectUrl={connectUrl}
+                netConnected={netConnected}
+                netSources={netSources}
+                netSource={netSource}
+                netStore={netSources.find((entry) => entry.source === netSource)?.store ?? null}
+                activeSource={activeSource}
+                onSourceChange={(source) => { setActiveSource(source); setLiveSessions([]); selectedLiveId.current = null; selectedSourceRef.current = null; }}
+                onNetSourceChange={setNetSource}
                 liveSessions={liveSessions}
                 liveMode={liveMode}
                 liveBusy={liveBusy}
                 onLiveMode={showLiveSessions}
-                onLiveSelect={(id) => void loadLive(id)}
+                onLiveSelect={(id) => {
+                    selectedSourceRef.current = liveSessions.find((entry) => entry.sessionId === id)?.source ?? null;
+                    void loadLive(id);
+                }}
                 onExportLive={() => void exportLive()}
+                onDeleteLive={(id) => {
+                    const source = liveSessions.find((entry) => entry.sessionId === id)?.source ?? netSource;
+                    void deleteLiveSession(id, source);
+                }}
+                onClearLive={() => void clearLiveSessions(netSource)}
+                onToggleStore={(enabled) => void toggleNetStore(netSource, enabled)}
             />
             <main className="workspace">
                 <header className="workspace-bar">
@@ -248,7 +383,7 @@ export function App() {
                         {status.text ? <span className={`status${status.kind ? ` ${status.kind}` : ""}`}>{status.text}</span> : null}
                         {selected ? <button className="button quiet" onClick={download}>导出 JSON</button> : null}
                         <button className="button" onClick={() => { selectedLiveId.current = null; setLiveMode(false); setImportOpen(true); }}>导入 trace</button>
-                        {liveConnected ? <button className="button quiet" onClick={showLiveSessions}>连接会话</button> : null}
+                        {(connectConnected || netConnected) ? <button className="button quiet" onClick={showLiveSessions}>连接会话</button> : null}
                     </div>
                 </header>
                 <div className="workspace-content">
@@ -292,7 +427,7 @@ export function App() {
     );
 }
 
-function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, onSelect, liveConnected, liveUrl, liveSessions, liveMode, liveBusy, onLiveMode, onLiveSelect, onExportLive }: {
+function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, onSelect, connectConnected, connectUrl, netConnected, netSources, netSource, netStore, activeSource, onSourceChange, onNetSourceChange, liveSessions, liveMode, liveBusy, onLiveMode, onLiveSelect, onExportLive, onDeleteLive, onClearLive, onToggleStore }: {
     health: Health;
     healthVersion: string;
     result: DecodeResponse | null;
@@ -300,17 +435,29 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
     busy: boolean;
     onImport: () => void;
     onSelect: (sessionId: string) => void;
-    liveConnected: boolean;
-    liveUrl: string;
+    connectConnected: boolean;
+    connectUrl: string;
+    netConnected: boolean;
+    netSources: NetSourceInfo[];
+    netSource: string;
+    netStore: NetStoreStatus | null;
+    activeSource: LiveSource;
+    onSourceChange: (source: LiveSource) => void;
+    onNetSourceChange: (source: string) => void;
     liveSessions: LiveSummary[];
     liveMode: boolean;
     liveBusy: boolean;
     onLiveMode: () => void;
     onLiveSelect: (id: string) => void;
     onExportLive: () => void;
+    onDeleteLive: (id: string) => void;
+    onClearLive: () => void;
+    onToggleStore: (enabled: boolean) => void;
 }) {
     const sessions = liveMode ? [] : result?.exports ?? [];
     const current = result?.selected?.sessionId ?? result?.requestedSessionId ?? "";
+    const anyConnected = connectConnected || netConnected;
+    const currentSourceConnected = activeSource === "net" ? netConnected : connectConnected;
     return (
         <aside className="sidebar">
             <div className="brand">
@@ -321,8 +468,8 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
             <section className="side-section">
                 <div className="side-heading"><span>{liveMode ? "游戏会话" : "导入会话"}</span><span>{liveMode ? liveSessions.length : sessions.length}</span></div>
                 <div className="session-list">
-                    {liveMode ? liveSessions.map((entry, index) => <button className={`session-item${entry.sessionId === current ? " active" : ""}`} key={entry.sessionId} disabled={liveBusy} onClick={() => onLiveSelect(entry.sessionId)} title={entry.sessionId}>
-                        <span className="session-index">{String(index + 1).padStart(2, "0")}</span><span className="session-copy"><strong>{entry.sessionId}</strong><span>{entry.gameType} · {entry.eventCount} 条事件 · {entry.status === "running" ? "进行中" : "可查看"}</span></span><span className={`session-state${entry.status === "running" ? " incomplete" : " complete"}`} />
+                    {liveMode ? liveSessions.map((entry, index) => <button className={`session-item${entry.sessionId === current ? " active" : ""}`} key={`${entry.source ?? ""}/${entry.sessionId}`} disabled={liveBusy} onClick={() => onLiveSelect(entry.sessionId)} title={entry.sessionId}>
+                        <span className="session-index">{String(index + 1).padStart(2, "0")}</span><span className="session-copy"><strong>{entry.sessionId}</strong><span>{entry.source ? `${entry.source} · ` : ""}{entry.gameType} · {entry.eventCount} 条事件 · {entry.status === "running" ? "进行中" : "可查看"}</span></span><span className={`session-state${entry.status === "running" ? " incomplete" : " complete"}`} />
                     </button>) : null}
                     {sessions.map((entry, index) => (
                         <SessionItem
@@ -334,7 +481,7 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
                             onClick={() => onSelect(entry.sessionId)}
                         />
                     ))}
-                    {(liveMode ? liveSessions.length : sessions.length) === 0 ? <div className="side-empty">{liveMode ? "等待游戏会话" : "导入后，会话会出现在这里"}</div> : null}
+                    {(liveMode ? liveSessions.length : sessions.length) === 0 ? <div className="side-empty">{liveMode ? (currentSourceConnected ? "等待游戏会话" : "数据源未连接") : "导入后，会话会出现在这里"}</div> : null}
                 </div>
             </section>
             <div className="sidebar-spacer" />
@@ -347,10 +494,25 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
                     </div>
                     <span className="connection-mode">LOCAL</span>
                 </div>
+                <div className="source-label">游戏数据源</div>
+                <div className="source-toggle">
+                    <button className={activeSource === "net" ? "active" : ""} disabled={!netConnected} onClick={() => onSourceChange("net")}>BDS</button>
+                    <button className={activeSource === "connect" ? "active" : ""} disabled={!connectConnected} onClick={() => onSourceChange("connect")}>/connect</button>
+                </div>
+                {activeSource === "net" && netConnected && netSources.length > 1 ? <div className="source-toggle">
+                    {netSources.map((entry) => <button key={entry.source} className={entry.source === netSource ? "active" : ""} onClick={() => onNetSourceChange(entry.source)}>{entry.packName ?? entry.source}</button>)}
+                </div> : null}
+                <div className="live-note"><span /> {activeSource === "net"
+                    ? (netConnected ? `BDS 已连接 · Store ${netStore?.enabled ? "ON" : "OFF"} · ${netStore?.count ?? 0} 局` : "等待 BDS 连接 ws://…:18790")
+                    : (connectConnected ? "Minecraft 已连接 · 会话每 3 秒刷新" : `游戏输入 /connect ${connectUrl}`)}</div>
                 <div className="source-label">当前数据源</div>
                 <div className="source-name" title={sourceName || "未载入"}>{sourceName || "未载入"}</div>
-                <div className="live-note"><span /> {liveConnected ? "Minecraft 已连接 · 会话每 3 秒刷新" : `游戏输入 /connect ${liveUrl}`}</div>
-                {liveConnected ? <div className="connect-actions"><button className="button quiet" onClick={onLiveMode}>查看游戏会话</button><button className="button quiet" disabled={liveBusy || liveSessions.length === 0} onClick={onExportLive}>批量导出 ZIP</button></div> : null}
+                {anyConnected ? <div className="connect-actions"><button className="button quiet" onClick={onLiveMode}>查看游戏会话</button><button className="button quiet" disabled={liveBusy || liveSessions.length === 0} onClick={onExportLive}>批量导出 ZIP</button></div> : null}
+                {activeSource === "net" && netConnected ? <div className="connect-actions">
+                    <button className="button quiet" disabled={liveBusy} onClick={() => onToggleStore(!(netStore?.enabled ?? false))}>Store {netStore?.enabled ? "OFF" : "ON"}</button>
+                    <button className="button quiet" disabled={liveBusy} onClick={onClearLive}>清空已完成</button>
+                    {liveMode && current ? <button className="button quiet" disabled={liveBusy} onClick={() => onDeleteLive(current)}>删除当前</button> : null}
+                </div> : null}
             </section>
         </aside>
     );

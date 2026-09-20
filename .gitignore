@@ -5,3 +5,4 @@ dist
 *.tgz
 packages/observatory/public/build
 traces/
+packages/observatory/data
