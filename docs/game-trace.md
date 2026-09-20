@@ -6,6 +6,35 @@ Game Trace is a structured, per-game execution history. It is not a console logg
 
 High-frequency world activity (tick, position, block changes, effects, all Minecraft events) is not captured by default. A future diagnostic mode may add opt-in detail without changing the core format.
 
+## `/connect` live inspection
+
+The Minecraft pack must register the read-only bridge before the startup event:
+
+```ts
+import { initBEGame } from "@begame/core";
+import { createTraceRuntime, registerTraceConnectCommands } from "@begame/trace/minecraft";
+
+const trace = createTraceRuntime();
+registerTraceConnectCommands(trace);
+initBEGame({ trace, traceStore: { enabled: true, maxSessions: 500, maxBytes: 32 * 1024 * 1024 } });
+```
+
+Start the Observatory with `npm run observatory`, then run
+`/connect ws://127.0.0.1:18789` in the Bedrock world. Open
+`http://127.0.0.1:8787` to inspect sessions and export all as a ZIP of
+`.begtrace` files. The connection uses unencrypted WebSocket bound only to
+loopback. The three commands (`begame:tracelist`, `begame:traceinfo`,
+`begame:tracepart`) return data in `commandResponse`, with 8192-character
+Base64 parts. The observed game client did not display those responses in chat.
+
+The UI refreshes the session list every three seconds. Opening a running
+session also refreshes its snapshot every three seconds; snapshots seal the
+current trace chunk and are labeled running in the UI. Exporting a running
+session saves that moment's snapshot. The bridge reads the current pack's
+`TraceManager` and therefore must be registered in the same behavior pack as
+the runtime that records the games. Existing sessions remain subject to that
+store's retention settings.
+
 ## Runtime architecture
 
 ```text

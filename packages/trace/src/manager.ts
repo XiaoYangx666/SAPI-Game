@@ -142,6 +142,14 @@ export class TraceManager {
         return this.sessions.get(gameKey);
     }
 
+    /** Export a consistent snapshot, including events from a running session. */
+    snapshotBytes(sessionId: string): Uint8Array {
+        for (const session of this.sessions.values()) {
+            if (session.header.sessionId === sessionId) session.flush();
+        }
+        return this.store.toSnapshotBytes(sessionId);
+    }
+
     noteConnection(
         playerId: string,
         playerName: string | undefined,

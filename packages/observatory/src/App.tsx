@@ -8,6 +8,16 @@ import { fmtBytes, fmtDate, fmtDuration } from "./format";
 
 type Tab = "overview" | "activity" | "events";
 type Health = "connecting" | "ok" | "bad";
+interface LiveSummary {
+    sessionId: string;
+    gameType: string;
+    gameKey: string;
+    status: string;
+    startWallTime: number;
+    eventCount: number;
+    chunkCount: number;
+    storedBytes: number;
+}
 
 const TEXT_PREVIEW_LIMIT = 2 * 1024 * 1024;
 
@@ -23,6 +33,13 @@ export function App() {
     const [tab, setTab] = useState<Tab>("overview");
     const [importOpen, setImportOpen] = useState(true);
     const fileRef = useRef<HTMLInputElement>(null);
+    const [liveConnected, setLiveConnected] = useState(false);
+    const [liveUrl, setLiveUrl] = useState("ws://127.0.0.1:18789");
+    const [liveSessions, setLiveSessions] = useState<LiveSummary[]>([]);
+    const [liveMode, setLiveMode] = useState(false);
+    const [liveBusy, setLiveBusy] = useState(false);
+    const selectedLiveId = useRef<string | null>(null);
+    const refreshingLive = useRef(false);
 
     useEffect(() => {
         fetch("/api/health")
@@ -33,6 +50,98 @@ export function App() {
             })
             .catch(() => setHealth("bad"));
     }, []);
+
+    useEffect(() => {
+        let active = true;
+        let pending = false;
+        const refresh = async () => {
+            if (pending) return;
+            pending = true;
+            try {
+                const status = await (await fetch("/api/connect/status")).json();
+                if (!active) return;
+                setLiveConnected(Boolean(status.connected));
+                setLiveUrl(String(status.url));
+                if (status.connected && liveMode) {
+                    const response = await fetch("/api/connect/sessions");
+                    const data = await response.json();
+                    if (active && response.ok) setLiveSessions(data.sessions ?? []);
+                }
+            } catch { if (active) setLiveConnected(false); }
+            finally { pending = false; }
+        };
+        void refresh();
+        const timer = window.setInterval(() => void refresh(), 3000);
+        return () => { active = false; window.clearInterval(timer); };
+    }, [liveMode]);
+
+    const loadLive = useCallback(async (id: string, background = false) => {
+        if (background && refreshingLive.current) return;
+        if (background) refreshingLive.current = true;
+        if (!background) {
+            selectedLiveId.current = id;
+            setLiveBusy(true);
+            setStatus({ text: `正在读取 ${id}…`, kind: "busy" });
+        }
+        try {
+            const response = await fetch(`/api/connect/session/${encodeURIComponent(id)}`);
+            if (!response.ok) throw new Error((await response.json()).error ?? "读取失败");
+            const payload = new Uint8Array(await response.arrayBuffer());
+            const decoded = await fetch("/api/decode", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: payload as BodyInit });
+            const data: DecodeResponse = await decoded.json();
+            if (!data.ok || !data.selected) throw new Error(data.error ?? "解析失败");
+            if (selectedLiveId.current !== id) return;
+            if (data.selected.end.endReason === "live-snapshot") data.selected.end.status = "running";
+            setResult(data);
+            setSourceName(`Minecraft · ${id}`);
+            setLiveMode(true);
+            setImportOpen(false);
+            if (!background) {
+                setStatus({ text: `已载入 ${data.selected.events.length} 条事件` });
+                setTab("overview");
+            }
+        } catch (error) { if (selectedLiveId.current === id) setStatus({ text: (error as Error).message, kind: "error" }); }
+        finally {
+            if (background) refreshingLive.current = false;
+            else setLiveBusy(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        const id = result?.selected?.sessionId;
+        if (!liveMode || !id || result?.selected?.end.status !== "running") return;
+        const timer = window.setInterval(() => void loadLive(id, true), 3000);
+        return () => window.clearInterval(timer);
+    }, [liveMode, result?.selected, loadLive]);
+
+    const exportLive = useCallback(async () => {
+        const ids = liveSessions.map((entry) => entry.sessionId);
+        if (!ids.length) return;
+        setLiveBusy(true);
+        setStatus({ text: `正在导出 ${ids.length} 局…`, kind: "busy" });
+        try {
+            const response = await fetch("/api/connect/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }) });
+            if (!response.ok) throw new Error((await response.json()).error ?? "导出失败");
+            const blob = await response.blob();
+            const anchor = document.createElement("a");
+            anchor.href = URL.createObjectURL(blob);
+            anchor.download = "begame-traces.zip";
+            anchor.click();
+            window.setTimeout(() => URL.revokeObjectURL(anchor.href), 60000);
+            setStatus({ text: `已导出 ${ids.length} 局` });
+        } catch (error) { setStatus({ text: (error as Error).message, kind: "error" }); }
+        finally { setLiveBusy(false); }
+    }, [liveSessions]);
+
+    const showLiveSessions = () => {
+        if (liveMode) return;
+        selectedLiveId.current = null;
+        setLiveMode(true);
+        setResult(null);
+        setSourceName("Minecraft");
+        setImportOpen(false);
+        setStatus({ text: "请选择左侧游戏会话" });
+    };
 
     const decode = useCallback(async (sessionId?: string) => {
         const payload = bytes ?? new TextEncoder().encode(input);
@@ -55,6 +164,8 @@ export function App() {
             const data: DecodeResponse = await response.json();
             setResult(data);
             if (data.ok && data.selected) {
+                selectedLiveId.current = null;
+                setLiveMode(false);
                 setStatus({ text: `已载入 ${data.selected.events.length} 条事件` });
                 setTab("overview");
                 setImportOpen(false);
@@ -116,8 +227,16 @@ export function App() {
                 result={result}
                 sourceName={sourceName}
                 busy={busy}
-                onImport={() => setImportOpen(true)}
+                onImport={() => { selectedLiveId.current = null; setLiveMode(false); setImportOpen(true); }}
                 onSelect={(sessionId) => void decode(sessionId)}
+                liveConnected={liveConnected}
+                liveUrl={liveUrl}
+                liveSessions={liveSessions}
+                liveMode={liveMode}
+                liveBusy={liveBusy}
+                onLiveMode={showLiveSessions}
+                onLiveSelect={(id) => void loadLive(id)}
+                onExportLive={() => void exportLive()}
             />
             <main className="workspace">
                 <header className="workspace-bar">
@@ -128,7 +247,8 @@ export function App() {
                     <div className="workspace-actions">
                         {status.text ? <span className={`status${status.kind ? ` ${status.kind}` : ""}`}>{status.text}</span> : null}
                         {selected ? <button className="button quiet" onClick={download}>导出 JSON</button> : null}
-                        <button className="button" onClick={() => setImportOpen(true)}>导入 trace</button>
+                        <button className="button" onClick={() => { selectedLiveId.current = null; setLiveMode(false); setImportOpen(true); }}>导入 trace</button>
+                        {liveConnected ? <button className="button quiet" onClick={showLiveSessions}>连接会话</button> : null}
                     </div>
                 </header>
                 <div className="workspace-content">
@@ -150,7 +270,7 @@ export function App() {
                         />
                     ) : null}
                     {!selected ? (
-                        <EmptyWorkspace onImport={() => fileRef.current?.click()} />
+                        liveMode ? <section className="empty-workspace"><span className="eyebrow">MINECRAFT CONNECTED</span><h1>选择一局游戏会话</h1><p>左侧列表会自动刷新。打开进行中的一局，可持续查看新事件。</p></section> : <EmptyWorkspace onImport={() => fileRef.current?.click()} />
                     ) : view ? (
                         <>
                             <SessionHeader selected={selected} />
@@ -172,7 +292,7 @@ export function App() {
     );
 }
 
-function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, onSelect }: {
+function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, onSelect, liveConnected, liveUrl, liveSessions, liveMode, liveBusy, onLiveMode, onLiveSelect, onExportLive }: {
     health: Health;
     healthVersion: string;
     result: DecodeResponse | null;
@@ -180,8 +300,16 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
     busy: boolean;
     onImport: () => void;
     onSelect: (sessionId: string) => void;
+    liveConnected: boolean;
+    liveUrl: string;
+    liveSessions: LiveSummary[];
+    liveMode: boolean;
+    liveBusy: boolean;
+    onLiveMode: () => void;
+    onLiveSelect: (id: string) => void;
+    onExportLive: () => void;
 }) {
-    const sessions = result?.exports ?? [];
+    const sessions = liveMode ? [] : result?.exports ?? [];
     const current = result?.selected?.sessionId ?? result?.requestedSessionId ?? "";
     return (
         <aside className="sidebar">
@@ -191,8 +319,11 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
             </div>
             <button className="new-source" onClick={onImport}><span>＋</span> 导入数据源</button>
             <section className="side-section">
-                <div className="side-heading"><span>会话</span><span>{sessions.length}</span></div>
+                <div className="side-heading"><span>{liveMode ? "游戏会话" : "导入会话"}</span><span>{liveMode ? liveSessions.length : sessions.length}</span></div>
                 <div className="session-list">
+                    {liveMode ? liveSessions.map((entry, index) => <button className={`session-item${entry.sessionId === current ? " active" : ""}`} key={entry.sessionId} disabled={liveBusy} onClick={() => onLiveSelect(entry.sessionId)} title={entry.sessionId}>
+                        <span className="session-index">{String(index + 1).padStart(2, "0")}</span><span className="session-copy"><strong>{entry.sessionId}</strong><span>{entry.gameType} · {entry.eventCount} 条事件 · {entry.status === "running" ? "进行中" : "可查看"}</span></span><span className={`session-state${entry.status === "running" ? " incomplete" : " complete"}`} />
+                    </button>) : null}
                     {sessions.map((entry, index) => (
                         <SessionItem
                             key={entry.sessionId}
@@ -203,7 +334,7 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
                             onClick={() => onSelect(entry.sessionId)}
                         />
                     ))}
-                    {sessions.length === 0 ? <div className="side-empty">导入后，会话会出现在这里</div> : null}
+                    {(liveMode ? liveSessions.length : sessions.length) === 0 ? <div className="side-empty">{liveMode ? "等待游戏会话" : "导入后，会话会出现在这里"}</div> : null}
                 </div>
             </section>
             <div className="sidebar-spacer" />
@@ -218,7 +349,8 @@ function Sidebar({ health, healthVersion, result, sourceName, busy, onImport, on
                 </div>
                 <div className="source-label">当前数据源</div>
                 <div className="source-name" title={sourceName || "未载入"}>{sourceName || "未载入"}</div>
-                <div className="live-note"><span /> 实时连接接口预留</div>
+                <div className="live-note"><span /> {liveConnected ? "Minecraft 已连接 · 会话每 3 秒刷新" : `游戏输入 /connect ${liveUrl}`}</div>
+                {liveConnected ? <div className="connect-actions"><button className="button quiet" onClick={onLiveMode}>查看游戏会话</button><button className="button quiet" disabled={liveBusy || liveSessions.length === 0} onClick={onExportLive}>批量导出 ZIP</button></div> : null}
             </section>
         </aside>
     );

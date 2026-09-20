@@ -238,6 +238,28 @@ export class TraceHistoryStore implements TraceSink {
         );
     }
 
+    /** Container snapshot for inspection; a running session gets a synthetic footer. */
+    toSnapshotBytes(sessionId: string): Uint8Array {
+        const meta = this.readMeta(sessionId);
+        if (!meta) throw new Error(`Stored Trace Session not found: ${sessionId}`);
+        const chunks: { bytes: Uint8Array }[] = [];
+        for (let index = 0; index < meta.chunkCount; index++) {
+            const encoded = this.storage.kv.get(this.chunkKey(sessionId, index));
+            if (typeof encoded !== "string") throw new Error(`Missing Trace chunk ${sessionId}:${index}`);
+            chunks.push({ bytes: decodeBase64(encoded) });
+        }
+        const end: TraceSessionEnd = meta.end ?? {
+            sessionId,
+            status: "interrupted",
+            endTick: meta.lastTick,
+            endWallTime: Date.now(),
+            endReason: "live-snapshot",
+            eventCount: meta.eventCount,
+            chunkCount: meta.chunkCount,
+        };
+        return encodeBegTrace(meta.header, chunks, end);
+    }
+
     delete(sessionId: string): boolean {
         if (this.activeSessions.has(sessionId)) return false;
         const prefix = `${STORE_PREFIX}${sessionId}.`;

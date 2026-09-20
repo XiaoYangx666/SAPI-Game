@@ -468,6 +468,11 @@ export class TraceSession {
         return this.chunkCount;
     }
 
+    /** Seal the current chunk so a read-only /connect snapshot can include it. */
+    flush() {
+        if (!this._ended) this.sealChunk();
+    }
+
     player(id: string, name?: string): TracePlayerMarker {
         return { [playerMarker]: true, id, ...(name ? { name } : {}) };
     }

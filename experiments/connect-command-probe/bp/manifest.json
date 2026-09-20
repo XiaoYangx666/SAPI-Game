@@ -1,0 +1,37 @@
+{
+    "format_version": 2,
+    "header": {
+        "name": "BEGame Connect Command Probe",
+        "description": "Tests custom command responses over Bedrock /connect",
+        "uuid": "5743b0db-69b1-447f-929f-18aed7bec8ee",
+        "version": [
+            0,
+            2,
+            0
+        ],
+        "min_engine_version": [
+            1,
+            26,
+            50
+        ]
+    },
+    "modules": [
+        {
+            "type": "script",
+            "language": "javascript",
+            "uuid": "a770ed6d-388b-404a-b881-15e6bb1d5763",
+            "version": [
+                1,
+                0,
+                0
+            ],
+            "entry": "scripts/main.js"
+        }
+    ],
+    "dependencies": [
+        {
+            "module_name": "@minecraft/server",
+            "version": "2.10.0"
+        }
+    ]
+}
