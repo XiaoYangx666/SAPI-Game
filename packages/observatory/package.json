@@ -1,12 +1,21 @@
 {
     "name": "@begame/observatory",
     "version": "0.0.2",
-    "private": true,
     "description": "BEGame trace analysis workspace and service",
     "type": "module",
     "main": "./dist/server.js",
+    "bin": {
+        "bgobs": "./dist/cli.js"
+    },
+    "files": [
+        "dist",
+        "public",
+        "observatory.config.example.json",
+        "README.md"
+    ],
     "scripts": {
-        "start": "node dist/server.js"
+        "build": "node scripts/build.mjs",
+        "start": "node dist/cli.js"
     },
     "dependencies": {
         "@begame/trace": "0.0.2",
@@ -16,6 +25,17 @@
         "react-dom": "^19.3.0"
     },
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/XiaoYangx666/SAPI-Game.git",
+        "directory": "packages/observatory"
+    },
+    "keywords": [
+        "minecraft",
+        "bedrock",
+        "trace",
+        "observatory"
+    ],
     "devDependencies": {
         "@types/node": "^22.20.2",
         "@types/react": "^19.3.0",

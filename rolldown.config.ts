@@ -22,8 +22,11 @@ const coreRoot = "packages/core/src";
 const testRoot = "packages/test/src";
 const traceSpecRoot = "packages/trace-spec/src";
 const traceRoot = "packages/trace/src";
-const observatoryEntry = path.resolve("packages/observatory/src/main.tsx");
-const observatoryServerEntry = path.resolve("packages/observatory/server/index.ts");
+
+// The observatory is deliberately absent here: it builds itself through
+// `packages/observatory/scripts/build.mjs` so the published package can be
+// built outside this checkout. Adding it back would reintroduce a
+// repo-relative build dependency.
 
 const traceSpecExternal = /^@begame\/trace-spec(\/|$)/;
 const traceExternal = /^@begame\/trace(\/|$)/;
@@ -126,27 +129,5 @@ export default defineConfig([
             entryFileNames: "[name].js",
         },
         plugins: [dts({ tsconfig: "./tsconfig.json" })],
-    },
-    {
-        input: { app: observatoryEntry },
-        platform: "browser",
-        define: {
-            "process.env.NODE_ENV": JSON.stringify("production"),
-        },
-        output: {
-            dir: "packages/observatory/public/build",
-            format: "esm",
-            entryFileNames: "[name].js",
-            minify: true,
-        },
-    },
-    {
-        input: { server: observatoryServerEntry },
-        platform: "node",
-        output: {
-            dir: "packages/observatory/dist",
-            format: "esm",
-            entryFileNames: "[name].js",
-        },
     },
 ]);

@@ -8,21 +8,23 @@
         "packages/*"
     ],
     "scripts": {
-        "clean": "rimraf packages/core/dist packages/test/dist packages/trace/dist packages/trace-spec/dist packages/observatory/dist packages/observatory/public/build || true",
-        "build": "npm run clean && tsc --noEmit && tsc -p packages/observatory/server && rolldown -c",
+        "clean": "rimraf packages/core/dist packages/test/dist packages/trace/dist packages/trace-spec/dist || true",
+        "build": "npm run clean && tsc --noEmit && rolldown -c && npm run build:observatory",
+        "build:observatory": "npm run build --workspace @begame/observatory",
         "pack": "node scripts/pack.mjs",
         "test": "vitest run",
         "test:unit": "vitest run",
         "test:treeshake": "node scripts/treeshake-probe.mjs",
         "test:headless": "vitest run tests/lifecycle.test.mjs",
         "test:watch": "vitest",
-        "observatory": "node packages/observatory/dist/server.js",
-        "observatory:connect": "node packages/observatory/dist/server.js --connect",
-        "observatory:net": "node packages/observatory/dist/server.js --net"
+        "fixture:observatory": "node scripts/make-observatory-fixture.mjs",
+        "observatory": "node packages/observatory/dist/cli.js",
+        "observatory:connect": "node packages/observatory/dist/cli.js --connect",
+        "observatory:net": "node packages/observatory/dist/cli.js --net"
     },
     "devDependencies": {
         "@minecraft/server": "2.10.0",
-        "@minecraft/server-net": "^1.0.0-beta.1.26.51-stable",
+        "@minecraft/server-net": "1.0.0-beta.1.26.51-stable",
         "@minecraft/server-ui": "2.2.0",
         "@minecraft/vanilla-data": "1.26.51",
         "rimraf": "^6.1.2",

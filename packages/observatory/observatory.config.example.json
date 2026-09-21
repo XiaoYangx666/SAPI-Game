@@ -1,0 +1,10 @@
+{
+    "connect": {
+        "targets": {
+            "ddz": {
+                "packName": "MCBE Dou Dizhu",
+                "games": ["doudizhu"]
+            }
+        }
+    }
+}
