@@ -9,9 +9,10 @@ import { StructureView } from "../packages/observatory/src/StructureView.tsx";
 import { ParticipantsView } from "../packages/observatory/src/ParticipantsView.tsx";
 import { RawView } from "../packages/observatory/src/RawView.tsx";
 
+/** Committed generated fixture; see `scripts/make-observatory-fixture.mjs`. */
 function load() {
     const result = decodeTracePayload(
-        readFileSync(new URL("../traces/a.txt", import.meta.url))
+        readFileSync(new URL("./fixtures/observatory-sample.begtrace", import.meta.url))
     );
     return { selected: result.selected, analysis: result.analysis };
 }
