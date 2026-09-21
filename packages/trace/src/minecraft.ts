@@ -13,17 +13,8 @@ import { CommandPermissionLevel, CustomCommandParamType, CustomCommandStatus, sy
 import { isWorldLoaded, runAfterWorldLoad } from "@begame/core/world-ready";
 import { TraceManager } from "./runtime/manager";
 import { encodeBase64 } from "./wire/base64";
-import {
-    TRACE_BRIDGE_OBJECTIVE,
-    TRACE_BRIDGE_PROTOCOL,
-    buildTraceBridgeEntry,
-    buildTraceBridgeEntryPrefix,
-} from "./bridge/bridgeRegistry";
-import type { TraceBridgeInfo } from "./bridge/bridgeRegistry";
 import type { TraceStorage, TraceStoredValue } from "./runtime/storage";
 import type { TraceSessionOptions } from "./wire/types";
-
-export * from "./bridge/bridgeRegistry";
 
 export function createMinecraftTraceStorage(): TraceStorage {
     return {
@@ -87,14 +78,13 @@ export interface TraceConnectCommandOptions {
      * (`CustomCommandErrorReason.NamespaceMismatch`), so this must match the
      * namespace the pack already uses, e.g. `game` for PartyGames or `ddz` for
      * Dou Dizhu. Defaults to `begame` for the standalone probe pack.
+     *
+     * The Observatory cannot discover this value at runtime — an earlier
+     * scoreboard-registry design was never verified to work and has been
+     * removed — so the same namespace must be declared in the Observatory's
+     * `observatory.config.json` (`connect.targets`).
      */
     readonly namespace?: string;
-    /**
-     * When set, the pack also advertises itself in
-     * {@link TRACE_BRIDGE_OBJECTIVE} after worldLoad, so a `/connect` client can
-     * discover its namespace with `/scoreboard players list`.
-     */
-    readonly bridge?: TraceBridgeInfo;
 }
 
 function success(value: unknown) {
@@ -111,42 +101,16 @@ function normalizeNamespace(namespace?: string): string | undefined {
 }
 
 /**
- * Writes (or refreshes) this pack's registry entry. Scoreboard access is only
- * safe after worldLoad, and a failed advertisement must never affect gameplay.
- */
-export function publishTraceBridgeEntry(
-    namespace: string,
-    info: TraceBridgeInfo = {}
-): void {
-    try {
-        const board = world.scoreboard;
-        const objective =
-            board.getObjective(TRACE_BRIDGE_OBJECTIVE) ??
-            board.addObjective(TRACE_BRIDGE_OBJECTIVE, "BEGameBridge");
-        const entry = buildTraceBridgeEntry(namespace, info);
-        const ownPrefix = buildTraceBridgeEntryPrefix(namespace);
-        // Drop this pack's stale advertisements (e.g. an older version) before
-        // writing the current one, so discovery never sees duplicates.
-        for (const identity of objective.getParticipants()) {
-            const name = identity.displayName;
-            if (name !== entry && name.startsWith(ownPrefix)) {
-                objective.removeParticipant(name);
-            }
-        }
-        objective.setScore(entry, TRACE_BRIDGE_PROTOCOL);
-    } catch (error) {
-        console.warn("[BEGame] Trace bridge registry write failed:", error);
-    }
-}
-
-/**
- * Register read-only commands that return trace data through commandResponse,
- * and optionally advertise the pack in the shared scoreboard registry.
+ * Register read-only commands that return trace data through commandResponse.
  *
  * The caller must invoke this while registering its behavior pack, before
  * `system.beforeEvents.startup`. Replies to /connect requests use
  * commandResponse; manually running these commands may display their payload
  * in chat.
+ *
+ * Commands are `<namespace>:tracelist`, `<namespace>:traceinfo` and
+ * `<namespace>:tracepart`; the Observatory must be configured with the same
+ * namespace.
  */
 export function registerTraceConnectCommands(
     trace: TraceManager,
@@ -158,10 +122,6 @@ export function registerTraceConnectCommands(
             `[BEGame] Invalid trace bridge namespace: ${JSON.stringify(options.namespace)}`
         );
         return;
-    }
-    const bridge = options.bridge;
-    if (bridge) {
-        runAfterWorldLoad(() => publishTraceBridgeEntry(namespace, bridge));
     }
 
     let cached: { id: string; base64: string } | undefined;

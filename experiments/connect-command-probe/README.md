@@ -9,6 +9,15 @@ verified with the original probe and was not displayed in game chat.
 1. The 0.2.0 behavior pack has been copied to Minecraft's development behavior
    packs. Re-enter the world so Minecraft loads the updated script.
 2. Start the Observatory with `npm run observatory` from the repository root.
+   The probe registers its commands under the `begame` namespace (the default),
+   so the Observatory must be told about it — either add it to
+   `observatory.config.json`:
+
+   ```json
+   { "connect": { "targets": { "begame": {} } } }
+   ```
+
+   or pass it on the command line: `npm run observatory -- --connect --pack begame`.
 3. In Minecraft, run `/connect ws://127.0.0.1:18789`.
 4. Open `http://127.0.0.1:8787`, choose **查看游戏会话**, and open the
    `connect-probe` test session. **批量导出 ZIP** downloads all stored sessions.

@@ -13,6 +13,8 @@ type Health = "connecting" | "ok" | "bad";
 interface Capabilities {
     http: boolean;
     connect: boolean;
+    /** Configured /connect pack count; 0 means the bridge cannot query anything. */
+    connectTargets?: number;
     net: boolean;
     ingest: boolean;
 }
@@ -156,7 +158,9 @@ export function App() {
             }
             try {
                 const params = new URLSearchParams({ source: group.kind });
-                if (group.kind === "net" && group.pack) params.set("pack", group.pack);
+                // Both bridged sources need the pack: net routes by packId and
+                // /connect commands are namespaced per pack.
+                if (group.kind !== "ingest" && group.pack) params.set("pack", group.pack);
                 const response = await fetch(
                     `/api/session/${encodeURIComponent(session.sessionId)}?${params}`
                 );
@@ -271,10 +275,12 @@ export function App() {
         setStatus({ text: `正在导出 ${group.sessions.length} 局…`, kind: "busy" });
         try {
             const endpoint = group.kind === "net" ? "/api/net/export" : "/api/connect/export";
+            // Both bridges address sessions per pack: the net bridge routes by
+            // packId, and /connect commands are namespaced per pack.
             const body =
                 group.kind === "net"
                     ? { items: group.sessions.map((session) => ({ source: group.pack, id: session.sessionId })) }
-                    : { ids: group.sessions.map((session) => session.sessionId) };
+                    : { ids: group.sessions.map((session) => session.sessionId), pack: group.pack };
             const response = await fetch(endpoint, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -753,7 +759,9 @@ function Sidebar({
 }
 
 function sourceGroupLabel(group: SourceGroup): string {
-    if (group.kind === "connect") return "/connect 桥";
+    // Both bridges are per pack, so the label names the pack rather than the
+    // transport; otherwise two /connect groups look identical.
+    if (group.kind === "connect") return `/connect · ${group.packName ?? group.pack ?? "pack"}`;
     if (group.kind === "ingest") return "HTTP 上传";
     return `BDS · ${group.packName ?? group.pack ?? "pack"}`;
 }

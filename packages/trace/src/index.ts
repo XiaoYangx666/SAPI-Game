@@ -11,8 +11,7 @@
  *
  * - `wire/`    — vocabulary, binary primitives, container, decoder, schema DSL
  * - `runtime/` — session, manager, history store, storage seams, console export
- * - `bridge/`  — transports shared with the game side: trace-net, ingest, the
- *                `/connect` bridge registry
+ * - `bridge/`  — transports shared with the game side: trace-net and ingest
  * - `tools/`   — offline Content Log parser
  * - root       — `index.ts` (this entry), plus the `./minecraft` and
  *                `./server-net` bindings
@@ -45,6 +44,5 @@ export * from "./runtime/storage";
 export * from "./runtime/historyStore";
 export * from "./runtime/manager";
 export * from "./tools/logParser";
-export * from "./bridge/bridgeRegistry";
 export * from "./bridge/ingest";
 export * from "./bridge/net";

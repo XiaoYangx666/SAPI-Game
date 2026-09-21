@@ -11,6 +11,20 @@ import { zipFiles } from "./zip";
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
 const VERSION = "0.0.2";
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
+/** Bedrock command namespaces are lowercase alphanumerics/underscore only. */
+const NAMESPACE_PATTERN = /^[a-z0-9_]+$/;
+
+/**
+ * A pack namespace is mandatory wherever a session is fetched from the
+ * `/connect` bridge, because the bridge commands are registered per pack
+ * (`ddz:tracelist`, `game:tracelist`, ...). Failing here keeps the error
+ * legible instead of sending a malformed command to the game.
+ */
+function requirePack(pack: string | undefined): string {
+    if (!pack) throw new Error("connect 数据源需要 pack 参数（包的命令 namespace）");
+    if (!NAMESPACE_PATTERN.test(pack)) throw new Error(`无效的 pack namespace：${pack}`);
+    return pack;
+}
 
 /** Absolute path of the static assets, independent of the process cwd. */
 export const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
@@ -80,8 +94,21 @@ export function createApp(bridge?: ConnectBridge, ingest?: IngestStore, net?: Tr
 
         if (bridge) {
             try {
-                const sessions = await bridge.list();
-                sources.push({ id: "connect", kind: "connect", connected: bridge.connected, sessions });
+                const { sessions, errors } = await bridge.list();
+                // Mirror the net source: one entry per pack, so the workbench
+                // can group sessions by pack instead of showing one flat list.
+                for (const target of bridge.configuredTargets) {
+                    const failure = errors.find((item) => item.pack === target.namespace);
+                    sources.push({
+                        id: `connect:${target.namespace}`,
+                        kind: "connect",
+                        connected: bridge.connected,
+                        pack: target.namespace,
+                        packName: target.packName ?? target.namespace,
+                        sessions: sessions.filter((session) => session.pack === target.namespace),
+                        error: failure?.error,
+                    });
+                }
             } catch (error) {
                 sources.push({ id: "connect", kind: "connect", connected: bridge.connected, sessions: [], error: (error as Error).message });
             }
@@ -139,17 +166,28 @@ export function createApp(bridge?: ConnectBridge, ingest?: IngestStore, net?: Tr
     // ------------------------------------------------------------------
 
     app.get("/api/connect/status", (c) =>
-        c.json({ enabled: Boolean(bridge), connected: bridge?.connected ?? false, url: bridge?.url })
+        c.json({
+            enabled: Boolean(bridge),
+            connected: bridge?.connected ?? false,
+            url: bridge?.url,
+            targets: bridge?.configuredTargets ?? [],
+        })
     );
     app.get("/api/connect/sessions", async (c) => {
         if (!bridge) return c.json({ error: "连接服务未启动" }, 503);
-        try { return c.json({ sessions: await bridge.list() }); }
-        catch (error) { return c.json({ error: (error as Error).message }, 503); }
+        try {
+            const pack = c.req.query("pack");
+            // A single pack keeps the flat shape callers already used; without
+            // `pack` the response spans every configured namespace.
+            if (pack) return c.json({ sessions: await bridge.listPack(pack) });
+            return c.json(await bridge.list());
+        } catch (error) { return c.json({ error: (error as Error).message }, 503); }
     });
     app.get("/api/connect/session/:id", async (c) => {
         if (!bridge) return c.json({ error: "连接服务未启动" }, 503);
         try {
-            const bytes = await bridge.download(c.req.param("id"));
+            const pack = requirePack(c.req.query("pack"));
+            const bytes = await bridge.download(c.req.param("id"), pack);
             return new Response(new Uint8Array(bytes), {
                 headers: {
                     "content-type": "application/octet-stream",
@@ -162,15 +200,16 @@ export function createApp(bridge?: ConnectBridge, ingest?: IngestStore, net?: Tr
     app.post("/api/connect/export", async (c) => {
         if (!bridge) return c.json({ error: "连接服务未启动" }, 503);
         try {
-            const body = await c.req.json() as { ids?: unknown };
+            const body = await c.req.json() as { ids?: unknown; pack?: unknown };
             const ids = body.ids;
             if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !ids.every((id) => typeof id === "string" && ID_PATTERN.test(id))) {
                 return c.json({ error: "请选择 1 至 500 个有效会话" }, 400);
             }
+            const pack = requirePack(typeof body.pack === "string" ? body.pack : c.req.query("pack"));
             const files = [];
             let total = 0;
             for (const id of new Set(ids as string[])) {
-                const bytes = await bridge.download(id);
+                const bytes = await bridge.download(id, pack);
                 total += bytes.length;
                 if (total > MAX_BODY_BYTES) return c.json({ error: "归档超过 64 MiB，请分批导出" }, 413);
                 files.push({ name: `${id}.begtrace`, bytes });
@@ -368,6 +407,9 @@ function capabilities(deps: AppDeps) {
     return {
         http: true,
         connect: Boolean(deps.bridge),
+        // Distinguishes "bridge listening but no pack configured" from
+        // "bridge ready": the former cannot answer a single command.
+        connectTargets: deps.bridge?.configuredTargets.length ?? 0,
         net: Boolean(deps.net),
         ingest: Boolean(deps.ingest),
     };
@@ -420,8 +462,7 @@ function analyzePayload(buffer: Buffer, sessionId?: string) {
     };
 }
 
-/** Resolve raw bytes for one session, by source kind. */
-async function fetchSessionBytes(
+/** Resolve raw bytes for one session, by source kind. */async function fetchSessionBytes(
     deps: AppDeps,
     source: string,
     id: string,
@@ -430,7 +471,8 @@ async function fetchSessionBytes(
     if (!ID_PATTERN.test(id)) throw new Error("无效的会话 ID");
     if (source === "connect") {
         if (!deps.bridge) throw new Error("连接服务未启动");
-        return deps.bridge.download(id);
+        // Command names are namespaced per pack, so the pack is not optional.
+        return deps.bridge.download(id, requirePack(pack));
     }
     if (source === "ingest") {
         if (!deps.ingest) throw new Error("ingest 未启用");

@@ -1,12 +1,14 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import type { Socket } from "node:net";
 import { decodeTracePayload } from "../src/decode.mjs";
+import { RawWebSocketConnection, acceptWebSocket } from "./ws";
 
 const PREFIX = "BGTRACE1:";
-const MAX_FRAME = 64 * 1024;
 const MAX_TRACE_BYTES = 64 * 1024 * 1024;
 const PAGE_SIZE = 10;
+/** Command timeout: a missing response must not wedge the serial queue. */
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export interface LiveSummary {
     sessionId: string;
@@ -17,106 +19,59 @@ export interface LiveSummary {
     eventCount: number;
     chunkCount: number;
     storedBytes: number;
+    /** Command namespace of the pack that produced this session. */
+    pack: string;
+    /** Human label of that pack, when configured. */
+    packName: string;
+}
+
+/** One configured pack the bridge queries. */
+export interface ConnectTarget {
+    readonly namespace: string;
+    readonly packName?: string;
+    readonly games?: readonly string[];
 }
 
 interface Pending {
-    id: string;
     resolve(value: unknown): void;
     reject(error: Error): void;
     timer: ReturnType<typeof setTimeout>;
 }
 
-function frame(opcode: number, payload: Buffer): Buffer {
-    if (payload.length < 126) return Buffer.concat([Buffer.from([0x80 | opcode, payload.length]), payload]);
-    const head = Buffer.alloc(4);
-    head[0] = 0x80 | opcode;
-    head[1] = 126;
-    head.writeUInt16BE(payload.length, 2);
-    return Buffer.concat([head, payload]);
-}
-
-class BedrockConnection {
-    private buffer = Buffer.alloc(0);
+/**
+ * Adds Bedrock command request/response semantics on top of the shared
+ * WebSocket transport.
+ *
+ * Frame handling lives in `./ws`, which the BDS `server-net` bridge uses too;
+ * this class only correlates `commandRequest` with `commandResponse` by
+ * requestId and decodes the `BGTRACE1:` payload.
+ */
+class CommandChannel {
     private readonly pending = new Map<string, Pending>();
-    private fragmentOpcode = 0;
-    private fragments: Buffer[] = [];
-    private closed = false;
 
-    constructor(readonly socket: Socket, initial: Buffer, readonly onClose: () => void) {
-        socket.on("data", (data) => this.receive(data));
-        // A client that vanishes without a close frame only ends its read
-        // side; clean up here so `connected` does not stay true forever.
-        socket.on("end", () => {
-            console.log("Minecraft WebSocket: 对端结束 TCP 连接");
-            this.socket.end();
-            this.close();
-        });
-        socket.on("close", (hadError) => { console.log(`Minecraft WebSocket: 已断开 (hadError=${hadError})`); this.close(); });
-        socket.on("error", (error) => { console.error("Minecraft WebSocket 错误:", error.message); this.close(); });
-        if (initial.length) this.receive(initial);
-    }
+    constructor(private readonly socket: RawWebSocketConnection) {}
 
-    private close() {
-        if (this.closed) return;
-        this.closed = true;
+    /** Rejects every in-flight request; called when the peer goes away. */
+    release(reason: string) {
         for (const item of this.pending.values()) {
             clearTimeout(item.timer);
-            item.reject(new Error("Minecraft 已断开连接"));
+            item.reject(new Error(reason));
         }
         this.pending.clear();
-        this.onClose();
     }
 
-    private receive(data: Buffer) {
-        this.buffer = Buffer.concat([this.buffer, data]);
-        if (this.buffer.length > MAX_FRAME * 2) { console.error("Minecraft WebSocket: 缓冲区超过上限"); return this.socket.destroy(); }
-        while (this.buffer.length >= 2) {
-            const first = this.buffer[0];
-            const second = this.buffer[1];
-            const opcode = first & 15;
-            const masked = Boolean(second & 128);
-            const code = second & 127;
-            const extra = code === 126 ? 2 : code === 127 ? 8 : 0;
-            if (this.buffer.length < 2 + extra + (masked ? 4 : 0)) return;
-            const size = code < 126 ? code : code === 126 ? this.buffer.readUInt16BE(2) : Number(this.buffer.readBigUInt64BE(2));
-            if (!Number.isSafeInteger(size) || size > MAX_FRAME) { console.error(`Minecraft WebSocket: 帧过大 (${size})`); return this.socket.destroy(); }
-            const start = 2 + extra + (masked ? 4 : 0);
-            if (this.buffer.length < start + size) return;
-            const payload = Buffer.from(this.buffer.subarray(start, start + size));
-            if (masked) for (let i = 0; i < payload.length; i++) payload[i] ^= this.buffer[2 + extra + i % 4];
-            this.buffer = this.buffer.subarray(start + size);
-            if (opcode === 8) {
-                const code = payload.length >= 2 ? payload.readUInt16BE(0) : undefined;
-                console.log(`Minecraft WebSocket: 对端发送关闭帧 code=${code ?? "none"} reason=${payload.subarray(2).toString("utf8")}`);
-                return this.socket.end(frame(8, payload));
-            }
-            if (opcode === 9) { this.socket.write(frame(10, payload)); continue; }
-            if (opcode === 10) continue;
-            if (opcode === 1 && !(first & 128)) {
-                this.fragmentOpcode = 1;
-                this.fragments = [payload];
-                continue;
-            }
-            if (opcode === 0 && this.fragmentOpcode === 1) {
-                this.fragments.push(payload);
-                if (this.fragments.reduce((sum, part) => sum + part.length, 0) > MAX_FRAME) return this.socket.destroy();
-                if (!(first & 128)) continue;
-                this.fragmentOpcode = 0;
-                this.handle(Buffer.concat(this.fragments).toString("utf8"));
-                this.fragments = [];
-                continue;
-            }
-            if (opcode === 1) this.handle(payload.toString("utf8"));
-        }
-    }
-
-    private handle(text: string) {
+    /** Feeds one inbound text frame; returns silently for unrelated packets. */
+    accept(text: string) {
         let packet: any;
-        try { packet = JSON.parse(text); } catch { return; }
+        try {
+            packet = JSON.parse(text);
+        } catch {
+            return;
+        }
         if (packet.header?.messagePurpose !== "commandResponse") return;
         const item = this.pending.get(packet.header.requestId);
         if (!item) return;
-        this.pending.delete(item.id);
+        this.pending.delete(packet.header.requestId);
         clearTimeout(item.timer);
         const message = packet.body?.statusMessage;
         if (typeof message !== "string" || !message.startsWith(PREFIX)) {
@@ -127,83 +82,180 @@ class BedrockConnection {
             const value = JSON.parse(message.slice(PREFIX.length));
             if (value?.error) item.reject(new Error(String(value.error)));
             else item.resolve(value);
-        } catch { item.reject(new Error("无效的 trace 响应")); }
+        } catch {
+            item.reject(new Error("无效的 trace 响应"));
+        }
     }
 
     request(commandLine: string): Promise<any> {
-        if (this.socket.destroyed) return Promise.reject(new Error("Minecraft 已断开连接"));
         const id = randomUUID();
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
                 reject(new Error(`命令超时：${commandLine.split(" ")[0]}`));
-            }, 10000);
-            this.pending.set(id, { id, resolve, reject, timer });
-            this.socket.write(frame(1, Buffer.from(JSON.stringify({
-                header: { version: 1, requestId: id, messageType: "commandRequest", messagePurpose: "commandRequest" },
-                body: { version: 1, origin: { type: "player" }, overworld: "default", commandLine },
-            }))));
+            }, REQUEST_TIMEOUT_MS);
+            this.pending.set(id, { resolve, reject, timer });
+            this.socket.send(
+                JSON.stringify({
+                    header: {
+                        version: 1,
+                        requestId: id,
+                        messageType: "commandRequest",
+                        messagePurpose: "commandRequest",
+                    },
+                    body: { version: 1, origin: { type: "player" }, overworld: "default", commandLine },
+                })
+            );
         });
     }
 }
 
 export class ConnectBridge {
-    private client?: BedrockConnection;
+    private channel?: CommandChannel;
     private queue = Promise.resolve();
     private readonly server = createServer((_req, response) => response.writeHead(404).end());
+    private readonly targets: readonly ConnectTarget[];
 
     constructor(
         private readonly port = Number(process.env.BEGAME_CONNECT_PORT ?? 18789),
-        private readonly host = process.env.HOST ?? "127.0.0.1"
+        private readonly host = process.env.HOST ?? "127.0.0.1",
+        targets: readonly ConnectTarget[] = []
     ) {
+        // Deduplicate here as well: config parsing already does, but a
+        // programmatic caller can pass anything and a repeated namespace would
+        // list every session twice.
+        const seen = new Set<string>();
+        this.targets = targets.filter((target) => {
+            if (seen.has(target.namespace)) return false;
+            seen.add(target.namespace);
+            return true;
+        });
+        if (this.targets.length === 0) {
+            console.warn(
+                "Bedrock /connect: 未配置任何 namespace，连接后无法列出会话。" +
+                    "请在 observatory.config.json 的 connect.targets 中配置。"
+            );
+        }
         this.server.on("upgrade", (request: IncomingMessage, socket: Socket, head: Buffer) => {
             console.log(`Bedrock WebSocket upgrade: path=${request.url} remote=${socket.remoteAddress}`);
-            const key = request.headers["sec-websocket-key"];
-            if (typeof key !== "string") { console.error("Bedrock WebSocket: 缺少握手密钥"); return socket.destroy(); }
-            if (this.client) { console.error("Bedrock WebSocket: 已有客户端连接"); return socket.destroy(); }
-            const accept = createHash("sha1").update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
-            socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
-            const client = new BedrockConnection(socket, head, () => { if (this.client === client) this.client = undefined; });
-            this.client = client;
+            if (this.channel) {
+                console.error("Bedrock WebSocket: 已有客户端连接");
+                return socket.destroy();
+            }
+            if (!acceptWebSocket(request, socket)) {
+                console.error("Bedrock WebSocket: 缺少握手密钥");
+                return;
+            }
+            let channel: CommandChannel;
+            const transport = new RawWebSocketConnection(
+                socket,
+                head,
+                (text) => channel.accept(text),
+                () => {
+                    // A peer that vanishes without a close frame only ends its
+                    // read side; releasing here keeps `connected` honest and
+                    // fails in-flight requests instead of letting them time out.
+                    channel.release("Minecraft 已断开连接");
+                    if (this.channel === channel) this.channel = undefined;
+                    console.log("Minecraft WebSocket: 已断开");
+                }
+            );
+            channel = new CommandChannel(transport);
+            this.channel = channel;
             console.log("Minecraft /connect 已连接");
         });
         this.server.listen(this.port, this.host, () => console.log(`Bedrock /connect: ws://${this.host}:${this.port}`));
         this.server.on("error", (error) => console.error("Bedrock WebSocket 启动失败:", error));
     }
 
-    get connected() { return Boolean(this.client); }
+    get connected() { return Boolean(this.channel); }
     get url() { return `ws://${this.host}:${this.port}`; }
+    /** Packs this bridge queries, as configured. */
+    get configuredTargets(): readonly ConnectTarget[] { return this.targets; }
 
-    private serial<T>(operation: (client: BedrockConnection) => Promise<T>): Promise<T> {
+    /** Stops listening and drops the game connection, if any. */
+    close(): void {
+        this.channel?.release("连接已关闭");
+        this.channel = undefined;
+        this.server.close();
+    }
+
+    private serial<T>(operation: (client: CommandChannel) => Promise<T>): Promise<T> {
         const run = this.queue.then(() => {
-            if (!this.client) throw new Error("Minecraft 尚未连接；请在游戏中执行 /connect " + this.url);
-            return operation(this.client);
+            if (!this.channel) throw new Error("Minecraft 尚未连接；请在游戏中执行 /connect " + this.url);
+            return operation(this.channel);
         });
         this.queue = run.then(() => undefined, () => undefined);
         return run;
     }
 
-    list(): Promise<LiveSummary[]> {
-        return this.serial(async (client) => {
+    /**
+     * Lists sessions for one pack.
+     *
+     * The command namespace is per pack, so the caller has to name the pack it
+     * wants; without a target the request cannot be formed at all.
+     */
+    private listTarget(client: CommandChannel, target: ConnectTarget): Promise<LiveSummary[]> {
+        return (async () => {
             const all: LiveSummary[] = [];
             for (let page = 0; page < 1000; page++) {
-                const response = await client.request(`/begame:tracelist ${page}`);
+                const response = await client.request(`/${target.namespace}:tracelist ${page}`);
                 if (response.kind !== "list" || response.page !== page || !Array.isArray(response.sessions)) throw new Error("无效的会话列表");
-                all.push(...response.sessions);
+                for (const session of response.sessions as LiveSummary[]) {
+                    all.push({ ...session, pack: target.namespace, packName: target.packName ?? target.namespace });
+                }
                 if (all.length >= response.total || response.sessions.length < PAGE_SIZE) return all;
             }
             throw new Error("会话列表超过安全上限");
+        })();
+    }
+
+    /**
+     * Every configured pack's sessions, tagged with its namespace.
+     *
+     * One unreachable pack must not hide the others, so failures are collected
+     * per pack and reported alongside the successful results.
+     */
+    async list(): Promise<{ sessions: LiveSummary[]; errors: { pack: string; error: string }[] }> {
+        return this.serial(async (client) => {
+            const sessions: LiveSummary[] = [];
+            const errors: { pack: string; error: string }[] = [];
+            for (const target of this.targets) {
+                try {
+                    sessions.push(...(await this.listTarget(client, target)));
+                } catch (error) {
+                    errors.push({ pack: target.namespace, error: (error as Error).message });
+                }
+            }
+            return { sessions, errors };
         });
     }
 
-    download(id: string): Promise<Buffer> {
+    /** Sessions for one pack only; unknown namespaces fail loudly. */
+    listPack(namespace: string): Promise<LiveSummary[]> {
+        const target = this.targets.find((item) => item.namespace === namespace);
+        if (!target) {
+            return Promise.reject(
+                new Error(`未配置的 namespace：${namespace}（请在 observatory.config.json 的 connect.targets 中添加）`)
+            );
+        }
+        return this.serial((client) => this.listTarget(client, target));
+    }
+
+    download(id: string, namespace: string): Promise<Buffer> {
         if (!/^[A-Za-z0-9_-]{1,120}$/.test(id)) return Promise.reject(new Error("无效的会话 ID"));
+        const target = this.targets.find((item) => item.namespace === namespace);
+        if (!target) {
+            return Promise.reject(
+                new Error(`未配置的 namespace：${namespace}（请在 observatory.config.json 的 connect.targets 中添加）`)
+            );
+        }
         return this.serial(async (client) => {
-            const info = await client.request(`/begame:traceinfo ${id}`);
+            const info = await client.request(`/${target.namespace}:traceinfo ${id}`);
             if (info.kind !== "info" || info.id !== id || !Number.isSafeInteger(info.parts) || info.parts < 1 || info.parts > 11000 || !Number.isSafeInteger(info.chars) || info.chars < 1 || info.chars > MAX_TRACE_BYTES * 4 / 3 + 4 || info.parts !== Math.ceil(info.chars / 8192)) throw new Error("无效的 trace 信息");
             let encoded = "";
             for (let part = 0; part < info.parts; part++) {
-                const response = await client.request(`/begame:tracepart ${id} ${part}`);
+                const response = await client.request(`/${target.namespace}:tracepart ${id} ${part}`);
                 if (response.kind !== "part" || response.id !== id || response.part !== part || typeof response.data !== "string" || response.data.length > 8192) throw new Error(`trace 分片 ${part} 无效`);
                 encoded += response.data;
             }
