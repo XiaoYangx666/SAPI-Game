@@ -207,18 +207,36 @@ export interface ServerNetTraceBridgeOptions {
     readonly packName?: string;
     /** Base64 characters per `part` reply. Defaults to {@link TRACE_NET_PART_CHARS}. */
     readonly partChars?: number;
-    /** Reconnect delay in ticks. Defaults to 100 (5 seconds). */
+    /** Delay before the first reconnect, in ticks. Defaults to 100 (5 seconds). */
     readonly reconnectTicks?: number;
+    /**
+     * Ceiling for the reconnect backoff, in ticks. Defaults to 1200 (60 seconds).
+     * Each consecutive failure doubles the delay from {@link reconnectTicks} up
+     * to this value.
+     */
+    readonly maxReconnectTicks?: number;
+    /**
+     * Pause reconnecting after this many consecutive failed connects, until
+     * {@link ServerNetTraceBridge.start} is called again. Defaults to 8.
+     *
+     * BDS's beta `@minecraft/server-net` WebSocket aborts the whole server when
+     * it is hammered with failed connects (e.g. the Observatory is not running),
+     * so the bridge gives up instead of retrying forever. Set higher values only
+     * if you accept that risk.
+     */
+    readonly maxConsecutiveFailures?: number;
     /** Receives connection/protocol failures. Defaults to `console.error`. */
     readonly onError?: (error: unknown) => void;
 }
 
 export interface ServerNetTraceBridge {
-    /** Connect (or reconnect). Safe to call once after worldLoad. */
+    /** Connect (or reconnect). Resumes a bridge that paused after failures. */
     start(): void;
     /** Disconnect and stop reconnecting. */
     stop(): void;
     readonly connected: boolean;
+    /** True after the consecutive-failure cap was hit; `start()` resumes it. */
+    readonly suspended: boolean;
 }
 
 /**
@@ -233,7 +251,15 @@ export function createServerNetTraceBridge(
     options: ServerNetTraceBridgeOptions
 ): ServerNetTraceBridge {
     const partChars = Math.max(1, Math.floor(options.partChars ?? TRACE_NET_PART_CHARS));
-    const reconnectTicks = Math.max(1, Math.floor(options.reconnectTicks ?? 100));
+    const baseReconnectTicks = Math.max(1, Math.floor(options.reconnectTicks ?? 100));
+    const maxReconnectTicks = Math.max(
+        baseReconnectTicks,
+        Math.floor(options.maxReconnectTicks ?? 1200)
+    );
+    const maxConsecutiveFailures = Math.max(
+        1,
+        Math.floor(options.maxConsecutiveFailures ?? 8)
+    );
     const report =
         options.onError ??
         ((error: unknown) => {
@@ -242,7 +268,10 @@ export function createServerNetTraceBridge(
 
     let socket: WebSocketClient | undefined;
     let stopped = true;
+    let suspended = false;
+    let connecting = false;
     let reconnectRun: number | undefined;
+    let consecutiveFailures = 0;
     let connectFailureReported = false;
     let cached: { sessionId: string; base64: string } | undefined;
 
@@ -358,16 +387,45 @@ export function createServerNetTraceBridge(
         }
     }
 
+    /** Exponential backoff: 1x, 2x, 4x ... of the base delay, capped. */
+    function reconnectDelayTicks() {
+        const exponent = Math.min(Math.max(consecutiveFailures - 1, 0), 30);
+        return Math.min(baseReconnectTicks * 2 ** exponent, maxReconnectTicks);
+    }
+
     function scheduleReconnect() {
-        if (stopped || reconnectRun !== undefined) return;
+        if (stopped || suspended || reconnectRun !== undefined) return;
         reconnectRun = system.runTimeout(() => {
             reconnectRun = undefined;
             void connect();
-        }, reconnectTicks);
+        }, reconnectDelayTicks());
+    }
+
+    /**
+     * Record a failed connect. The first failure is reported, later ones stay
+     * quiet until the cap pauses the bridge, which is reported once more.
+     */
+    function fail(error: unknown) {
+        consecutiveFailures++;
+        if (!connectFailureReported) {
+            connectFailureReported = true;
+            report(error);
+        }
+        if (consecutiveFailures >= maxConsecutiveFailures) {
+            suspended = true;
+            report(
+                new Error(
+                    `server-net trace bridge paused after ${consecutiveFailures} failed connects to ${options.url}; call start() to retry`
+                )
+            );
+            return;
+        }
+        scheduleReconnect();
     }
 
     async function connect() {
-        if (stopped || socket?.isOpen) return;
+        if (stopped || suspended || connecting || socket?.isOpen) return;
+        connecting = true;
         try {
             const headers = options.token
                 ? [new HttpHeader("x-begame-token", options.token)]
@@ -378,6 +436,7 @@ export function createServerNetTraceBridge(
                 return;
             }
             socket = next;
+            consecutiveFailures = 0;
             connectFailureReported = false;
             next.afterEvents.message.subscribe((event) => handle(event.message));
             next.afterEvents.close.subscribe(() => {
@@ -394,23 +453,26 @@ export function createServerNetTraceBridge(
             });
         } catch (error) {
             // The server's network stack may not be ready when worldLoad fires, so
-            // the first attempts can fail; report once and keep retrying quietly.
-            if (!connectFailureReported) {
-                connectFailureReported = true;
-                report(error);
-            }
-            scheduleReconnect();
+            // the first attempts can fail. `fail` backs off and eventually pauses
+            // instead of hammering `websocket.connect` forever.
+            fail(error);
+        } finally {
+            connecting = false;
         }
     }
 
     return {
         start() {
-            if (!stopped) return;
+            if (!stopped && !suspended) return;
             stopped = false;
+            suspended = false;
+            consecutiveFailures = 0;
+            connectFailureReported = false;
             void connect();
         },
         stop() {
             stopped = true;
+            suspended = false;
             if (reconnectRun !== undefined) {
                 system.clearRun(reconnectRun);
                 reconnectRun = undefined;
@@ -421,9 +483,14 @@ export function createServerNetTraceBridge(
                 // Closing an already-closed socket is not an error worth reporting.
             }
             socket = undefined;
+            consecutiveFailures = 0;
+            connectFailureReported = false;
         },
         get connected() {
             return Boolean(socket?.isOpen);
+        },
+        get suspended() {
+            return suspended;
         },
     };
 }

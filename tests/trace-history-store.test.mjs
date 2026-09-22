@@ -207,6 +207,46 @@ test("recovers a session left running by a previous runtime", () => {
     });
 });
 
+test("restoreEnabled defaults to disabled when nothing was persisted", () => {
+    const harness = testStorage();
+    const store = new TraceHistoryStore(harness.storage);
+
+    expect(store.enabled).toBe(false);
+    store.restoreEnabled();
+    expect(store.enabled).toBe(false);
+
+    store.onSessionStart(header("nope"));
+    expect(store.list()).toHaveLength(0);
+});
+
+test("enable/disable persist the flag and restoreEnabled re-applies it", () => {
+    const harness = testStorage();
+    const first = new TraceHistoryStore(harness.storage).enable();
+    expect(harness.values.get("begame.trace.v1.enabled")).toBe(true);
+
+    const reopened = new TraceHistoryStore(harness.storage);
+    reopened.restoreEnabled();
+    expect(reopened.enabled).toBe(true);
+    reopened.onSessionStart(header("kept"));
+    expect(reopened.list().map((entry) => entry.sessionId)).toEqual(["kept"]);
+
+    reopened.disable();
+    expect(harness.values.get("begame.trace.v1.enabled")).toBe(false);
+
+    const after = new TraceHistoryStore(harness.storage);
+    after.restoreEnabled();
+    expect(after.enabled).toBe(false);
+});
+
+test("persisting the flag waits for the storage gate", () => {
+    const harness = testStorage({ ready: false });
+    const store = new TraceHistoryStore(harness.storage).enable();
+
+    expect(harness.values.has("begame.trace.v1.enabled")).toBe(false);
+    harness.becomeReady();
+    expect(harness.values.get("begame.trace.v1.enabled")).toBe(true);
+});
+
 test("drives maintenance through the injected scheduler", () => {
     const harness = testStorage();
     const store = new TraceHistoryStore(harness.storage).enable();

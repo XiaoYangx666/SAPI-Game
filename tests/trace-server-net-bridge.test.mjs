@@ -1,4 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
+import { system } from "@minecraft/server";
 import { decodeBegTrace, TraceManager } from "../packages/trace/dist/index.js";
 import { createServerNetTraceBridge } from "../packages/trace/dist/serverNet.js";
 import {
@@ -39,7 +40,11 @@ function request(socket, value) {
     return socket.replies().at(-1);
 }
 
-beforeEach(() => resetServerNet());
+beforeEach(() => {
+    resetServerNet();
+    system.resetScriptResources();
+    system.resetClock();
+});
 
 test("connecting sends a ready handshake with store status", async () => {
     const { bridge, socket } = await connectedBridge();
@@ -122,6 +127,64 @@ test("a connect failure is reported and retried", async () => {
     await flush();
     expect(errors).toHaveLength(1);
     expect(String(errors[0])).toContain("network down");
+    bridge.stop();
+});
+
+test("failed connects back off and pause at the failure cap", async () => {
+    const { trace } = makeTrace();
+    const errors = [];
+    connectFailures.push(new Error("down 1"), new Error("down 2"), new Error("down 3"));
+    const bridge = createServerNetTraceBridge({
+        url: URL,
+        trace,
+        packId: "probe",
+        reconnectTicks: 10,
+        maxReconnectTicks: 40,
+        maxConsecutiveFailures: 3,
+        onError: (error) => errors.push(error),
+    });
+    bridge.start();
+    await flush();
+    expect(connectionAttempts).toHaveLength(1);
+    expect(bridge.suspended).toBe(false);
+
+    await system.advanceTicks(10); // first retry uses the base delay
+    await flush();
+    expect(connectionAttempts).toHaveLength(2);
+
+    await system.advanceTicks(20); // second retry doubles to 20 ticks
+    await flush();
+    expect(connectionAttempts).toHaveLength(3);
+    expect(bridge.suspended).toBe(true);
+
+    await system.advanceTicks(10_000); // paused: no further connect attempts
+    await flush();
+    expect(connectionAttempts).toHaveLength(3);
+    expect(errors).toHaveLength(2);
+    expect(String(errors[1])).toContain("paused");
+    bridge.stop();
+});
+
+test("start() resumes a bridge that paused after failures", async () => {
+    const { trace } = makeTrace();
+    connectFailures.push(new Error("down"));
+    const bridge = createServerNetTraceBridge({
+        url: URL,
+        trace,
+        packId: "probe",
+        reconnectTicks: 10,
+        maxConsecutiveFailures: 1,
+        onError: () => undefined,
+    });
+    bridge.start();
+    await flush();
+    expect(bridge.suspended).toBe(true);
+    expect(bridge.connected).toBe(false);
+
+    bridge.start();
+    await flush();
+    expect(bridge.suspended).toBe(false);
+    expect(bridge.connected).toBe(true);
     bridge.stop();
 });
 

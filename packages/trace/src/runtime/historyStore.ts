@@ -13,6 +13,11 @@ import {
 } from "../wire/types";
 
 const STORE_PREFIX = `begame.trace.v${TRACE_FORMAT_VERSION}.`;
+/**
+ * Persisted on/off flag. Lives in the same versioned namespace as sessions but
+ * does not end in `.meta`, so `list()`/`cleanup()`/`clear()` ignore it.
+ */
+const ENABLED_KEY = `${STORE_PREFIX}enabled`;
 const DEFAULT_MAX_SESSIONS = 50;
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -108,33 +113,75 @@ export class TraceHistoryStore implements TraceSink {
     }
 
     /**
-     * Enable persistence for newly-created Trace Sessions.
+     * Enable persistence for newly-created Trace Sessions and persist the choice.
      * Existing running sessions that started while disabled are intentionally not
      * attached mid-stream because doing so would create incomplete history.
      */
     enable() {
-        if (this._enabled) return this;
-        this._enabled = true;
-        this.recoverOnMaintenance = true;
-        // The substrate may not be safe to touch yet (Minecraft dynamic
-        // properties are unusable before worldLoad), so recovery, cleanup and
-        // periodic maintenance all wait for the gate.
-        this.scheduleMaintenance();
+        this.setEnabled(true, true);
         return this;
     }
 
     /**
-     * Stop accepting new sessions. Sessions already accepted continue until their
-     * footer is committed, so toggling storage never deliberately creates a half trace.
+     * Stop accepting new sessions and persist the choice. Sessions already accepted
+     * continue until their footer is committed, so toggling storage never
+     * deliberately creates a half trace.
      */
     disable() {
-        if (!this._enabled) return this;
-        this._enabled = false;
-        this.recoverOnMaintenance = false;
-        this.cancelMaintenanceWait?.();
-        this.cancelMaintenanceWait = undefined;
-        this.stopCleanupTimer();
+        this.setEnabled(false, true);
         return this;
+    }
+
+    /**
+     * Apply the persisted enabled state, defaulting to disabled. Unlike
+     * {@link enable}/{@link disable} this never writes, so a pack can call it once
+     * after worldLoad and keep whatever the Observatory or a command last set.
+     */
+    restoreEnabled() {
+        const apply = () => {
+            let enabled = false;
+            try {
+                enabled = this.storage.kv.get(ENABLED_KEY) === true;
+            } catch (error) {
+                this.report(error);
+            }
+            this.setEnabled(enabled, false);
+        };
+        if (this.storage.gate.isReady()) apply();
+        else this.storage.gate.afterReady(apply);
+        return this;
+    }
+
+    private setEnabled(enabled: boolean, persist: boolean) {
+        if (enabled) {
+            if (!this._enabled) {
+                this._enabled = true;
+                this.recoverOnMaintenance = true;
+                // The substrate may not be safe to touch yet (Minecraft dynamic
+                // properties are unusable before worldLoad), so recovery, cleanup
+                // and periodic maintenance all wait for the gate.
+                this.scheduleMaintenance();
+            }
+        } else if (this._enabled) {
+            this._enabled = false;
+            this.recoverOnMaintenance = false;
+            this.cancelMaintenanceWait?.();
+            this.cancelMaintenanceWait = undefined;
+            this.stopCleanupTimer();
+        }
+        if (persist) this.persistEnabled(enabled);
+    }
+
+    private persistEnabled(enabled: boolean) {
+        const write = () => {
+            try {
+                this.storage.kv.set(ENABLED_KEY, enabled);
+            } catch (error) {
+                this.report(error);
+            }
+        };
+        if (this.storage.gate.isReady()) write();
+        else this.storage.gate.afterReady(write);
     }
 
     onSessionStart(header: TraceSessionHeader) {

@@ -51,15 +51,30 @@ const bridge = createServerNetTraceBridge({
 });
 
 runAfterWorldLoad(() => {
-    trace.store.enable();      // 历史要可查必须先开 store
+    trace.store.restoreEnabled();  // 恢复上次的开关状态，默认关闭
     bridge.start();
 });
 
 // 其余初始化（initBEGame / initBEGameServer）照常
 ```
 
-`createServerNetTraceBridge` 暴露 `start()` / `stop()` / `connected`。断线后按
-`reconnectTicks`（默认 100 tick = 5 秒）自动重连；首次失败只报一次，避免刷屏。
+`restoreEnabled()` 读取持久化在动态属性里的开关（键 `begame.trace.v1.enabled`），
+**没有记录过时默认关闭**。`enable()` / `disable()` 会把这个状态写回去，所以
+Observatory 的 `Store` 按钮和游戏内命令切换后能跨重启保留；启动时不要再无条件
+`trace.store.enable()`，否则每次重启都会把用户关掉的 trace 又打开。
+
+`createServerNetTraceBridge` 暴露 `start()` / `stop()` / `connected` / `suspended`。
+断线后自动重连，退避为 `reconnectTicks`（默认 100 tick = 5 秒）起、每次失败翻倍，
+封顶 `maxReconnectTicks`（默认 1200 tick = 60 秒）。首次失败只报一次，避免刷屏。
+
+连续失败达到 `maxConsecutiveFailures`（默认 8 次）后桥会暂停（`suspended` 为
+`true`）并不再发起连接，直到再次调用 `start()`。
+
+> 为什么要有上限：BDS 的 `@minecraft/server-net`（beta）WebSocket 在被反复
+> 失败的 `websocket.connect` 打时会把整个 BDS 进程 `abort` 掉（日志表现为
+> `libc++abi: terminating`，且没有任何 JS 异常）。所以 Observatory 长期不在线
+> 时，桥宁可不连，也不要无限重连。需要长期常驻的话，请让 Observatory 一直
+> 监听 net 端口（见下文），而不是把上限调大。
 
 桥在游戏侧执行这些操作（`TraceNetRequest`）：
 
@@ -201,6 +216,7 @@ npm run copy:server   # 只复制 BDS 版
 - BDS 需要 `transport=nethernet`（否则玩家连不进来，与本次改动无关）。
 - Beta APIs 开启后重启服务器，`@minecraft/server-net` 才会生效。
 - 运行中切换 Trace Store 用 `/api/net/store`，或在游戏内命令里开关；BDS 变体
-  通常默认开启，否则没有历史可查。
+  默认关闭，靠 `restoreEnabled()` 恢复上次的设置，首次开服需要先用 Observatory
+  的 `Store` 按钮或游戏内命令打开，否则没有历史可查。
 - 同世界加载多个 BEGame 包时，每个包各连一条 trace net，Observatory 按
   `packId` 汇总；工作台会出现包选择器。
