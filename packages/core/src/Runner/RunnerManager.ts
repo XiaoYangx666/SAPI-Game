@@ -8,7 +8,10 @@ import {
 import { ScriptRunner } from "./scriptRunner";
 
 export class RunnerManager {
-    private runners = new Map<string, ScriptRunner | { runId: number }>();
+    private runners = new Map<
+        string,
+        ScriptRunner | { runId: number; settle: () => void }
+    >();
     private idCounter = 0;
     private readonly logger: Logger;
 
@@ -75,7 +78,11 @@ export class RunnerManager {
         const wrapped = wrapGeneratorWithPromise(generator);
         const runId = system.runJob(wrapped.gen);
 
-        this.runners.set(id, { runId });
+        // `settle` must be kept alongside the job id: clearJob() abandons the
+        // generator without resuming it, so without an explicit settlement the
+        // wrapper promise would stay pending forever and its `.finally` — the
+        // only code that removes this entry — would never run.
+        this.runners.set(id, { runId, settle: wrapped.settle });
         const promise = wrapped.promise
             .catch((error) => {
                 this.trace?.builtin(BuiltinTraceEventType.RunnerUncaughtError, {
@@ -99,6 +106,9 @@ export class RunnerManager {
             entry.cancel();
         } else {
             system.clearJob(entry.runId);
+            // Cancellation is a normal outcome, not a failure: settle as resolved
+            // so no unhandled rejection surfaces and the entry is released now.
+            entry.settle();
         }
 
         this.runners.delete(id);
@@ -116,6 +126,7 @@ export class RunnerManager {
                 entry.cancel();
             } else {
                 system.clearJob(entry.runId);
+                entry.settle();
             }
             this.trace?.builtin(BuiltinTraceEventType.RunnerCancelled, {
                 runnerId: id,
@@ -133,13 +144,24 @@ export class RunnerManager {
 function wrapGeneratorWithPromise(gen: Generator<void, void, void>): {
     gen: Generator<void, void, void>;
     promise: Promise<void>;
+    settle: () => void;
 } {
     let resolveFn!: () => void;
     let rejectFn!: (err: any) => void;
+    /** Settlement is single-shot; later generator completion must be a no-op. */
+    let settled = false;
 
     const promise = new Promise<void>((resolve, reject) => {
-        resolveFn = resolve;
-        rejectFn = reject;
+        resolveFn = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+        };
+        rejectFn = (err) => {
+            if (settled) return;
+            settled = true;
+            reject(err);
+        };
     });
 
     function* wrapper() {
@@ -147,6 +169,7 @@ function wrapGeneratorWithPromise(gen: Generator<void, void, void>): {
             let next = gen.next();
             while (!next.done) {
                 yield;
+                if (settled) return;
                 next = gen.next();
             }
             resolveFn();
@@ -155,5 +178,5 @@ function wrapGeneratorWithPromise(gen: Generator<void, void, void>): {
         }
     }
 
-    return { gen: wrapper(), promise };
+    return { gen: wrapper(), promise, settle: resolveFn };
 }

@@ -1,6 +1,6 @@
 import { ConsoleTraceExporter } from "./consoleExporter";
 import { TraceHistoryStore } from "./historyStore";
-import { TraceSession, snapshotTraceValue } from "./session";
+import { TraceSession, snapshotTraceValue, type TraceSessionInternalOptions } from "./session";
 import type { TraceStorage } from "./storage";
 import {
     TRACE_FORMAT_VERSION,
@@ -33,6 +33,14 @@ export class TraceManager {
     private connectionSource?: TraceConnectionSource;
     private connectionSubscription?: TraceConnectionSubscription;
     private readonly sessions = new Map<string, TraceSession>();
+    /**
+     * Ended sessions whose asynchronous sink writes are still in flight.
+     *
+     * Only retained so `settled()` can await them. A session is added here only
+     * while it actually has pending work and is removed the moment that work
+     * drains, so a create/stop cycle no longer retains one session (and its chunk
+     * payloads) per cycle.
+     */
     private readonly completedSessions = new Set<TraceSession>();
     private readonly options: TraceSessionOptions;
     private sessionCounter = 0;
@@ -113,6 +121,9 @@ export class TraceManager {
             const begameVersion =
                 options.begameVersion ?? this.options.begameVersion;
             const packVersion = options.packVersion ?? this.options.packVersion;
+            // The drain callback needs the session identity, which only exists
+            // after construction; the holder closes that loop.
+            const holder: { session?: TraceSession } = {};
             const session = new TraceSession(
                 {
                     sessionId,
@@ -127,8 +138,9 @@ export class TraceManager {
                 },
                 this.tick,
                 sink,
-                this.options
+                this.sessionOptionsFor(holder)
             );
+            holder.session = session;
             this.sessions.set(options.gameKey, session);
             this.refreshConnectionSubscription();
             return session;
@@ -169,7 +181,10 @@ export class TraceManager {
         if (!session) return undefined;
         this.sessions.delete(gameKey);
         const end = session.end(status, reason, this.safeTick());
-        this.completedSessions.add(session);
+        // Retain only while there is work to await. `end()` may have queued an
+        // asynchronous onSessionEnd write, so this check happens after it.
+        if (session.hasPendingSinkOperations) this.completedSessions.add(session);
+        else this.completedSessions.delete(session);
         this.refreshConnectionSubscription();
         return end;
     }
@@ -181,6 +196,15 @@ export class TraceManager {
             )
         );
         this.completedSessions.clear();
+    }
+
+    private sessionOptionsFor(holder: { session?: TraceSession }): TraceSessionInternalOptions {
+        return {
+            ...this.options,
+            onDrained: () => {
+                if (holder.session) this.completedSessions.delete(holder.session);
+            },
+        };
     }
 
     /**

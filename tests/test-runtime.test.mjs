@@ -1,6 +1,10 @@
 import { expect, test } from "vitest";
 import { BEGameTestEngine } from "../packages/test/dist/index.js";
 import {
+    RunnerManager,
+    ScriptRunner,
+} from "../packages/core/dist/main.js";
+import {
     system,
     virtualMinecraft,
     world,
@@ -125,4 +129,42 @@ test("minimal player query state supports lifecycle scoping", () => {
     ).toEqual([alice]);
 
     env.reset();
+});
+
+test("ScriptRunner.wait preserves waitTicks parameter errors", async () => {
+    const runner = new ScriptRunner("invalid-wait", () => {});
+
+    await expect(runner.wait(0)).rejects.toThrow(/at least 1/);
+    await expect(runner.wait(Number.NaN)).rejects.toThrow(/at least 1/);
+});
+
+test("cancelling a ScriptRunner releases its pending wait immediately", async () => {
+    const finished = [];
+    const runner = new ScriptRunner("long-wait", (id) => finished.push(id));
+    let continuedAfterWait = false;
+    const running = runner.run(async (activeRunner) => {
+        await activeRunner.wait(10_000);
+        continuedAfterWait = true;
+    });
+
+    await Promise.resolve();
+    runner.cancel();
+    await running;
+
+    expect(continuedAfterWait).toBe(false);
+    expect(finished).toEqual(["long-wait"]);
+});
+
+test("cancelling a RunnerManager job settles its public promise", async () => {
+    const manager = new RunnerManager("job-cancel-test");
+    function* forever() {
+        while (true) yield;
+    }
+
+    const job = manager.runJob(forever());
+    expect(manager.size).toBe(1);
+    expect(manager.cancel(job.id)).toBe(true);
+
+    await expect(job.promise).resolves.toBeUndefined();
+    expect(manager.size).toBe(0);
 });

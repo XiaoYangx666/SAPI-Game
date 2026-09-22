@@ -243,6 +243,12 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
                 }
             );
         }
+        // Release the wrappers themselves. Each GamePlayer holds a native
+        // Minecraft Player handle, so leaving them in the map keeps every player
+        // this game ever saw alive for as long as the disposed Game instance is
+        // reachable by the caller. The trace loop above reads names first.
+        this.players.clear();
+        this.tracedOnlinePlayers.clear();
     }
 
     private ensurePlayer(p: Player): T {

@@ -418,6 +418,17 @@ function resolveTracePayload(
 
 export const NOOP_TRACE_SCOPE = new TraceScope();
 
+/**
+ * Manager-only session options.
+ *
+ * Kept out of the public `TraceSessionOptions` spec on purpose: `onDrained` is
+ * an internal lifecycle signal, not part of the wire or configuration contract.
+ */
+export interface TraceSessionInternalOptions extends TraceSessionOptions {
+    /** Notified when the last pending asynchronous sink operation drains. */
+    readonly onDrained?: () => void;
+}
+
 export class TraceSession {
     readonly header: TraceSessionHeader;
     readonly game = new TraceScope(this, { kind: "game" });
@@ -447,7 +458,7 @@ export class TraceSession {
         header: Omit<TraceSessionHeader, "formatVersion">,
         private readonly tick: () => number,
         private readonly sink: TraceSink,
-        private readonly options: TraceSessionOptions = {}
+        private readonly options: TraceSessionInternalOptions = {}
     ) {
         this.header = { ...header, formatVersion: TRACE_FORMAT_VERSION };
         this.maxChunkBytes = options.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES;
@@ -952,13 +963,27 @@ export class TraceSession {
         }
     }
 
+    get hasPendingSinkOperations(): boolean {
+        return this.pendingSinkOperations.size > 0;
+    }
+
     private safeSink(operation: () => void | Promise<void> | undefined) {
         try {
             const result = operation();
             if (result && typeof result.then === "function") {
                 const promise = Promise.resolve(result)
                     .catch((error) => this.reportInternalError(error))
-                    .finally(() => this.pendingSinkOperations.delete(promise));
+                    .finally(() => {
+                        this.pendingSinkOperations.delete(promise);
+                        // Tell the manager this session no longer needs retaining.
+                        if (this.pendingSinkOperations.size === 0) {
+                            try {
+                                this.options.onDrained?.();
+                            } catch (error) {
+                                this.reportInternalError(error);
+                            }
+                        }
+                    });
                 this.pendingSinkOperations.add(promise);
             }
         } catch (error) {

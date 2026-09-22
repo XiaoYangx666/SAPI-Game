@@ -126,12 +126,11 @@ class VirtualSystem {
     }
 
     waitTicks(ticks: number) {
-        const targetTick = this.currentTick + Math.max(0, Math.floor(ticks));
+        if (!Number.isFinite(ticks) || ticks < 1) {
+            return Promise.reject(new RangeError("waitTicks ticks must be at least 1"));
+        }
+        const targetTick = this.currentTick + Math.floor(ticks);
         return new Promise<void>((resolve) => {
-            if (targetTick <= this.currentTick) {
-                resolve();
-                return;
-            }
             this.waiters.push({ targetTick, resolve });
         });
     }
