@@ -256,6 +256,7 @@ export class BlockType {
 export class BlockLocationIterator {}
 
 export class Player {
+    readonly typeId = "minecraft:player";
     private _online = true;
     private readonly tags = new Set<string>();
     private readonly equipment = new Map<any, any>();
@@ -390,6 +391,7 @@ export class Player {
 }
 
 export class Entity {
+    readonly typeId = "minecraft:entity";
     private readonly tags = new Set<string>();
     isValid = true;
     location: Vector3 = { x: 0, y: 0, z: 0 };
@@ -507,6 +509,90 @@ export class ItemStack {
 
 export class MolangVariableMap {}
 
+/** Lightweight ScriptAPI text-primitive shell. Geometry is not simulated. */
+export class PrimitiveShape {
+    attachedTo?: Entity;
+    color: any = { red: 1, green: 1, blue: 1, alpha: 1 };
+    readonly dimension: Dimension;
+    readonly hasDuration = false;
+    location: Vector3;
+    maximumRenderDistance?: number;
+    rotation: Vector3 = { x: 0, y: 0, z: 0 };
+    scale = 1;
+    timeLeft?: number;
+    readonly totalTimeLeft?: number;
+    visibleTo: Player[] = [];
+
+    constructor(location: any) {
+        this.dimension =
+            location?.dimension ??
+            virtualMinecraft.getDimension("minecraft:overworld");
+        this.location = { x: location?.x ?? 0, y: location?.y ?? 0, z: location?.z ?? 0 };
+    }
+
+    remove() {
+        virtualMinecraft.primitiveShapesManager.removeText(this as any);
+    }
+
+    setLocation(location: any) {
+        this.location = { x: location?.x ?? 0, y: location?.y ?? 0, z: location?.z ?? 0 };
+        if (location?.dimension) (this as any).dimension = location.dimension;
+    }
+}
+
+export class TextPrimitive extends PrimitiveShape {
+    backfaceVisible = true;
+    backgroundColorOverride?: any;
+    depthTest = false;
+    textBackfaceVisible = true;
+    useRotation = false;
+    private _text: any;
+
+    constructor(location: any, text: any) {
+        super(location);
+        this._text = text;
+    }
+
+    get text() {
+        return this._text;
+    }
+
+    setText(text: any) {
+        this._text = text;
+    }
+}
+
+class VirtualPrimitiveShapesManager {
+    readonly maxShapes = 2000;
+    private readonly texts = new Set<TextPrimitive>();
+
+    addText(text: TextPrimitive, _dimension?: Dimension) {
+        this.texts.add(text);
+    }
+
+    removeText(text: TextPrimitive) {
+        this.texts.delete(text);
+    }
+
+    removeAll() {
+        this.texts.clear();
+    }
+
+    getShapes(options?: { attachedTo?: Entity }) {
+        let shapes = [...this.texts];
+        if (options?.attachedTo) {
+            shapes = shapes.filter(
+                (shape) => shape.attachedTo === options.attachedTo
+            );
+        }
+        return shapes;
+    }
+
+    get size() {
+        return this.texts.size;
+    }
+}
+
 class VirtualObjective {
     private readonly scores = new Map<any, number>();
     displayName: string;
@@ -614,6 +700,7 @@ class VirtualMinecraftRuntime {
     private readonly dynamicProperties = new Map<string, any>();
 
     readonly scoreboard = new VirtualScoreboard();
+    readonly primitiveShapesManager = new VirtualPrimitiveShapesManager();
     readonly worldCommands: string[] = [];
     difficulty: any;
     timeOfDay: any;
@@ -623,6 +710,7 @@ class VirtualMinecraftRuntime {
         afterEvents: this.afterSignals.proxy,
         beforeEvents: this.beforeSignals.proxy,
         scoreboard: this.scoreboard,
+        primitiveShapesManager: this.primitiveShapesManager,
         gameRules: this.gameRules,
         structureManager: {
             get: (_id: string) => undefined,
@@ -808,6 +896,7 @@ class VirtualMinecraftRuntime {
         this.players.clear();
         this.dimensions.clear();
         this.scoreboard.clear();
+        this.primitiveShapesManager.removeAll();
         this.dynamicProperties.clear();
         this.worldCommands.length = 0;
         this.difficulty = undefined;
