@@ -18,7 +18,6 @@
 - [`RegionTeamChooser`](RegionTeamChooser.md)
 - [`RegionTeamCleaner`](RegionTeamCleaner.md)
 - [`TeamScoreBoard`](TeamScoreBoard.md)
-- [`PlayerHealthIndicator`](PlayerHealthIndicator.md)
 - [`PlayerRegionMonitor`](PlayerRegionMonitor.md)
 
 ## Type Parameters

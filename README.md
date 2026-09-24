@@ -93,6 +93,10 @@ AutoStop；需要永久空房待人的大厅则不要启用自动停止。
 `Game.events.connection` 仅广播变化，不维护第二份在线快照。
 Participation 的 `changed` 只在真正加入、离开时通知，Game teardown 的清理保持静默。
 
+### 组件一览
+
+`@begame/core/gameComponent` 提供的通用组件（生命周期、交互限制、PvP、区域队伍、视图展示等）汇总在 [组件一览](./docs/game-components.md)。文档只列功能简述，具体参数与用法请直接查阅源码/类型定义。
+
 ### @begame/test
 
 ```bash
