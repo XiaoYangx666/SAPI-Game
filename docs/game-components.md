@@ -52,13 +52,17 @@ packages/core/src/gameComponent/**
 
 | 组件 | 说明 |
 | --- | --- |
-| `PlayerTextPrimitive` | 通用玩家文本：给一批玩家各挂一个 `TextPrimitive`（可跟随玩家），按间隔刷新文本。可配置 `offset` / `scale` / `rotation` / `depthTest` / `visibleTo` / `refreshInterval` 等。 |
-| `playerHealthText()` / `playerNameText()` | `PlayerTextPrimitive` 的预设配置工厂，分别用于头顶血量、名字。 |
+| `PlayerTextPrimitive` | 通用玩家文本：给一批玩家各挂一个 `TextPrimitive`（可跟随玩家），按间隔刷新文本。可配置 `offset` / `scale` / `rotation` / `depthTest` / `visibleTo` / `refreshInterval` 等。组件卸载、隐藏或玩家离开来源集合时会主动移除 primitive。 |
+| `playerHealthText()` | 单独显示头顶血量；当前/最大生命值随血量比例自动变色。 |
+| `playerNameText()` | 单独显示头顶名字；`color` 支持固定格式码或按玩家动态计算，可直接用于队伍颜色。 |
+| `playerInfoText()` | 用一个 `TextPrimitive` 两行显示“名字 + 血量”，支持动态名字颜色；优先用于同时需要两者的游戏，避免维护两个 primitive。 |
 | `InfoScoreboard` | 侧边栏信息计分板（header / footer / `updateLines`）。 |
 | `TeamScoreBoard` | 侧边栏队伍计分板。 |
 
 ## 最近变更
 
+- 新增 `playerInfoText()` 组合预设；名字与血量可共用一个 `TextPrimitive`。
+- `playerNameText().color` 支持 `string | (player) => string`，可按队伍动态着色。
 - 新增 `PlayerTextPrimitive` 与 `playerHealthText` / `playerNameText` 预设；
   旧的 `PlayerHealthIndicator`（计分板方案）已删除。
 - 新增 `PvpController`（可按玩家/区域范围控制 PvP）与 `FriendlyFireProtector`（友伤保护）。

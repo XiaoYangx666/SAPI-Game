@@ -11,7 +11,8 @@ import {
     PlayerTextPrimitive,
     PvpController,
     SphereRegion,
-    playerHealthText,
+    playerInfoText,
+    playerNameText,
 } from "../packages/core/dist/main.js";
 import { BEGameTestEngine, virtualMinecraft } from "../packages/test/dist/index.js";
 
@@ -34,7 +35,11 @@ class CombatState extends GameState {
         });
         this.addComponent(
             PlayerTextPrimitive,
-            playerHealthText({ players: this.context.groupSet })
+            playerInfoText({
+                players: this.context.groupSet,
+                nameColor: (player) =>
+                    player.name === "A" ? "§c" : "§9",
+            })
         );
     }
 }
@@ -85,11 +90,22 @@ test("PvpController / FriendlyFireProtector / PlayerTextPrimitive 基础行为",
     const game = env.startGame(CombatGame, { players: [a, b, c] });
     const state = game.getState(CombatState);
 
-    // 每个玩家头顶都挂了血量 textPrimitive。
+    // 名字 + 血量共用一个 textPrimitive，因此仍然只有每人一个 shape。
     await env.advanceTicks(1);
     let shapes = virtualMinecraft.primitiveShapesManager.getShapes();
     expect(shapes.length).toBe(3);
-    expect(String(shapes[0].text)).toContain("20");
+    const texts = shapes.map((shape) => String(shape.text));
+    expect(texts.every((value) => value.includes("\n"))).toBe(true);
+    expect(texts.some((value) => value.startsWith("§cA§r\n"))).toBe(true);
+    expect(texts.every((value) => value.includes("20"))).toBe(true);
+
+    // playerNameText 同样支持按玩家动态决定颜色。
+    const dynamicName = playerNameText({
+        players: [],
+        color: (player) => (player.name === "A" ? "§c" : "§9"),
+    });
+    expect(dynamicName.text({ name: "A" })).toBe("§cA");
+    expect(dynamicName.text({ name: "B" })).toBe("§9B");
 
     // 先开启 PvP，单独验证友伤保护：同队 a/b 取消，跨队 a/c 放行。
     const pvp = state.getComponent(PvpController);
