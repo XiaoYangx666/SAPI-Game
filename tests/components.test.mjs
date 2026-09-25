@@ -18,6 +18,7 @@ import {
     RegionProtector,
     RegionTeamChooser,
     RespawnComponent,
+    SpawnPointProtector,
     SphereRegion,
     StopWatch,
     Timer,
@@ -591,6 +592,60 @@ test("RespawnComponent 自动广播不再强制要求 buildNameFunc", () => {
     expect(message).toContain("Alice");
     expect(message).toContain("Charlie");
     expect(bob.messages.map(String).join("\n")).toContain("Alice");
+
+    env.reset();
+});
+
+test("SpawnPointProtector 只保护目标队伍与目标维度", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("spawn-a", "A");
+    const ally = env.connectPlayer("spawn-ally", "Ally");
+    const outsider = env.connectPlayer("spawn-b", "B");
+    const game = env.startGame(CombatGame, {
+        players: [a, ally, outsider],
+    });
+    const state = game.getState(CombatState);
+    const overworld = virtualMinecraft.getDimension("minecraft:overworld");
+    const nether = virtualMinecraft.getDimension("minecraft:nether");
+
+    state.addComponent(
+        SpawnPointProtector,
+        {
+            playerGroup: game.context.teamA,
+            spawnPoint: { x: 0, y: 10, z: 0 },
+            dimension: overworld,
+            autoSetSpawnPoint: false,
+        },
+        "spawn"
+    );
+
+    const protectedOverworld = overworld.getBlock({ x: 0, y: 9, z: 0 });
+    const protectedNether = nether.getBlock({ x: 0, y: 9, z: 0 });
+
+    const memberEvent = {
+        player: a,
+        block: protectedOverworld,
+        cancel: false,
+    };
+    env.emitWorldBeforeEvent("playerInteractWithBlock", memberEvent);
+    expect(memberEvent.cancel).toBe(true);
+
+    const outsiderEvent = {
+        player: outsider,
+        block: protectedOverworld,
+        cancel: false,
+    };
+    env.emitWorldBeforeEvent("playerInteractWithBlock", outsiderEvent);
+    expect(outsiderEvent.cancel).toBe(false);
+
+    const otherDimension = {
+        player: a,
+        block: protectedNether,
+        cancel: false,
+    };
+    env.emitWorldBeforeEvent("playerInteractWithBlock", otherDimension);
+    expect(otherDimension.cancel).toBe(false);
 
     env.reset();
 });

@@ -8,17 +8,17 @@ import { Vector3Utils } from "../../utils/vector";
 import { GameComponent } from "../gameComponent";
 
 export interface SpawnPointProtectorOptions<P extends GamePlayer> {
-    /**玩家组 */
+    /** 玩家组。只有该组玩家会受到出生点交互保护。 */
     playerGroup: PlayerGroup<P>;
-    /** 出生点 */
+    /** 出生点。 */
     spawnPoint: Vector3;
-    /**维度 */
+    /** 出生点所在维度。 */
     dimension: Dimension;
-    /** 是否循环设置玩家重生点 */
+    /** 是否循环设置玩家重生点，默认 true。 */
     autoSetSpawnPoint?: boolean;
-    /** 循环保护出生点区域的间隔 */
+    /** 循环保护出生点区域的间隔，默认 10 tick。 */
     protectInterval?: Duration;
-    /** 出生点保护范围，默认 1x1x1 */
+    /** 出生点保护范围，默认 { x: 1, y: 1, z: 1 }。 */
     protectRadius?: Vector3;
 }
 
@@ -32,13 +32,11 @@ export class SpawnPointProtector<P extends GamePlayer> extends GameComponent<
 
         const autoSetSpawnPoint = options.autoSetSpawnPoint ?? true;
 
-        // 初始设置玩家重生点
         if (autoSetSpawnPoint) {
             this.setPlayerSpawnPoints();
         }
+        this.protectSpawnAreas();
 
-        // 循环设置重生点 & 保护区域
-        const interval = options.protectInterval ?? new Duration(10);
         this.subscribe(
             Game.events.interval,
             () => {
@@ -47,42 +45,42 @@ export class SpawnPointProtector<P extends GamePlayer> extends GameComponent<
                 }
                 this.protectSpawnAreas();
             },
-            interval
+            options.protectInterval ?? new Duration(10)
         );
 
-        // 出生点保护：拦截方块交互
         const protectedBlock = Vector3Utils.below(options.spawnPoint);
-        this.subscribe(world.beforeEvents.playerInteractWithBlock, (t) => {
-            if (Vector3Utils.isEqual(t.block.location, protectedBlock)) {
-                t.cancel = true;
+        this.subscribe(world.beforeEvents.playerInteractWithBlock, (event) => {
+            if (!options.playerGroup.has(event.player)) return;
+            if (event.block.dimension.id !== options.dimension.id) return;
+            if (!Vector3Utils.isEqual(event.block.location, protectedBlock)) {
+                return;
             }
+            event.cancel = true;
         });
     }
 
-    /** 设置玩家重生点 */
+    /** 立即为当前组内有效玩家设置重生点。 */
     setPlayerSpawnPoints() {
         const { playerGroup, spawnPoint, dimension } = this.options!;
-        playerGroup.forEach((p) => {
-            p.player.setSpawnPoint({
+        playerGroup.forEach((player) => {
+            player.player.setSpawnPoint({
                 dimension,
                 ...spawnPoint,
             });
         });
     }
 
-    /** 传送所有玩家到出生点 */
+    /** 传送当前组内全部有效玩家到出生点。 */
     teleportAllToSpawn() {
         const { playerGroup, spawnPoint, dimension } = this.options!;
-        playerGroup.forEach((p) => {
-            p.player.teleport(spawnPoint, { dimension });
+        playerGroup.forEach((player) => {
+            player.player.teleport(spawnPoint, { dimension });
         });
     }
 
-    /** 循环保护出生点区域 */
+    /** 清空出生点上方保护区域，并确保脚下方块为基岩。 */
     private protectSpawnAreas() {
         const { spawnPoint, dimension, protectRadius } = this.options!;
-        if (!spawnPoint || !dimension) return;
-
         try {
             const radius = protectRadius ?? { x: 1, y: 1, z: 1 };
             const max = Vector3Utils.add(spawnPoint, radius);
@@ -91,8 +89,16 @@ export class SpawnPointProtector<P extends GamePlayer> extends GameComponent<
                 y: 0,
                 z: radius.z,
             });
+
             dimension.fillBlocks(new BlockVolume(max, min), "air");
-            dimension.setBlockType(Vector3Utils.below(spawnPoint), "bedrock");
-        } catch (err) {}
+
+            const floor = Vector3Utils.below(spawnPoint);
+            const floorBlock = dimension.getBlock(floor);
+            if (floorBlock?.typeId !== "minecraft:bedrock") {
+                dimension.setBlockType(floor, "minecraft:bedrock");
+            }
+        } catch {
+            // 区块可能正处于卸载边界；下一轮保护会自然重试。
+        }
     }
 }
