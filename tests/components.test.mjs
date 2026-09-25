@@ -2,6 +2,8 @@ import { expect, test, vi } from "vitest";
 import {
     FriendlyFireProtector,
     Game,
+    GameComponent,
+    LazyLoader,
     GameContext,
     GameEngine,
     GamePlayer,
@@ -9,7 +11,9 @@ import {
     PlayerGroup,
     PlayerGroupSet,
     PlayerTextPrimitive,
+    PlayerRegionMonitor,
     PvpController,
+    RegionProtector,
     RegionTeamChooser,
     SphereRegion,
     StopWatch,
@@ -302,5 +306,198 @@ test("Timer / StopWatch 补偿模式逐秒补发并正确到 0", async () => {
         nowSpy.mockRestore();
         env.reset();
     }
+});
+
+class LazyChildComponent extends GameComponent {
+    static attached = 0;
+    static detached = 0;
+
+    onAttach() {
+        LazyChildComponent.attached++;
+    }
+
+    onDetach() {
+        LazyChildComponent.detached++;
+    }
+}
+
+test("LazyLoader 拥有并完整清理子组件", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("lazy-a", "A");
+    const game = env.startGame(CombatGame, { players: [player] });
+    const state = game.getState(CombatState);
+    LazyChildComponent.attached = 0;
+    LazyChildComponent.detached = 0;
+
+    state.addComponent(
+        LazyLoader,
+        {
+            dimensionId: "minecraft:overworld",
+            pos: { x: 0, y: 0, z: 0 },
+            interval: { ticks: 1 },
+            onLoad(loader) {
+                loader
+                    .addComponent(LazyChildComponent, undefined, "a")
+                    .addComponent(LazyChildComponent, undefined, "b");
+            },
+        },
+        "loader"
+    );
+
+    await env.advanceTicks(1);
+    const loader = state.getComponent(LazyLoader, "loader");
+    expect(loader.isActive).toBe(true);
+    expect(LazyChildComponent.attached).toBe(2);
+
+    loader.reload();
+    expect(LazyChildComponent.detached).toBe(2);
+    expect(LazyChildComponent.attached).toBe(4);
+
+    state.deleteComponent(LazyLoader, "loader");
+    expect(LazyChildComponent.detached).toBe(4);
+    expect(() => state.getComponent(LazyChildComponent, "a")).toThrow();
+
+    env.reset();
+});
+
+test("LazyLoader 的 onLoad 失败会回滚子组件并保持可重试", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("lazy-fail-a", "A");
+    const game = env.startGame(CombatGame, { players: [player] });
+    const state = game.getState(CombatState);
+    LazyChildComponent.attached = 0;
+    LazyChildComponent.detached = 0;
+
+    state.addComponent(
+        LazyLoader,
+        {
+            dimensionId: "minecraft:overworld",
+            pos: { x: 0, y: 0, z: 0 },
+            interval: { ticks: 1 },
+            onLoad(loader) {
+                loader.addComponent(LazyChildComponent);
+                throw new Error("expected load failure");
+            },
+        },
+        "loader-fail"
+    );
+
+    await env.advanceTicks(1);
+    const loader = state.getComponent(LazyLoader, "loader-fail");
+    expect(loader.isActive).toBe(false);
+    expect(LazyChildComponent.attached).toBe(1);
+    expect(LazyChildComponent.detached).toBe(1);
+    expect(() => state.getComponent(LazyChildComponent)).toThrow();
+
+    // inactive，因此下一次检测会重试，而不是卡死在 active=true。
+    await env.advanceTicks(1);
+    expect(LazyChildComponent.attached).toBe(2);
+    expect(LazyChildComponent.detached).toBe(2);
+
+    env.reset();
+});
+
+test("PlayerRegionMonitor 每次离开只触发一次并识别维度", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const native = env.connectPlayer("monitor-a", "A");
+    const game = env.startGame(CombatGame, { players: [native] });
+    const state = game.getState(CombatState);
+    const player = game.context.teamA.getById("monitor-a");
+    const leaves = [];
+
+    state.addComponent(
+        PlayerRegionMonitor,
+        {
+            region: new SphereRegion(
+                "minecraft:overworld",
+                { x: 0, y: 0, z: 0 },
+                5
+            ),
+            players: game.context.groupSet,
+            interval: { ticks: 1 },
+            onLeave(p) {
+                leaves.push(p.id);
+            },
+        },
+        "monitor"
+    );
+
+    native.location = { x: 10, y: 0, z: 0 };
+    await env.advanceTicks(2);
+    expect(leaves).toEqual(["monitor-a"]);
+
+    // 回到区域内会解除 outside 状态，下一次离开再次触发。
+    native.location = { x: 0, y: 0, z: 0 };
+    await env.advanceTicks(1);
+    native.dimension = virtualMinecraft.getDimension("minecraft:nether");
+    await env.advanceTicks(1);
+    expect(leaves).toEqual(["monitor-a", "monitor-a"]);
+    expect(player).toBeDefined();
+
+    env.reset();
+});
+
+test("RegionProtector 区分维度并支持通用 PlayerSource", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const native = env.connectPlayer("protect-a", "A");
+    const ally = env.connectPlayer("protect-ally", "Ally");
+    const outsider = env.connectPlayer("protect-b", "B");
+    const game = env.startGame(CombatGame, {
+        players: [native, ally, outsider],
+    });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        RegionProtector,
+        {
+            region: new SphereRegion(
+                "minecraft:overworld",
+                { x: 0, y: 0, z: 0 },
+                5
+            ),
+            players: game.context.teamA,
+            blockBreakInside: true,
+        },
+        "inside"
+    );
+
+    const overworldBlock = virtualMinecraft
+        .getDimension("minecraft:overworld")
+        .getBlock({ x: 0, y: 0, z: 0 });
+    const netherBlock = virtualMinecraft
+        .getDimension("minecraft:nether")
+        .getBlock({ x: 0, y: 0, z: 0 });
+
+    const insideEvent = {
+        player: native,
+        block: overworldBlock,
+        cancel: false,
+    };
+    env.emitWorldBeforeEvent("playerBreakBlock", insideEvent);
+    expect(insideEvent.cancel).toBe(true);
+
+    // 相同坐标但不同维度不属于“区域内”。
+    const otherDimension = {
+        player: native,
+        block: netherBlock,
+        cancel: false,
+    };
+    env.emitWorldBeforeEvent("playerBreakBlock", otherDimension);
+    expect(otherDimension.cancel).toBe(false);
+
+    // 不在 players 来源中的玩家不受该保护器影响。
+    const outOfScope = {
+        player: outsider,
+        block: overworldBlock,
+        cancel: false,
+    };
+    env.emitWorldBeforeEvent("playerBreakBlock", outOfScope);
+    expect(outOfScope.cancel).toBe(false);
+
+    env.reset();
 });
 
