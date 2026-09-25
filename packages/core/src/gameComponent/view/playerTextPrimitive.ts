@@ -8,7 +8,11 @@ import {
     world,
 } from "@minecraft/server";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
-import { PlayerSource, resolvePlayers } from "../../gamePlayer/playerSource";
+import { PlayerGroup } from "../../gamePlayer/playerGroup";
+import {
+    PlayerSource,
+    resolvePlayerEntries,
+} from "../../gamePlayer/playerSource";
 import { GameState } from "../../gameState/gameState";
 import { Game } from "../../main";
 import { Duration } from "../../utils/duration";
@@ -17,11 +21,17 @@ import { GameComponent } from "../gameComponent";
 /** textPrimitive 的可见范围。 */
 export type PlayerTextVisibility = "all" | "self" | "others";
 
-export interface PlayerTextPrimitiveOptions<P extends GamePlayer = GamePlayer> {
+export interface PlayerTextPrimitiveOptions<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> {
     /** 要挂载文本的玩家来源。 */
-    players: PlayerSource<P>;
-    /** 计算每个玩家当前要显示的文本，每次刷新都会重新调用。 */
-    text: (player: P) => string | RawMessage;
+    players: PlayerSource<P, TData>;
+    /**
+     * 计算每个玩家当前要显示的文本，每次刷新都会重新调用。
+     * 当来源为 PlayerGroup / PlayerGroupSet 时，第二个参数会直接给出所属组。
+     */
+    text: (player: P, group?: PlayerGroup<P, TData>) => string | RawMessage;
     /** 相对玩家位置的偏移。挂载到实体后该坐标作为偏移量使用。默认头顶上方。 */
     offset?: Vector3;
     /** 缩放，默认 1。 */
@@ -50,8 +60,9 @@ const DEFAULT_REFRESH = new Duration(10);
  * 血量 / 名字等预设配置。组件卸载时会移除全部 primitive，不残留。
  */
 export class PlayerTextPrimitive<
-    P extends GamePlayer = GamePlayer
-> extends GameComponent<GameState, PlayerTextPrimitiveOptions<P>> {
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> extends GameComponent<GameState, PlayerTextPrimitiveOptions<P, TData>> {
     private readonly primitives = new Map<string, TextPrimitive>();
     private visible = true;
 
@@ -97,7 +108,7 @@ export class PlayerTextPrimitive<
         }
 
         const aliveIds = new Set<string>();
-        for (const p of resolvePlayers(options.players)) {
+        for (const { player: p, group } of resolvePlayerEntries(options.players)) {
             const player = p.player;
             if (!player) continue;
             aliveIds.add(player.id);
@@ -105,7 +116,7 @@ export class PlayerTextPrimitive<
             const primitive = this.ensurePrimitive(player, options);
             if (!primitive) continue;
             try {
-                primitive.setText(options.text(p));
+                primitive.setText(options.text(p, group));
                 this.applyVisibility(primitive, player);
             } catch {
                 // 玩家可能刚好在这一 tick 失效，下一轮会重新同步。
@@ -121,7 +132,7 @@ export class PlayerTextPrimitive<
 
     private ensurePrimitive(
         player: Player,
-        options: PlayerTextPrimitiveOptions<P>
+        options: PlayerTextPrimitiveOptions<P, TData>
     ): TextPrimitive | undefined {
         const existing = this.primitives.get(player.id);
         if (existing) return existing;

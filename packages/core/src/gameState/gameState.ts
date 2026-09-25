@@ -154,6 +154,16 @@ export abstract class GameState<
         component: Cmp,
         options?: ConstructorParameters<Cmp>[1],
         tag?: string
+    ): this;
+    addComponent<O, Cmp extends GameComponentType<any, O>>(
+        component: Cmp,
+        options?: O,
+        tag?: string
+    ): this;
+    addComponent(
+        component: GameComponentType<any, any>,
+        options?: any,
+        tag?: string
     ) {
         if (!this.engine.isActive) return this;
         this.logger.debug(

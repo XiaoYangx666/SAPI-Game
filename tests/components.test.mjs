@@ -40,8 +40,10 @@ class CombatState extends GameState {
             PlayerTextPrimitive,
             playerInfoText({
                 players: this.context.groupSet,
-                nameColor: (player) =>
-                    player.name === "A" ? "§c" : "§9",
+                // group 上下文由 PlayerTextPrimitive 直接传给 preset，
+                // 业务层无需再 groupSet.findById()。
+                nameColor: (_player, group) =>
+                    group === this.context.teamA ? "§c" : "§9",
             })
         );
     }

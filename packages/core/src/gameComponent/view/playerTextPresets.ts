@@ -1,34 +1,41 @@
 import { EntityComponentTypes } from "@minecraft/server";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
+import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { PlayerTextPrimitiveOptions } from "./playerTextPrimitive";
 
 /** 预设共用的可选字段（players 与 text 由各预设决定）。 */
-export type PlayerTextPresetBase<P extends GamePlayer = GamePlayer> = Omit<
-    PlayerTextPrimitiveOptions<P>,
-    "players" | "text"
->;
+export type PlayerTextPresetBase<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> = Omit<PlayerTextPrimitiveOptions<P, TData>, "players" | "text">;
 
-/** 固定格式前缀，或按玩家动态计算的格式前缀。 */
-export type PlayerTextColor<P extends GamePlayer = GamePlayer> =
-    | string
-    | ((player: P) => string);
+export type PlayerTextFormatter<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> = (player: P, group?: PlayerGroup<P, TData>) => string;
 
-export interface PlayerHealthTextOptions<P extends GamePlayer = GamePlayer>
-    extends PlayerTextPresetBase<P> {
+/** 固定格式前缀，或按玩家/所属组动态计算的格式前缀。 */
+export type PlayerTextColor<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> = string | PlayerTextFormatter<P, TData>;
+
+export interface PlayerHealthTextOptions<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> extends PlayerTextPresetBase<P, TData> {
     /** 要显示血量的玩家来源。 */
-    players: PlayerTextPrimitiveOptions<P>["players"];
-    /** 覆盖默认的血量文本。 */
-    text?: (player: P) => string;
+    players: PlayerTextPrimitiveOptions<P, TData>["players"];
+    /** 覆盖默认的血量文本；来源有组语义时第二个参数为所属组。 */
+    text?: PlayerTextFormatter<P, TData>;
 }
 
-/**
- * 血量显示预设：在玩家头顶用 textPrimitive 显示当前/最大生命值。
- *
- * 颜色会随血量比例变化（>50% 绿、>25% 黄、否则红）。
- */
-export function playerHealthText<P extends GamePlayer = GamePlayer>(
-    options: PlayerHealthTextOptions<P>
-): PlayerTextPrimitiveOptions<P> {
+export function playerHealthText<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+>(
+    options: PlayerHealthTextOptions<P, TData>
+): PlayerTextPrimitiveOptions<P, TData> {
     const { text, ...rest } = options;
     return {
         offset: { x: 0, y: 2.5, z: 0 },
@@ -39,81 +46,87 @@ export function playerHealthText<P extends GamePlayer = GamePlayer>(
     };
 }
 
-export interface PlayerNameTextOptions<P extends GamePlayer = GamePlayer>
-    extends PlayerTextPresetBase<P> {
-    /** 要显示名字的玩家来源。 */
-    players: PlayerTextPrimitiveOptions<P>["players"];
-    /** 名字前缀（例如队伍颜色 §c）；也可按玩家动态计算。 */
-    color?: PlayerTextColor<P>;
-    /** 覆盖默认的名字文本。 */
-    text?: (player: P) => string;
+export interface PlayerNameTextOptions<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> extends PlayerTextPresetBase<P, TData> {
+    players: PlayerTextPrimitiveOptions<P, TData>["players"];
+    /** 名字前缀；可直接根据玩家及所属组计算。 */
+    color?: PlayerTextColor<P, TData>;
+    /** 覆盖默认名字文本；来源有组语义时第二个参数为所属组。 */
+    text?: PlayerTextFormatter<P, TData>;
 }
 
-/**
- * 名字显示预设：在玩家头顶用 textPrimitive 显示名字。
- */
-export function playerNameText<P extends GamePlayer = GamePlayer>(
-    options: PlayerNameTextOptions<P>
-): PlayerTextPrimitiveOptions<P> {
+export function playerNameText<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+>(
+    options: PlayerNameTextOptions<P, TData>
+): PlayerTextPrimitiveOptions<P, TData> {
     const { text, color, ...rest } = options;
     return {
         offset: { x: 0, y: 2.5, z: 0 },
         scale: 1,
         depthTest: false,
         ...rest,
-        text: text ?? ((player) => formatName(player, color)),
+        text: (player, group) =>
+            text?.(player, group) ?? formatName(player, color, group),
     };
 }
 
-export interface PlayerInfoTextOptions<P extends GamePlayer = GamePlayer>
-    extends PlayerTextPresetBase<P> {
-    /** 要显示名字和血量的玩家来源。 */
-    players: PlayerTextPrimitiveOptions<P>["players"];
-    /** 名字前缀（例如队伍颜色 §c）；也可按玩家动态计算。 */
-    nameColor?: PlayerTextColor<P>;
-    /** 覆盖第一行的名字文本。 */
-    nameText?: (player: P) => string;
-    /** 覆盖第二行的血量文本。 */
-    healthText?: (player: P) => string;
+export interface PlayerInfoTextOptions<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> extends PlayerTextPresetBase<P, TData> {
+    players: PlayerTextPrimitiveOptions<P, TData>["players"];
+    /** 名字颜色；可直接根据所属组计算。 */
+    nameColor?: PlayerTextColor<P, TData>;
+    /** 覆盖第一行名字文本。 */
+    nameText?: PlayerTextFormatter<P, TData>;
+    /** 覆盖第二行血量文本。 */
+    healthText?: PlayerTextFormatter<P, TData>;
 }
 
 /**
  * 玩家信息预设：用一个 TextPrimitive 同时显示名字与血量。
  *
- * 默认两行：
- * ```text
- * 玩家名
- * 20/20
- * ```
- *
- * 相比同时挂载 playerNameText / playerHealthText，只创建并维护一个 primitive。
+ * 当 players 是 PlayerGroup / PlayerGroupSet 时，所有 formatter 的第二个参数
+ * 都会直接收到玩家所属组，业务层无需再次 findById()。
  */
-export function playerInfoText<P extends GamePlayer = GamePlayer>(
-    options: PlayerInfoTextOptions<P>
-): PlayerTextPrimitiveOptions<P> {
+export function playerInfoText<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+>(
+    options: PlayerInfoTextOptions<P, TData>
+): PlayerTextPrimitiveOptions<P, TData> {
     const { nameColor, nameText, healthText, ...rest } = options;
     return {
         offset: { x: 0, y: 2.5, z: 0 },
         scale: 1,
         depthTest: false,
         ...rest,
-        text: (player) => {
+        text: (player, group) => {
             const name =
-                nameText?.(player) ?? formatName(player, nameColor);
-            const health = healthText?.(player) ?? formatHealth(player);
-            // 清掉名字行可能携带的格式，避免粗体等样式泄漏到血量行。
+                nameText?.(player, group) ??
+                formatName(player, nameColor, group);
+            const health =
+                healthText?.(player, group) ?? formatHealth(player);
             return `${name}§r\n${health}`;
         },
     };
 }
 
 /** 默认名字文本，可使用固定或动态颜色前缀。 */
-export function formatName<P extends GamePlayer = GamePlayer>(
+export function formatName<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+>(
     player: P,
-    color?: PlayerTextColor<P>
+    color?: PlayerTextColor<P, TData>,
+    group?: PlayerGroup<P, TData>
 ): string {
     const prefix =
-        typeof color === "function" ? color(player) : color ?? "";
+        typeof color === "function" ? color(player, group) : color ?? "";
     return `${prefix}${player.name}`;
 }
 
