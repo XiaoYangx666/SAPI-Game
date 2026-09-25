@@ -63,15 +63,23 @@ export function resolvePlayerEntries<P extends GamePlayer, TData = any>(
     if (value === undefined) return [];
 
     if (value instanceof PlayerGroup) {
-        return value.getAll().map((player) => ({ player, group: value }));
+        return Array.from(value, (player) => ({ player, group: value }));
     }
+
     if (value instanceof PlayerGroupSet) {
-        return value.getAllPlayers().map((player) => ({
-            player,
-            group: value.findById(player.id)?.group,
-        }));
+        const entries: PlayerSourceEntry<P, TData>[] = [];
+        const seen = new Set<string>();
+        value.forEachGroup((group) => {
+            for (const player of group) {
+                if (seen.has(player.id)) continue;
+                seen.add(player.id);
+                entries.push({ player, group });
+            }
+        });
+        return entries;
     }
-    return [...value].map((player) => ({ player }));
+
+    return Array.from(value, (player) => ({ player }));
 }
 
 /** 判断玩家 ID 是否存在于来源中；常见 Group/GroupSet 路径不会创建临时数组。 */
@@ -82,9 +90,48 @@ export function playerSourceHas<P extends GamePlayer, TData = any>(
     const value = resolvePlayerCollection(source);
     if (value === undefined) return false;
     if (value instanceof PlayerGroupSet) return value.has(playerId);
-    if (value instanceof PlayerGroup) return value.getById(playerId) !== undefined;
+    if (value instanceof PlayerGroup) return value.hasId(playerId);
+
     for (const player of value) {
         if (player.id === playerId) return true;
+    }
+    return false;
+}
+
+/**
+ * 判断两个玩家 ID 是否都存在于同一来源。
+ *
+ * 动态函数来源只求值一次；普通 Iterable 也只遍历一次，
+ * 避免 PvP 等高频路径重复解析，且兼容一次性 generator。
+ */
+export function playerSourceHasBoth<P extends GamePlayer, TData = any>(
+    source: PlayerSource<P, TData> | undefined,
+    firstId: string,
+    secondId: string
+): boolean {
+    const value = resolvePlayerCollection(source);
+    if (value === undefined) return false;
+
+    if (value instanceof PlayerGroupSet) {
+        return value.has(firstId) && value.has(secondId);
+    }
+    if (value instanceof PlayerGroup) {
+        return value.hasId(firstId) && value.hasId(secondId);
+    }
+
+    if (firstId === secondId) {
+        for (const player of value) {
+            if (player.id === firstId) return true;
+        }
+        return false;
+    }
+
+    let firstFound = false;
+    let secondFound = false;
+    for (const player of value) {
+        if (player.id === firstId) firstFound = true;
+        if (player.id === secondId) secondFound = true;
+        if (firstFound && secondFound) return true;
     }
     return false;
 }

@@ -135,6 +135,11 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
         return removed;
     }
 
+    /** 按当前组顺序迭代玩家，不创建数组副本。 */
+    [Symbol.iterator](): Iterator<T> {
+        return this.players[Symbol.iterator]();
+    }
+
     /** 获取组中全部玩家的拷贝。 */
     getAll(): T[] {
         return this.players.slice();

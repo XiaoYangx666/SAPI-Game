@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { GamePlayer, PlayerGroup, PlayerGroupSet } from "../packages/core/dist/main.js";
+import {
+    GamePlayer,
+    PlayerGroup,
+    PlayerGroupSet,
+    playerSourceHasBoth,
+} from "../packages/core/dist/main.js";
 
 const mock = (id) => ({ id, name: id, isValid: true });
 
@@ -104,5 +109,22 @@ test("PlayerGroupSet 对重复成员只执行一次并保留 clone data", () => 
     const groups = cloned.getGroups();
     expect(groups[0].data).toBe(dataA);
     expect(groups[1].data).toBe(dataB);
+});
+
+test("playerSourceHasBoth 对动态 generator 来源只求值一次", () => {
+    const alice = new GamePlayer(mock("alice"));
+    const bob = new GamePlayer(mock("bob"));
+    let resolves = 0;
+
+    const source = () => {
+        resolves++;
+        return (function* () {
+            yield alice;
+            yield bob;
+        })();
+    };
+
+    expect(playerSourceHasBoth(source, "bob", "alice")).toBe(true);
+    expect(resolves).toBe(1);
 });
 

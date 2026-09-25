@@ -5,6 +5,7 @@ export { PlayerGroup } from "./playerGroup";
 export { GamePlayerManager } from "./playerManager";
 export {
     playerSourceHas,
+    playerSourceHasBoth,
     resolvePlayerEntries,
     resolvePlayers,
 } from "./playerSource";

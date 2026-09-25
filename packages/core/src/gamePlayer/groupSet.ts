@@ -71,7 +71,7 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
     getAllPlayers(): T[] {
         const players = new Map<string, T>();
         for (const group of this.groups) {
-            for (const player of group.getAll()) {
+            for (const player of group) {
                 if (!players.has(player.id)) players.set(player.id, player);
             }
         }
@@ -135,7 +135,7 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
     some(predicate: (player: T) => boolean): boolean {
         const seen = new Set<string>();
         for (const group of this.groups) {
-            for (const player of group.getAll()) {
+            for (const player of group) {
                 if (seen.has(player.id)) continue;
                 seen.add(player.id);
                 if (predicate(player)) return true;
@@ -175,7 +175,7 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
         let count = 0;
         const seen = new Set<string>();
         for (const group of this.groups) {
-            for (const player of group.getAll()) {
+            for (const player of group) {
                 if (seen.has(player.id)) continue;
                 seen.add(player.id);
                 if (player.isValid) count++;
