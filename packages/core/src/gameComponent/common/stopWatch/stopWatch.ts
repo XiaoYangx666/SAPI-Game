@@ -37,36 +37,26 @@ export class StopWatch extends GameComponent<GameState<any>, StopWatchOptions> {
     /** 组件被附加到游戏对象时调用 */
     override onAttach(): void {
         this.isActive = true;
-        this.elapsedTime = this.options?.initialTime ?? 0;
+        this.elapsedTime = Math.max(0, this.options?.initialTime ?? 0);
 
         if (this.options?.autoStart) {
             this.start();
         }
 
-        // 订阅游戏的 tick 事件，驱动秒表
         this.subscribe(Game.events.interval, () => {
             if (!this._isRunning) return;
 
             const now = Date.now();
             const diff = now - this.lastTime;
-            if (diff >= 1000) {
-                if (this.options?.compensate) {
-                    // 按真实时间补偿，防止掉帧少加
-                    const steps = Math.floor(diff / 1000);
-                    this.elapsedTime += steps;
-                    this.lastTime += steps * 1000;
-                } else {
-                    // 不补偿，只加 1 秒
-                    this.elapsedTime += 1;
-                    this.lastTime = now;
-                }
+            if (diff < 1000) return;
 
-                // 每秒触发 tick
-                this.events.tick.publish(this.elapsedTime);
-
-                // 检查并触发特定时间事件
-                this.events.onTime.checkAndFireTimeEvents(this.elapsedTime);
-            }
+            const steps = this.options?.compensate
+                ? Math.floor(diff / 1000)
+                : 1;
+            this.lastTime = this.options?.compensate
+                ? this.lastTime + steps * 1000
+                : now;
+            this.advance(steps);
         });
     }
 
@@ -105,5 +95,16 @@ export class StopWatch extends GameComponent<GameState<any>, StopWatchOptions> {
     /** 暂停或恢复 */
     public toggle(): void {
         this._isRunning ? this.stop() : this.start();
+    }
+
+    /**
+     * 推进若干秒。补偿模式下逐秒发布，避免跨秒时漏掉 tick/onTime。
+     */
+    private advance(steps: number): void {
+        for (let i = 0; i < steps && this._isRunning; i++) {
+            this.elapsedTime += 1;
+            this.events.tick.publish(this.elapsedTime);
+            this.events.onTime.checkAndFireTimeEvents(this.elapsedTime);
+        }
     }
 }

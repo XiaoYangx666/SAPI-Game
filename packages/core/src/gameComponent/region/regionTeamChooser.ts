@@ -49,8 +49,24 @@ export class RegionTeamChooser<
         event: PlayerRegionEvent,
         data: RegionTeamChooserData<P>
     ) {
-        // 区域选择器本身就是“加入游戏”的入口，因此这里显式 join，
-        // 不再依赖 playerManager.get() 的隐式副作用。
+        // Leave 只能清理已有队伍关系，绝不能因为“离开区域”反向创建 participation。
+        if (event.type === RegionEventType.Leave) {
+            if (this.options?.removeOnLeave ?? false) {
+                data.team.delete(event.player, "region-leave");
+            }
+            return;
+        }
+        if (event.type !== RegionEventType.Enter) return;
+
+        // 旁观者校验必须发生在 join 前，否则虽然不会进队，仍会错误占用 participation。
+        if (
+            !(this.options?.allowSpectator ?? false) &&
+            event.player.getGameMode() === GameMode.Spectator
+        ) {
+            return;
+        }
+
+        // 区域选择器本身就是“加入游戏”的入口，因此只在真正 Enter 时显式 join。
         const joined = this.state.playerManager.join(event.player);
         if (!joined.allowed) {
             if (event.player.isValid) {
@@ -59,28 +75,13 @@ export class RegionTeamChooser<
             return;
         }
 
-        const gamePlayer = joined.player;
-        switch (event.type) {
-            case RegionEventType.Enter:
-                this.handlePlayerEnter(gamePlayer, data);
-                break;
-            case RegionEventType.Leave:
-                this.handlePlayerLeave(gamePlayer, data);
-                break;
-        }
+        this.handlePlayerEnter(joined.player, data);
     }
 
     private handlePlayerEnter(
         gamePlayer: P,
         configData: RegionTeamChooserData<P>
     ) {
-        if (
-            !(this.options?.allowSpectator ?? false) &&
-            gamePlayer.player?.getGameMode() === GameMode.Spectator
-        ) {
-            return;
-        }
-
         const newTeam = configData.team;
         const alreadyInTeam = newTeam.has(gamePlayer);
         configData.onEnter?.(gamePlayer);
@@ -94,15 +95,6 @@ export class RegionTeamChooser<
         newTeam.add(gamePlayer);
         if (!alreadyInTeam) {
             configData.onJoin?.(gamePlayer);
-        }
-    }
-
-    private handlePlayerLeave(
-        gamePlayer: P,
-        configData: RegionTeamChooserData<P>
-    ) {
-        if (this.options?.removeOnLeave ?? false) {
-            configData.team.delete(gamePlayer);
         }
     }
 

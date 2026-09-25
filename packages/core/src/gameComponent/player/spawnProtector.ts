@@ -30,8 +30,10 @@ export class SpawnPointProtector<P extends GamePlayer> extends GameComponent<
         const options = this.options;
         if (!options) return;
 
+        const autoSetSpawnPoint = options.autoSetSpawnPoint ?? true;
+
         // 初始设置玩家重生点
-        if (options.autoSetSpawnPoint ?? true) {
+        if (autoSetSpawnPoint) {
             this.setPlayerSpawnPoints();
         }
 
@@ -40,7 +42,7 @@ export class SpawnPointProtector<P extends GamePlayer> extends GameComponent<
         this.subscribe(
             Game.events.interval,
             () => {
-                if (options.autoSetSpawnPoint) {
+                if (autoSetSpawnPoint) {
                     this.setPlayerSpawnPoints();
                 }
                 this.protectSpawnAreas();

@@ -1,6 +1,6 @@
 import { EntityHurtBeforeEvent, Player, system, world } from "@minecraft/server";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
-import { PlayerSource, resolvePlayers } from "../../gamePlayer/playerSource";
+import { PlayerSource, playerSourceHas } from "../../gamePlayer/playerSource";
 import { GameRegion } from "../../gameRegion/gameRegion";
 import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
@@ -136,8 +136,8 @@ export class PvpController<
     private playerScopeMatches(victim: Player, attacker: Player): boolean {
         const source = this.options?.players;
         if (source === undefined) return true;
-        const ids = new Set(resolvePlayers(source).map((p) => p.id));
-        return ids.has(victim.id) && ids.has(attacker.id);
+        return playerSourceHas(source, victim.id) &&
+            playerSourceHas(source, attacker.id);
     }
 
     private regionScopeMatches(victim: Player, attacker: Player): boolean {

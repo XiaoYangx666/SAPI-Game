@@ -40,46 +40,26 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
         return this._isRunning;
     }
 
-    /**
-     * 组件被附加到游戏对象时调用
-     */
+    /** 组件被附加到游戏对象时调用 */
     override onAttach(): void {
         this.set(this.options?.initialTime ?? 0);
 
-        // 订阅游戏的tick事件，这是驱动计时器的核心
         this.subscribe(Game.events.interval, () => {
-            if (!this._isRunning) {
-                return;
-            }
+            if (!this._isRunning) return;
 
             const now = Date.now();
             const diff = now - this.lastTime;
-            if (diff >= 1000) {
-                if (this.remainingTime <= 0) {
-                    this._isRunning = false;
-                    this.trace.builtin(BuiltinTraceEventType.TimerExpired, {
-                        remainingTime: 0,
-                    });
-                    return;
-                }
-                if (this.options?.compensate) {
-                    // 严格按真实时间走，补偿丢失的秒数
-                    const steps = Math.floor(diff / 1000);
-                    this.remainingTime -= steps;
-                    this.lastTime += steps * 1000;
-                } else {
-                    // 不补偿，直接视为 1 秒过去
-                    this.remainingTime -= 1;
-                    this.lastTime = now;
-                }
+            if (diff < 1000) return;
 
-                // 执行每一秒的回调
-                this.events.tick.publish(this.remainingTime);
-
-                // 检查并执行特定时间点的事件
-                this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
-            }
+            const steps = this.options?.compensate
+                ? Math.floor(diff / 1000)
+                : 1;
+            this.lastTime = this.options?.compensate
+                ? this.lastTime + steps * 1000
+                : now;
+            this.advance(steps);
         });
+
         if (this.options?.autoStart) {
             this.start();
         }
@@ -126,6 +106,29 @@ export class Timer extends GameComponent<GameState<any>, TimerOptions> {
             });
             this.events.tick.publish(this.remainingTime);
             this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
+        }
+    }
+
+    /**
+     * 推进若干秒。
+     * compensate=true 时一次 tick 可能跨过多个秒值，因此逐秒发布事件，
+     * 避免 5 -> 2 时漏掉注册在 4/3 的 onTime。
+     */
+    private advance(steps: number): void {
+        if (steps <= 0 || !this._isRunning) return;
+
+        const count = Math.min(steps, this.remainingTime);
+        for (let i = 0; i < count && this._isRunning; i++) {
+            this.remainingTime = Math.max(0, this.remainingTime - 1);
+            this.events.tick.publish(this.remainingTime);
+            this.events.onTime.checkAndFireTimeEvents(this.remainingTime);
+
+            if (this.remainingTime === 0) {
+                this._isRunning = false;
+                this.trace.builtin(BuiltinTraceEventType.TimerExpired, {
+                    remainingTime: 0,
+                });
+            }
         }
     }
 }

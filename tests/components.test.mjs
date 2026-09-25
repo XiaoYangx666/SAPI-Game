@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import {
     FriendlyFireProtector,
     Game,
@@ -10,7 +10,10 @@ import {
     PlayerGroupSet,
     PlayerTextPrimitive,
     PvpController,
+    RegionTeamChooser,
     SphereRegion,
+    StopWatch,
+    Timer,
     playerInfoText,
     playerNameText,
 } from "../packages/core/dist/main.js";
@@ -203,3 +206,99 @@ test("PvpController 支持按区域范围控制", () => {
 
     env.reset();
 });
+
+test("RegionTeamChooser 的 Leave 不会创建 participation", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("chooser-a", "A");
+    const outsider = env.connectPlayer("chooser-outsider", "Outsider");
+
+    const game = env.startGame(CombatGame, { players: [a] });
+    const state = game.getState(CombatState);
+    const region = new SphereRegion(
+        "minecraft:overworld",
+        { x: 0, y: 0, z: 0 },
+        5
+    );
+    const team = new PlayerGroup(GamePlayer);
+    const data = { region, team };
+
+    state.addComponent(
+        RegionTeamChooser,
+        { config: [data], removeOnLeave: true },
+        "chooser"
+    );
+    const chooser = state.getComponent(RegionTeamChooser, "chooser");
+
+    // 直接回归内部事件处理：一个从未参加本局的玩家触发 Leave，不能因此被 join。
+    chooser.handleRegionEvent(
+        { player: outsider, type: "leave", region },
+        data
+    );
+
+    expect(game.playerManager.hasParticipant(outsider.id)).toBe(false);
+    expect(team.has(outsider)).toBe(false);
+    env.reset();
+});
+
+test("Timer / StopWatch 补偿模式逐秒补发并正确到 0", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("timer-a", "A");
+
+    let now = 1_000_000;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+
+    try {
+        const game = env.startGame(CombatGame, { players: [player] });
+        const state = game.getState(CombatState);
+
+        state.addComponent(
+            Timer,
+            { initialTime: 3, autoStart: true, compensate: true },
+            "timer"
+        );
+        const timer = state.getComponent(Timer, "timer");
+        const timerTicks = [];
+        const timerTimes = [];
+        timer.events.tick.subscribe(({ remainingTime }) =>
+            timerTicks.push(remainingTime)
+        );
+        timer.events.onTime.subscribe(() => timerTimes.push(2), { time: 2 });
+        timer.events.onTime.subscribe(() => timerTimes.push(1), { time: 1 });
+
+        now += 3_000;
+        await env.advanceTicks(1);
+
+        expect(timer.time).toBe(0);
+        expect(timer.isRunning).toBe(false);
+        expect(timerTicks).toEqual([2, 1, 0]);
+        expect(timerTimes).toEqual([2, 1]);
+
+        state.addComponent(
+            StopWatch,
+            { autoStart: true, compensate: true },
+            "stopwatch"
+        );
+        const stopwatch = state.getComponent(StopWatch, "stopwatch");
+        const watchTicks = [];
+        const watchTimes = [];
+        stopwatch.events.tick.subscribe(({ elapsedTime }) =>
+            watchTicks.push(elapsedTime)
+        );
+        stopwatch.events.onTime.subscribe(() => watchTimes.push(1), { time: 1 });
+        stopwatch.events.onTime.subscribe(() => watchTimes.push(2), { time: 2 });
+        stopwatch.events.onTime.subscribe(() => watchTimes.push(3), { time: 3 });
+
+        now += 3_000;
+        await env.advanceTicks(1);
+
+        expect(stopwatch.time).toBe(3);
+        expect(watchTicks).toEqual([1, 2, 3]);
+        expect(watchTimes).toEqual([1, 2, 3]);
+    } finally {
+        nowSpy.mockRestore();
+        env.reset();
+    }
+});
+

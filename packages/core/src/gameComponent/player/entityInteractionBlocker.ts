@@ -48,8 +48,6 @@ export class EntityInteractionBlocker extends GameComponent<
 
         this.subscribe(world.beforeEvents.playerInteractWithEntity, (t) => {
             const { player, target } = t;
-            console.log(target.typeId);
-
             // 1️⃣ 不在限制组内 -> 放行
             if (!groupSet.findById(player.id)) return;
 

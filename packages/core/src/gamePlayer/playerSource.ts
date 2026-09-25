@@ -25,3 +25,18 @@ export function resolvePlayers<P extends GamePlayer>(
     if (value instanceof PlayerGroup) return value.getAll();
     return [...value];
 }
+
+/** 判断玩家 ID 是否存在于来源中；常见 Group/GroupSet 路径不会创建临时数组。 */
+export function playerSourceHas<P extends GamePlayer>(
+    source: PlayerSource<P> | undefined,
+    playerId: string
+): boolean {
+    if (source === undefined) return false;
+    const value = typeof source === "function" ? source() : source;
+    if (value instanceof PlayerGroupSet) return value.has(playerId);
+    if (value instanceof PlayerGroup) return value.getById(playerId) !== undefined;
+    for (const player of value) {
+        if (player.id === playerId) return true;
+    }
+    return false;
+}
