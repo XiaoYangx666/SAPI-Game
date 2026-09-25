@@ -9,7 +9,7 @@ const PLAYER_TYPE_ID = "minecraft:player";
 export interface FriendlyFireProtectorOptions<
     P extends GamePlayer = GamePlayer
 > {
-    /** 队伍集合：同一个 {@link PlayerGroupSet} 组内的玩家互为队友。 */
+    /** 队伍集合：同一个 PlayerGroupSet 组内的玩家互为队友。 */
     groupSet: PlayerGroupSet<P>;
     /** 命中队友时是否提示攻击者，默认 true。 */
     showMessage?: boolean;
@@ -18,11 +18,10 @@ export interface FriendlyFireProtectorOptions<
 }
 
 /**
- * 友伤保护组件：监听 `world.beforeEvents.entityHurt`，
- * 当攻击者与被攻击者属于同一队伍时取消这次伤害。
+ * 友伤保护组件。
  *
- * 与 `PvpController` 一样基于 entityHurt 的拦截实现，不修改全局 gamerule，
- * 因此多个游戏同时运行时互不影响。
+ * 与 PvpController 一样基于 entityHurt 拦截，不修改全局 gamerule；
+ * 同组判断直接使用 PlayerGroupSet 的无分配查询。
  */
 export class FriendlyFireProtector<
     P extends GamePlayer = GamePlayer
@@ -42,10 +41,14 @@ export class FriendlyFireProtector<
         const attacker = event.damageSource.damagingEntity;
         if (!attacker || attacker.typeId !== PLAYER_TYPE_ID) return;
 
-        const victimInfo = options.groupSet.findById(event.hurtEntity.id);
-        const attackerInfo = options.groupSet.findById(attacker.id);
-        if (!victimInfo || !attackerInfo) return;
-        if (victimInfo.group !== attackerInfo.group) return;
+        if (
+            !options.groupSet.areInSameGroup(
+                event.hurtEntity.id,
+                attacker.id
+            )
+        ) {
+            return;
+        }
 
         event.cancel = true;
 

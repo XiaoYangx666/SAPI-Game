@@ -19,14 +19,15 @@ class PlayerGroupError extends GameError {
     }
 }
 
-/**玩家组 */
+/** 玩家组。保留插入顺序，并为按 ID 查询维护索引。 */
 export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
     private players: T[];
+    private readonly playersById = new Map<string, T>();
     readonly changed = new GroupMembershipSignal<T>();
     readonly playerConstructor: GamePlayerConstructor<T>;
     readonly data: TData;
 
-    /**创建新的玩家组 */
+    /** 创建新的玩家组。 */
     constructor(playerClass: GamePlayerConstructor<T>, players?: T[]);
     constructor(
         playerClass: GamePlayerConstructor<T>,
@@ -40,33 +41,44 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
     ) {
         this.playerConstructor = playerClass;
         if (
-            players != undefined &&
-            players.some((p) => !(p instanceof playerClass))
+            players !== undefined &&
+            players.some((player) => !(player instanceof playerClass))
         ) {
             throw new PlayerGroupError(`players必须全为:${playerClass.name}`);
         }
+
         this.data = data as TData;
-        this.players = players ?? [];
+        this.players = players?.slice() ?? [];
+        this.rebuildIndex();
     }
 
-    /** 组中玩家数量(包含下线玩家) */
+    /** 组中玩家数量（包含下线玩家）。 */
     get size() {
         return this.players.length;
     }
 
-    /** 组中玩家数量(不包含下线玩家) */
+    /** 组中有效玩家数量。 */
     get validSize() {
-        return this.players.filter((p) => p.isValid).length;
+        let count = 0;
+        for (const player of this.players) {
+            if (player.isValid) count++;
+        }
+        return count;
     }
 
-    /** 根据 id 查找玩家 */
-    getById(id: string) {
-        return this.players.find((p) => p.id == id);
+    /** 根据 ID 查找玩家。 */
+    getById(id: string): T | undefined {
+        return this.playersById.get(id);
     }
 
-    /** 是否包含玩家 */
-    has(player: T | Player) {
-        return this.players.findIndex((p) => p.id == player.id) != -1;
+    /** 是否包含指定玩家 ID。 */
+    hasId(id: string): boolean {
+        return this.playersById.has(id);
+    }
+
+    /** 是否包含玩家。 */
+    has(player: T | Player): boolean {
+        return this.hasId(player.id);
     }
 
     add(player: T) {
@@ -75,133 +87,176 @@ export class PlayerGroup<T extends GamePlayer = GamePlayer, TData = undefined> {
                 `添加的player必须是${this.playerConstructor.name}`
             );
         }
-        if (!this.has(player)) {
+        if (!this.hasId(player.id)) {
             this.players.push(player);
+            this.playersById.set(player.id, player);
             this.changed.publish({ type: "added", player, reason: "manual" });
         }
         return this;
     }
 
     delete(player: T | Player, reason = "manual") {
-        const index = this.players.findIndex((p) => p.id == player.id);
-        if (index != -1) {
-            const [removed] = this.players.splice(index, 1);
-            this.changed.publish({ type: "removed", player: removed, reason });
+        const indexed = this.playersById.get(player.id);
+        if (!indexed) return this;
+
+        const index = this.players.indexOf(indexed);
+        if (index === -1) {
+            // 理论上不应发生；自愈索引后保持幂等。
+            this.rebuildIndex();
+            return this;
         }
+
+        const [removed] = this.players.splice(index, 1);
+        this.playersById.delete(removed.id);
+
+        // 兼容构造器历史上可能接收到重复 ID 的数组：删除第一项后，
+        // 若仍有同 ID wrapper，则恢复到下一项，保持旧 getById 语义。
+        const duplicate = this.players.find((item) => item.id === removed.id);
+        if (duplicate) this.playersById.set(duplicate.id, duplicate);
+
+        this.changed.publish({ type: "removed", player: removed, reason });
         return this;
     }
 
     removeWhere(func: (player: T) => boolean, reason = "predicate"): T[] {
         const removed: T[] = [];
-        this.players = this.players.filter((p) => {
-            if (func(p)) {
-                removed.push(p);
-                return false;
-            }
-            return true;
-        });
+        const retained: T[] = [];
+
+        for (const player of this.players) {
+            (func(player) ? removed : retained).push(player);
+        }
+        if (removed.length === 0) return removed;
+
+        this.players = retained;
+        this.rebuildIndex();
         for (const player of removed) {
             this.changed.publish({ type: "removed", player, reason });
         }
         return removed;
     }
 
-    /**获取组中全部玩家的拷贝 */
+    /** 获取组中全部玩家的拷贝。 */
     getAll(): T[] {
         return this.players.slice();
     }
 
-    /** 获取所有原生 Player 对象 */
+    /** 获取所有有效原生 Player 对象。 */
     getAllPlayers(): Player[] {
-        return this.players.map((p) => p.player).filter((p) => p != undefined);
+        const result: Player[] = [];
+        for (const gamePlayer of this.players) {
+            const player = gamePlayer.player;
+            if (player) result.push(player);
+        }
+        return result;
     }
 
-    /**对所有有效玩家执行操作 */
-    forEach(func: (p: ValidGamePlayer<T>) => void) {
+    /** 对所有有效玩家执行操作。 */
+    forEach(func: (player: ValidGamePlayer<T>) => void) {
         try {
-            this.players.filter((p) => p.isValid).forEach(func as any);
+            for (const player of this.players) {
+                if (player.isValid) func(player as ValidGamePlayer<T>);
+            }
         } catch (err) {
             console.error(err, err instanceof Error ? err.stack : "");
         }
     }
 
-    /**组内所有玩家执行命令 */
     runCommand(commandString: string) {
-        this.forEach((p) => p.runCommand(commandString));
+        this.forEach((player) => player.runCommand(commandString));
         return this;
     }
 
-    /**向组内所有玩家发送消息 */
     sendMessage(mes: string | RawMessage | (string | RawMessage)[]) {
-        this.forEach((p) => p.sendMessage(mes));
+        this.forEach((player) => player.sendMessage(mes));
         return this;
     }
 
-    /**向组内所有玩家显示标题 */
     title(
         title: string | RawMessage | (string | RawMessage)[],
         subtitle?: string | RawMessage | (string | RawMessage)[],
         options?: TitleDisplayOptions
     ) {
-        this.forEach((p) => p.title(title, subtitle, options));
+        this.forEach((player) => player.title(title, subtitle, options));
         return this;
     }
 
     actionbar(text: (RawMessage | string)[] | RawMessage | string) {
-        this.forEach((p) => p.actionbar(text));
+        this.forEach((player) => player.actionbar(text));
         return this;
     }
 
-    /**向组内所有玩家播放音效 */
-    playSound(soundId: string, soundOptions?: PlayerSoundOptions | undefined) {
-        this.forEach((p) => p.player?.playSound(soundId, soundOptions));
+    playSound(soundId: string, soundOptions?: PlayerSoundOptions) {
+        this.forEach((player) => player.player.playSound(soundId, soundOptions));
         return this;
     }
 
-    map<U>(func: (p: T) => U): U[] {
+    map<U>(func: (player: T) => U): U[] {
         return this.players.map(func);
     }
 
-    /**获取随机在线玩家 */
-    random() {
-        const validPlayers = this.players.filter((p) => p.isValid);
-        if (validPlayers.length === 0) return undefined;
-
-        const index = Math.floor(Math.random() * validPlayers.length);
-        return validPlayers[index];
+    /** 获取随机有效玩家，不构造临时有效玩家数组。 */
+    random(): T | undefined {
+        let selected: T | undefined;
+        let validCount = 0;
+        for (const player of this.players) {
+            if (!player.isValid) continue;
+            validCount++;
+            if (Math.random() < 1 / validCount) selected = player;
+        }
+        return selected;
     }
 
-    filter(func: (p: T) => boolean): T[] {
+    filter(func: (player: T) => boolean): T[] {
         return this.players.filter(func);
     }
 
-    /** 清空组 */
+    /** 清空组。 */
     clear() {
+        if (this.players.length === 0) return this;
         const previous = this.players;
         this.players = [];
+        this.playersById.clear();
+
         for (const player of previous) {
-            this.changed.publish({ type: "removed", player, reason: "group-clear" });
+            this.changed.publish({
+                type: "removed",
+                player,
+                reason: "group-clear",
+            });
         }
         return this;
     }
 
-    /**清除无效玩家 */
+    /** 清除无效玩家。 */
     clearInvalid() {
-        this.removeWhere((p) => !p.isValid, "invalid-purge");
+        this.removeWhere((player) => !player.isValid, "invalid-purge");
         return this;
     }
 
-    /** 克隆一份新的 PlayerGroup */
-    clone(): PlayerGroup<T> {
-        return new PlayerGroup(this.playerConstructor, this.players);
+    /** 克隆玩家组；成员与 data 保持同一引用语义。 */
+    clone(): PlayerGroup<T, TData> {
+        return new PlayerGroup<T, TData>(
+            this.playerConstructor,
+            this.players,
+            this.data
+        );
     }
 
-    /** 查找符合条件的玩家 */
-    find(predicate: (p: T) => boolean): T | undefined {
+    find(predicate: (player: T) => boolean): T | undefined {
         return this.players.find(predicate);
     }
 
-    findIndex(predicate: (p: T) => boolean): number {
+    findIndex(predicate: (player: T) => boolean): number {
         return this.players.findIndex(predicate);
+    }
+
+    private rebuildIndex() {
+        this.playersById.clear();
+        // 保留旧 getById 的“首个同 ID 玩家优先”语义。
+        for (const player of this.players) {
+            if (!this.playersById.has(player.id)) {
+                this.playersById.set(player.id, player);
+            }
+        }
     }
 }

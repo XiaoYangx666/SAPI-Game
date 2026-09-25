@@ -4,10 +4,14 @@ import { PlayerGroup } from "./playerGroup";
 import { ObservableGroupSignal } from "./groupMembershipSignal";
 import type { Subscription } from "../gameEvent/subscription";
 
-/**玩家组集合 */
+/** 玩家组集合。 */
 export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
     private groups: PlayerGroup<T, TData>[] = [];
-    private readonly groupSubscriptions = new Map<PlayerGroup<T, TData>, Subscription>();
+    private readonly groupSubscriptions = new Map<
+        PlayerGroup<T, TData>,
+        Subscription
+    >();
+
     readonly changed = new ObservableGroupSignal<{
         readonly type: "added" | "removed" | "scope";
         readonly reason: string;
@@ -20,11 +24,13 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
 
     private attachGroup(group: PlayerGroup<T, TData>): void {
         if (this.groupSubscriptions.has(group)) return;
-        const subscription = group.changed.subscribe((event) => this.changed.publish({
-            type: event.type,
-            reason: event.reason,
-            playerId: event.player.id,
-        }));
+        const subscription = group.changed.subscribe((event) =>
+            this.changed.publish({
+                type: event.type,
+                reason: event.reason,
+                playerId: event.player.id,
+            })
+        );
         this.groupSubscriptions.set(group, subscription);
     }
 
@@ -36,11 +42,11 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
     }
 
     addGroup(group: PlayerGroup<T, TData>) {
-        if (!(group instanceof PlayerGroup))
+        if (!(group instanceof PlayerGroup)) {
             throw new Error("只能添加 PlayerGroup 实例");
-        // This is a set of groups: adding the same instance twice is a no-op,
-        // not a membership change or another source of forwarded notifications.
+        }
         if (this.groups.includes(group)) return this;
+
         this.groups.push(group);
         this.attachGroup(group);
         this.changed.publish({ type: "scope", reason: "group-added" });
@@ -49,11 +55,11 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
 
     removeGroup(group: PlayerGroup<T, TData>) {
         const index = this.groups.indexOf(group);
-        if (index !== -1) {
-            this.groups.splice(index, 1);
-            if (!this.groups.includes(group)) this.detachGroup(group);
-            this.changed.publish({ type: "scope", reason: "group-removed" });
-        }
+        if (index === -1) return this;
+
+        this.groups.splice(index, 1);
+        this.detachGroup(group);
+        this.changed.publish({ type: "scope", reason: "group-removed" });
         return this;
     }
 
@@ -61,75 +67,91 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
         return this.groups.slice();
     }
 
-    /**获取所有玩家，包括invalid的 */
+    /** 获取所有玩家，按 playerId 去重并保留首个组中的顺序。 */
     getAllPlayers(): T[] {
-        const all: Set<T> = new Set();
-        this.groups.forEach((g) => g.getAll().forEach((p) => all.add(p)));
-        return [...all.values()];
+        const players = new Map<string, T>();
+        for (const group of this.groups) {
+            for (const player of group.getAll()) {
+                if (!players.has(player.id)) players.set(player.id, player);
+            }
+        }
+        return [...players.values()];
     }
 
-    /**获取所有有效玩家 */
+    /** 获取所有有效玩家。 */
     getAllValidPlayers(): ValidGamePlayer<T>[] {
         return this.getAllPlayers().filter(
-            (p) => p.isValid
+            (player) => player.isValid
         ) as ValidGamePlayer<T>[];
     }
 
-    /**对所有有效玩家执行操作*/
-    forEach(func: (p: ValidGamePlayer<T>) => void) {
-        this.getGroups().forEach((g) => g.forEach(func));
+    /** 对所有有效玩家执行一次；即使玩家意外存在于多个组中也不会重复调用。 */
+    forEach(func: (player: ValidGamePlayer<T>) => void) {
+        const seen = new Set<string>();
+        for (const group of this.groups) {
+            group.forEach((player) => {
+                if (seen.has(player.id)) return;
+                seen.add(player.id);
+                func(player);
+            });
+        }
         return this;
     }
 
-    forEachGroup(func: (g: PlayerGroup<T, TData>) => void) {
+    forEachGroup(func: (group: PlayerGroup<T, TData>) => void) {
         this.groups.forEach(func);
+        return this;
     }
 
-    /**让所有玩家执行命令 */
     runCommand(command: string) {
-        this.forEach((p) => p.runCommand(command));
+        this.forEach((player) => player.runCommand(command));
         return this;
     }
 
-    runCommands(commands: string[]) {
-        commands.forEach((c) => this.runCommand(c));
+    runCommands(commands: readonly string[]) {
+        for (const command of commands) this.runCommand(command);
+        return this;
     }
 
-    /**向所有玩家发送消息 */
     sendMessage(mes: string | RawMessage | (string | RawMessage)[]) {
-        this.forEach((p) => p.sendMessage(mes));
+        this.forEach((player) => player.sendMessage(mes));
         return this;
     }
 
-    /**对所有玩家显示标题 */
     title(
         title: string | RawMessage | (string | RawMessage)[],
         subtitle?: string | RawMessage | (string | RawMessage)[],
         options?: TitleDisplayOptions
     ) {
-        this.forEach((p) => p.title(title, subtitle, options));
+        this.forEach((player) => player.title(title, subtitle, options));
         return this;
     }
 
-    filter(predicate: (p: T) => boolean): T[] {
-        return this.groups.map((g) => g.filter(predicate)).flat();
+    filter(predicate: (player: T) => boolean): T[] {
+        return this.getAllPlayers().filter(predicate);
     }
 
     /** Remove groups from this collection; does not clear each group's members. */
     clear() {
         if (this.groups.length === 0) return this;
+
         this.groups = [];
-        for (const group of [...this.groupSubscriptions.keys()]) this.detachGroup(group);
+        for (const group of [...this.groupSubscriptions.keys()]) {
+            this.detachGroup(group);
+        }
         this.changed.publish({ type: "scope", reason: "groups-cleared" });
         return this;
     }
 
     clearInvalid() {
-        this.groups.forEach((g) => g.clearInvalid());
+        for (const group of this.groups) group.clearInvalid();
+        return this;
     }
 
-    clone(): PlayerGroupSet<T> {
-        return new PlayerGroupSet(this.groups.map((g) => g.clone()));
+    clone(): PlayerGroupSet<T, TData> {
+        return new PlayerGroupSet<T, TData>(
+            this.groups.map((group) => group.clone())
+        );
     }
 
     get size() {
@@ -137,22 +159,47 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
     }
 
     get validSize() {
-        return this.getAllPlayers().filter((p) => p.isValid).length;
+        let count = 0;
+        const seen = new Set<string>();
+        for (const group of this.groups) {
+            for (const player of group.getAll()) {
+                if (seen.has(player.id)) continue;
+                seen.add(player.id);
+                if (player.isValid) count++;
+            }
+        }
+        return count;
     }
 
-    /** 根据玩家 ID 查找玩家及其所在组 */
-    findById(
-        id: string
-    ): { player: T; group: PlayerGroup<T, TData> } | undefined {
+    /** 根据玩家 ID 查找其首个所属组。 */
+    findGroupById(id: string): PlayerGroup<T, TData> | undefined {
         for (const group of this.groups) {
-            const player = group.getById(id);
-            if (player) return { player, group };
+            if (group.hasId(id)) return group;
         }
         return undefined;
     }
 
-    /**判断玩家是否在内 */
+    /** 根据玩家 ID 查找玩家及其首个所属组。 */
+    findById(
+        id: string
+    ): { player: T; group: PlayerGroup<T, TData> } | undefined {
+        const group = this.findGroupById(id);
+        if (!group) return undefined;
+        const player = group.getById(id);
+        return player ? { player, group } : undefined;
+    }
+
+    /** 判断两个玩家的首个所属组是否相同；不创建临时查找对象。 */
+    areInSameGroup(firstId: string, secondId: string): boolean {
+        const firstGroup = this.findGroupById(firstId);
+        return (
+            firstGroup !== undefined &&
+            this.findGroupById(secondId) === firstGroup
+        );
+    }
+
+    /** 判断玩家 ID 是否存在于集合。 */
     has(id: string) {
-        return this.findById(id) != undefined;
+        return this.findGroupById(id) !== undefined;
     }
 }

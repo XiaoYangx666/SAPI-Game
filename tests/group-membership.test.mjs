@@ -66,3 +66,43 @@ test("group-set observes nested membership and detaches after removing group", (
     ]);
     subscription.unsubscribe();
 });
+
+test("PlayerGroup 使用 ID 索引且 clone 保留 data", () => {
+    const data = { color: "red" };
+    const alice = new GamePlayer(mock("alice"));
+    const bob = new GamePlayer(mock("bob"));
+    const group = new PlayerGroup(GamePlayer, [alice, bob], data);
+
+    expect(group.getById("alice")).toBe(alice);
+    expect(group.hasId("bob")).toBe(true);
+
+    const cloned = group.clone();
+    expect(cloned.data).toBe(data);
+    expect(cloned.getAll()).toEqual([alice, bob]);
+
+    group.delete(mock("alice"));
+    expect(group.getById("alice")).toBeUndefined();
+    expect(group.hasId("bob")).toBe(true);
+});
+
+test("PlayerGroupSet 对重复成员只执行一次并保留 clone data", () => {
+    const alice = new GamePlayer(mock("alice"));
+    const dataA = { color: "red" };
+    const dataB = { color: "blue" };
+    const a = new PlayerGroup(GamePlayer, [alice], dataA);
+    const b = new PlayerGroup(GamePlayer, [alice], dataB);
+    const set = new PlayerGroupSet([a, b]);
+
+    const visited = [];
+    set.forEach((player) => visited.push(player.id));
+    expect(visited).toEqual(["alice"]);
+    expect(set.size).toBe(1);
+    expect(set.validSize).toBe(1);
+    expect(set.areInSameGroup("alice", "alice")).toBe(true);
+
+    const cloned = set.clone();
+    const groups = cloned.getGroups();
+    expect(groups[0].data).toBe(dataA);
+    expect(groups[1].data).toBe(dataB);
+});
+
