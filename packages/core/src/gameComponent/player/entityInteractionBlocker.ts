@@ -1,10 +1,17 @@
 import { EntityComponentTypes, system, world } from "@minecraft/server";
-import { PlayerGroupSet } from "@sapi-game/gamePlayer/groupSet";
-import { GameComponent, GameState } from "@sapi-game/main";
+import {
+    PlayerGroupSet,
+    PlayerSource,
+    playerSourceHas,
+} from "../../gamePlayer";
+import { GameState } from "../../gameState/gameState";
+import { GameComponent } from "../gameComponent";
 
 export interface EntityInteractionBlockerOptions {
-    /** 被限制的玩家组 */
-    groupSet: PlayerGroupSet;
+    /** 被限制的玩家来源。 */
+    players?: PlayerSource;
+    /** @deprecated 使用 players。 */
+    groupSet?: PlayerGroupSet;
 
     /**
      * 可选：要阻止交互的实体 ID 列表。
@@ -14,57 +21,47 @@ export interface EntityInteractionBlockerOptions {
 
     /**
      * 可选：要阻止的实体组件类型。
-     * 若设置，则仅阻止拥有该组件的实体。
+     * 若设置，则仅阻止拥有任意一个指定组件的实体。
      */
     entityComponentTypes?: EntityComponentTypes[];
 
-    /**
-     * 可选：是否给玩家提示（默认 true）
-     */
+    /** 是否给玩家提示，默认 true。 */
     showMessage?: boolean;
 
-    /**
-     * 可选：提示信息
-     */
+    /** 提示信息。 */
     message?: string;
 }
 
-/**
- * 通用实体交互阻止组件
- */
+/** 通用实体交互阻止组件。 */
 export class EntityInteractionBlocker extends GameComponent<
     GameState,
     EntityInteractionBlockerOptions
 > {
     override onAttach(): void {
         if (!this.options) return;
+
         const {
+            players,
             groupSet,
             entityIds,
             entityComponentTypes,
             showMessage = true,
             message,
         } = this.options;
+        const source = players ?? groupSet;
+        const entityIdSet =
+            entityIds && entityIds.length > 0 ? new Set(entityIds) : undefined;
 
-        this.subscribe(world.beforeEvents.playerInteractWithEntity, (t) => {
-            const { player, target } = t;
-            // 1️⃣ 不在限制组内 -> 放行
-            if (!groupSet.findById(player.id)) return;
+        this.subscribe(world.beforeEvents.playerInteractWithEntity, (event) => {
+            const { player, target } = event;
 
-            // 2️⃣ 若有实体类型限制，且当前实体不在其中 -> 放行
-            if (
-                entityIds &&
-                entityIds.length > 0 &&
-                !entityIds.includes(target.typeId)
-            ) {
-                return;
-            }
+            if (!playerSourceHas(source, player.id)) return;
+            if (entityIdSet && !entityIdSet.has(target.typeId)) return;
 
-            // 3️⃣ 若指定组件类型数组，且实体不含任意一个组件 -> 放行
             if (entityComponentTypes && entityComponentTypes.length > 0) {
                 const hasComponent = entityComponentTypes.some((type) => {
                     try {
-                        return !!target.getComponent(type);
+                        return target.getComponent(type) !== undefined;
                     } catch {
                         return false;
                     }
@@ -72,10 +69,8 @@ export class EntityInteractionBlocker extends GameComponent<
                 if (!hasComponent) return;
             }
 
-            // 4️⃣ 阻止交互
-            t.cancel = true;
+            event.cancel = true;
 
-            // 5️⃣ 提示
             if (showMessage) {
                 system.run(() =>
                     player.onScreenDisplay.setActionBar(

@@ -1,5 +1,7 @@
 import { expect, test, vi } from "vitest";
 import {
+    BlockInteractionBlocker,
+    EntityInteractionBlocker,
     FriendlyFireProtector,
     Game,
     GameComponent,
@@ -15,6 +17,7 @@ import {
     PvpController,
     RegionProtector,
     RegionTeamChooser,
+    RespawnComponent,
     SphereRegion,
     StopWatch,
     Timer,
@@ -497,6 +500,97 @@ test("RegionProtector 区分维度并支持通用 PlayerSource", () => {
     };
     env.emitWorldBeforeEvent("playerBreakBlock", outOfScope);
     expect(outOfScope.cancel).toBe(false);
+
+    env.reset();
+});
+
+test("交互阻止器支持 PlayerSource 且只拦截作用范围内玩家", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("blocker-a", "A");
+    const b = env.connectPlayer("blocker-b", "B");
+    const c = env.connectPlayer("blocker-c", "C");
+    const game = env.startGame(CombatGame, { players: [a, b, c] });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        BlockInteractionBlocker,
+        {
+            players: game.context.teamA,
+            blockIds: ["minecraft:stone"],
+            showMessage: false,
+        },
+        "block"
+    );
+    state.addComponent(
+        EntityInteractionBlocker,
+        {
+            players: game.context.teamA,
+            entityIds: ["minecraft:zombie"],
+            showMessage: false,
+        },
+        "entity"
+    );
+
+    const block = virtualMinecraft
+        .getDimension("minecraft:overworld")
+        .getBlock({ x: 0, y: 0, z: 0 });
+    block.typeId = "minecraft:stone";
+
+    const blockA = { player: a, block, cancel: false };
+    env.emitWorldBeforeEvent("playerInteractWithBlock", blockA);
+    expect(blockA.cancel).toBe(true);
+
+    const blockC = { player: c, block, cancel: false };
+    env.emitWorldBeforeEvent("playerInteractWithBlock", blockC);
+    expect(blockC.cancel).toBe(false);
+
+    const zombie = {
+        typeId: "minecraft:zombie",
+        getComponent() {
+            return undefined;
+        },
+    };
+    const entityA = { player: a, target: zombie, cancel: false };
+    env.emitWorldBeforeEvent("playerInteractWithEntity", entityA);
+    expect(entityA.cancel).toBe(true);
+
+    const entityC = { player: c, target: zombie, cancel: false };
+    env.emitWorldBeforeEvent("playerInteractWithEntity", entityC);
+    expect(entityC.cancel).toBe(false);
+
+    env.reset();
+});
+
+test("RespawnComponent 自动广播不再强制要求 buildNameFunc", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const alice = env.connectPlayer("respawn-a", "Alice");
+    const bob = env.connectPlayer("respawn-b", "Bob");
+    const charlie = env.connectPlayer("respawn-c", "Charlie");
+    const game = env.startGame(CombatGame, {
+        players: [alice, bob, charlie],
+    });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        RespawnComponent,
+        {
+            groupSet: game.context.groupSet,
+            autoBroadcast: true,
+        },
+        "respawn"
+    );
+
+    env.emitWorldAfterEvent("entityDie", {
+        deadEntity: alice,
+        damageSource: { damagingEntity: charlie },
+    });
+
+    const message = alice.messages.map(String).join("\n");
+    expect(message).toContain("Alice");
+    expect(message).toContain("Charlie");
+    expect(bob.messages.map(String).join("\n")).toContain("Alice");
 
     env.reset();
 });

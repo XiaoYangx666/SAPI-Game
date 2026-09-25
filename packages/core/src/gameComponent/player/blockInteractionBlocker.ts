@@ -1,11 +1,17 @@
 import { BlockComponentTypes, system, world } from "@minecraft/server";
-import { PlayerGroupSet } from "../../gamePlayer/groupSet";
+import {
+    PlayerGroupSet,
+    PlayerSource,
+    playerSourceHas,
+} from "../../gamePlayer";
 import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
 
 export interface InteractionBlockerOptions {
-    /** 被限制的玩家组 */
-    groupSet: PlayerGroupSet;
+    /** 被限制的玩家来源。 */
+    players?: PlayerSource;
+    /** @deprecated 使用 players。 */
+    groupSet?: PlayerGroupSet;
 
     /**
      * 可选：始终允许交互的方块 ID 列表。
@@ -25,27 +31,23 @@ export interface InteractionBlockerOptions {
      */
     blockComponentType?: BlockComponentTypes;
 
-    /**
-     * 可选：是否给玩家提示（默认 true）
-     */
+    /** 是否给玩家提示，默认 true。 */
     showMessage?: boolean;
 
-    /**
-     * 可选：提示信息
-     */
+    /** 提示信息。 */
     message?: string;
 }
 
-/**
- * 通用方块交互阻止组件
- */
+/** 通用方块交互阻止组件。 */
 export class BlockInteractionBlocker extends GameComponent<
     GameState,
     InteractionBlockerOptions
 > {
     override onAttach(): void {
         if (!this.options) return;
+
         const {
+            players,
             groupSet,
             allowIds,
             blockIds,
@@ -53,35 +55,26 @@ export class BlockInteractionBlocker extends GameComponent<
             showMessage = true,
             message,
         } = this.options;
+        const source = players ?? groupSet;
+        const allowIdSet =
+            allowIds && allowIds.length > 0 ? new Set(allowIds) : undefined;
+        const blockIdSet =
+            blockIds && blockIds.length > 0 ? new Set(blockIds) : undefined;
 
-        this.subscribe(world.beforeEvents.playerInteractWithBlock, (t) => {
-            const { player, block } = t;
+        this.subscribe(world.beforeEvents.playerInteractWithBlock, (event) => {
+            const { player, block } = event;
 
-            // 1️⃣ 不在限制组内 -> 放行
-            if (!groupSet.findById(player.id)) return;
+            if (!playerSourceHas(source, player.id)) return;
+            if (allowIdSet?.has(block.typeId)) return;
+            if (blockIdSet && !blockIdSet.has(block.typeId)) return;
 
-            // 2️⃣ allowIds 始终优先 -> 放行
-            if (allowIds?.includes(block.typeId)) return;
-
-            // 3️⃣ 若设置 blockIds，则仅匹配这些方块
-            if (
-                blockIds &&
-                blockIds.length > 0 &&
-                !blockIds.includes(block.typeId)
-            ) {
-                return;
-            }
-
-            // 4️⃣ 若设置 blockComponentType，则仅匹配拥有该组件的方块
             if (blockComponentType) {
-                const comp = block.getComponent(blockComponentType);
-                if (!comp) return; // 若该方块没有该组件 -> 放行
+                const component = block.getComponent(blockComponentType);
+                if (!component) return;
             }
 
-            // 5️⃣ 阻止交互
-            t.cancel = true;
+            event.cancel = true;
 
-            // 6️⃣ 提示
             if (showMessage) {
                 system.run(() =>
                     player.onScreenDisplay.setActionBar(
