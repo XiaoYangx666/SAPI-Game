@@ -8,14 +8,21 @@ import { Player, world } from "@minecraft/server";
  */
 export const gameServer = {
     getAllPlayers(): Player[] {
-        return world
-            .getAllPlayers()
-            .filter((player): player is Player => player !== undefined);
+        const players: Player[] = [];
+        for (const player of world.getAllPlayers()) {
+            if (player !== undefined) players.push(player);
+        }
+        return players;
     },
+
     /** Live server lookup: never keep a second online-player snapshot. */
     getPlayer(playerId: string): Player | undefined {
-        return this.getAllPlayers().find((player) => player.id === playerId);
+        for (const player of world.getAllPlayers()) {
+            if (player?.id === playerId) return player;
+        }
+        return undefined;
     },
+
     isOnline(playerId: string): boolean {
         return this.getPlayer(playerId) !== undefined;
     },

@@ -125,3 +125,14 @@ test("teardown-only clear releases ownership without reentering subscribers", ()
     expect(events).toHaveLength(countBeforeDispose);
     sub.unsubscribe();
 });
+
+test("GameParticipation hasAny 不需要构造成员数组", () => {
+    const manager = new ParticipationManager();
+    const participation = new GameParticipation(manager, "room-a");
+    expect(participation.hasAny).toBe(false);
+    participation.join("alice");
+    expect(participation.hasAny).toBe(true);
+    participation.leave("alice");
+    expect(participation.hasAny).toBe(false);
+});
+

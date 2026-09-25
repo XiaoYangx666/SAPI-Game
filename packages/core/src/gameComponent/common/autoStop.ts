@@ -87,19 +87,25 @@ export class AutoStopComponent<
     private checkNow(): void {
         if (!this.isAttached || !this.state.isGameActive) return;
         if (this.options?.stopWhenEmpty === false) return;
-        if (this.getMemberIds().length > 0) return;
+        if (this.hasMembers()) return;
         if (this.options?.canStop?.() === false) return;
 
         // Current state, not the reason for the most recent event, is authoritative.
         this.state.stopGame("auto-stop-empty");
     }
 
-    private getMemberIds(): readonly string[] {
-        return this.options?.getMemberIds?.() ??
-            this.options?.groupSet?.getAllPlayers()
-                .filter((player) => this.state.participation.has(player.id))
-                .map((player) => player.id) ??
-            this.state.participation.getAll();
+    private hasMembers(): boolean {
+        const custom = this.options?.getMemberIds;
+        if (custom) return custom().length > 0;
+
+        const groupSet = this.options?.groupSet;
+        if (groupSet) {
+            return groupSet.some((player) =>
+                this.state.participation.has(player.id)
+            );
+        }
+
+        return this.state.participation.hasAny;
     }
 
     protected override onDetach(): void {

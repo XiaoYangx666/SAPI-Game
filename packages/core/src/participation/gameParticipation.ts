@@ -58,6 +58,13 @@ export class GameParticipation {
         return this.getAll().length;
     }
 
+    /** 是否至少存在一个 membership；用于空房策略等短路查询。 */
+    get hasAny(): boolean {
+        return this.tracked
+            ? this.manager.hasPlayers(this.gameKey)
+            : false;
+    }
+
     /** Ordinary runtime clear broadcasts membership removals to room policies. */
     clear(reason = "game-clear"): readonly string[] {
         if (!this.tracked) return [];

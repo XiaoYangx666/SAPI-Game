@@ -192,6 +192,14 @@ export class ParticipationManager {
         return players;
     }
 
+    /** 判断某个游戏是否至少有一个 membership，不构造玩家数组。 */
+    hasPlayers(gameKey: string): boolean {
+        for (const memberships of this.memberships.values()) {
+            if (memberships.has(gameKey)) return true;
+        }
+        return false;
+    }
+
     get playerCount(): number {
         return this.memberships.size;
     }

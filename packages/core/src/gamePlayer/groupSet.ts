@@ -131,6 +131,19 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
         return this.getAllPlayers().filter(predicate);
     }
 
+    /** 是否存在至少一个满足条件的玩家；命中后立即返回，不构造玩家数组。 */
+    some(predicate: (player: T) => boolean): boolean {
+        const seen = new Set<string>();
+        for (const group of this.groups) {
+            for (const player of group.getAll()) {
+                if (seen.has(player.id)) continue;
+                seen.add(player.id);
+                if (predicate(player)) return true;
+            }
+        }
+        return false;
+    }
+
     /** Remove groups from this collection; does not clear each group's members. */
     clear() {
         if (this.groups.length === 0) return this;

@@ -186,7 +186,7 @@ export class DisconnectTimeoutComponent<
         if (!this.isInScope(playerId)) return;
 
         // online 事件与 timeout 落在同一 tick 时，以服务器当前状态为准。
-        if (Game.server.getAllPlayers().some((player) => player.id === playerId)) {
+        if (Game.server.isOnline(playerId)) {
             return;
         }
 
