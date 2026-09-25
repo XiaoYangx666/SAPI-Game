@@ -737,3 +737,42 @@ test("TeamScoreBoard 首次 tick 即可刷新且不重建 objective", async () =
     env.reset();
 });
 
+class AttachRollbackComponent extends GameComponent {
+    static resourceAlive = false;
+    static detached = 0;
+
+    onAttach() {
+        AttachRollbackComponent.resourceAlive = true;
+        this.subscribe(Game.events.interval, () => {});
+        throw new Error("attach failed after resource creation");
+    }
+
+    onDetach() {
+        AttachRollbackComponent.resourceAlive = false;
+        AttachRollbackComponent.detached++;
+    }
+}
+
+test("GameComponent onAttach 失败时执行完整 onDetach 回滚", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("rollback-a", "A");
+    const game = env.startGame(CombatGame, { players: [player] });
+    const state = game.getState(CombatState);
+
+    AttachRollbackComponent.resourceAlive = false;
+    AttachRollbackComponent.detached = 0;
+
+    expect(() =>
+        state.addComponent(AttachRollbackComponent, undefined, "rollback")
+    ).toThrow();
+
+    expect(AttachRollbackComponent.resourceAlive).toBe(false);
+    expect(AttachRollbackComponent.detached).toBe(1);
+    expect(() =>
+        state.getComponent(AttachRollbackComponent, "rollback")
+    ).toThrow();
+
+    env.reset();
+});
+

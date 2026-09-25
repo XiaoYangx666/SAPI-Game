@@ -42,13 +42,18 @@ export abstract class GameComponent<
         this._isAttached = true;
         try {
             this.onAttach();
-        } catch (err) {
+        } catch (attachError) {
+            // onAttach 可能已经创建 primitive/objective/子资源。
+            // 统一走完整 detach 回滚，而不是只退订事件。
             try {
-                this.state.eventManager.unsubscribeBySubscriber(this);
-            } finally {
-                this._isAttached = false;
+                this._onDetach();
+            } catch (rollbackError) {
+                throw new AggregateError(
+                    [attachError, rollbackError],
+                    `组件 ${this.constructor.name} 附加失败且回滚失败`
+                );
             }
-            throw err;
+            throw attachError;
         }
     }
 
