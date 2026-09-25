@@ -10,6 +10,7 @@ import {
     GameEngine,
     GamePlayer,
     GameState,
+    InfoScoreboard,
     PlayerGroup,
     PlayerGroupSet,
     PlayerTextPrimitive,
@@ -21,6 +22,7 @@ import {
     SpawnPointProtector,
     SphereRegion,
     StopWatch,
+    TeamScoreBoard,
     Timer,
     playerInfoText,
     playerNameText,
@@ -646,6 +648,91 @@ test("SpawnPointProtector 只保护目标队伍与目标维度", () => {
     };
     env.emitWorldBeforeEvent("playerInteractWithBlock", otherDimension);
     expect(otherDimension.cancel).toBe(false);
+
+    env.reset();
+});
+
+test("InfoScoreboard 增量更新时保持同一个 objective", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("score-a", "A");
+    const game = env.startGame(CombatGame, { players: [player] });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        InfoScoreboard,
+        {
+            scoreBoardName: "test_info",
+            displayName: "Info",
+            showOnAttach: true,
+            header: () => ["Header"],
+            footer: () => ["Footer"],
+        },
+        "info"
+    );
+    const info = state.getComponent(InfoScoreboard, "info");
+
+    info.updateLines(["A", "", "A"]);
+    const first = virtualMinecraft.scoreboard.getObjective("test_info");
+    expect(first).toBeDefined();
+    expect(first.getParticipants()).toHaveLength(5);
+
+    info.updateLines(["B"]);
+    const second = virtualMinecraft.scoreboard.getObjective("test_info");
+    expect(second).toBe(first);
+    expect(second.getParticipants()).toHaveLength(3);
+
+    info.hide();
+    info.updateLines(["C", "D"]);
+    expect(virtualMinecraft.scoreboard.getObjective("test_info")).toBe(first);
+    expect(first.getParticipants()).toHaveLength(4);
+    info.show();
+
+    state.deleteComponent(InfoScoreboard, "info");
+    expect(
+        virtualMinecraft.scoreboard.getObjective("test_info")
+    ).toBeUndefined();
+
+    env.reset();
+});
+
+test("TeamScoreBoard 首次 tick 即可刷新且不重建 objective", async () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("team-score-a", "A");
+    const b = env.connectPlayer("team-score-b", "B");
+    const c = env.connectPlayer("team-score-c", "C");
+    const game = env.startGame(CombatGame, { players: [a, b, c] });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        TeamScoreBoard,
+        {
+            scoreboardName: "test_team",
+            displayName: "Teams",
+            teams: [
+                { team: game.context.teamA, prefix: "§c" },
+                { team: game.context.teamB, prefix: "§9" },
+            ],
+        },
+        "team-score"
+    );
+    const board = state.getComponent(TeamScoreBoard, "team-score");
+
+    board.refreshScoreBoard();
+    const first = virtualMinecraft.scoreboard.getObjective("test_team");
+    expect(first).toBeDefined();
+    expect(first.getParticipants()).toHaveLength(3);
+
+    // 同 tick 第二次调用不会重复做刷新，也不会创建新 objective。
+    board.refreshScoreBoard();
+    expect(virtualMinecraft.scoreboard.getObjective("test_team")).toBe(first);
+
+    await env.advanceTicks(1);
+    game.context.teamA.delete(game.context.teamA.getById("team-score-b"));
+    board.refreshScoreBoard();
+    expect(virtualMinecraft.scoreboard.getObjective("test_team")).toBe(first);
+    expect(first.getParticipants()).toHaveLength(2);
 
     env.reset();
 });
