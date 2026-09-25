@@ -72,7 +72,7 @@
 
 ##### TData
 
-`TData` = `unknown`
+`TData` = `undefined`
 
 #### Parameters
 
@@ -152,7 +152,7 @@
 
 ##### TData
 
-`TData` = `unknown`
+`TData` = `undefined`
 
 #### Parameters
 

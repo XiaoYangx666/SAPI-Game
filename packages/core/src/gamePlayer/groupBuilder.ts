@@ -52,11 +52,16 @@ export class PlayerGroupBuilder<T extends GamePlayer = GamePlayer> {
     }
 
     /**从某个区域中的已参与玩家创建 */
-    fromRegion<TData = unknown>(
+    fromRegion<TData = undefined>(
         dim: DimensionIds,
         region: GameRegion,
         ...rest: TData extends undefined ? [] : [data: TData]
     ) {
+        if (dim !== region.dimensionId) {
+            throw new Error(
+                `fromRegion 维度不一致: dim=${dim}, region=${region.dimensionId}`
+            );
+        }
         const players = world
             .getDimension(dim)
             .getPlayers(region.getEntityQueryOption())
@@ -69,7 +74,7 @@ export class PlayerGroupBuilder<T extends GamePlayer = GamePlayer> {
     }
 
     /**从所有已参与且在线的玩家创建 */
-    fromAll<TData = unknown>(
+    fromAll<TData = undefined>(
         ...rest: TData extends undefined ? [] : [data: TData]
     ) {
         const players = gameServer.getAllPlayers();
