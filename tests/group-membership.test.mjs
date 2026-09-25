@@ -128,3 +128,14 @@ test("playerSourceHasBoth 对动态 generator 来源只求值一次", () => {
     expect(resolves).toBe(1);
 });
 
+test("PlayerGroupSet.removePlayer 会清理所有重复队伍 membership", () => {
+    const alice = new GamePlayer(mock("alice"));
+    const a = new PlayerGroup(GamePlayer, [alice]);
+    const b = new PlayerGroup(GamePlayer, [alice]);
+    const set = new PlayerGroupSet([a, b]);
+
+    expect(set.removePlayer(alice, "region-leave")).toBe(2);
+    expect(a.hasId("alice")).toBe(false);
+    expect(b.hasId("alice")).toBe(false);
+});
+

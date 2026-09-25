@@ -7,21 +7,28 @@ import {
 export type SidebarScoreResolver = (index: number, total: number) => number;
 
 /**
- * 侧边栏 objective 的轻量资源管理器。
- *
- * - objective 在组件生命周期内保持稳定，不再通过 remove/recreate 刷新内容；
- * - 只增量删除/更新当前管理的行；
- * - 同名行会自动追加不可见格式码，避免 scoreboard participant 冲突；
- * - dispose 时主动释放 sidebar 槽位并删除 objective。
+ * 进程内 objective 所有权。脚本重载后该表会重置，因此仍可接管世界里
+ * 上一轮脚本遗留的同名 objective；但同一运行时两个组件不能同时占用同一 ID。
  */
+const activeObjectiveOwners = new Map<string, symbol>();
+
 export class SidebarScoreboardView {
     private objective?: ScoreboardObjective;
     private readonly entries = new Map<string, number>();
+    private readonly owner = Symbol("SidebarScoreboardView");
+    private disposed = false;
 
     constructor(
         private readonly objectiveId: string,
         private readonly displayName: string
-    ) {}
+    ) {
+        if (activeObjectiveOwners.has(objectiveId)) {
+            throw new Error(
+                `Scoreboard objective "${objectiveId}" 已被另一个 SidebarScoreboardView 占用`
+            );
+        }
+        activeObjectiveOwners.set(objectiveId, this.owner);
+    }
 
     get isShown() {
         const objective = this.objective;
@@ -85,16 +92,45 @@ export class SidebarScoreboardView {
     }
 
     dispose() {
-        this.hide();
+        if (this.disposed) return;
+        this.disposed = true;
+
+        const errors: unknown[] = [];
         const objective = this.objective;
-        this.entries.clear();
-        this.objective = undefined;
-        if (objective?.isValid) {
-            world.scoreboard.removeObjective(objective);
+
+        try {
+            this.hide();
+        } catch (err) {
+            errors.push(err);
+        }
+        try {
+            if (objective?.isValid) {
+                world.scoreboard.removeObjective(objective);
+            }
+        } catch (err) {
+            errors.push(err);
+        } finally {
+            this.entries.clear();
+            this.objective = undefined;
+            if (activeObjectiveOwners.get(this.objectiveId) === this.owner) {
+                activeObjectiveOwners.delete(this.objectiveId);
+            }
+        }
+
+        if (errors.length > 0) {
+            throw new AggregateError(
+                errors,
+                `Scoreboard objective "${this.objectiveId}" 清理失败`
+            );
         }
     }
 
     private getObjective() {
+        if (this.disposed) {
+            throw new Error(
+                `Scoreboard objective "${this.objectiveId}" 已释放`
+            );
+        }
         if (this.objective?.isValid) return this.objective;
 
         const existing = world.scoreboard.getObjective(this.objectiveId);
@@ -105,8 +141,6 @@ export class SidebarScoreboardView {
                 this.displayName
             );
 
-        // 兼容脚本重载后遗留的同名 objective：接管时只清空参与项，
-        // 不通过删除 objective 触发 sidebar 闪烁。
         for (const participant of this.objective.getParticipants()) {
             this.objective.removeParticipant(participant);
         }
@@ -115,10 +149,6 @@ export class SidebarScoreboardView {
     }
 }
 
-/**
- * Scoreboard fake participant 名必须唯一；重复文本在末尾追加 §r，
- * 空行则用纯格式码占位，视觉上保持不变。
- */
 function makeUniqueLines(lines: readonly string[]): string[] {
     const counts = new Map<string, number>();
     return lines.map((line) => {

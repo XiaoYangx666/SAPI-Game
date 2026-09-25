@@ -5,36 +5,30 @@ import { StopWatchOnTimeEventSignal } from "./onTimeEvent";
 import { StopWatchTickEventSignal } from "./tickEvent";
 
 export interface StopWatchOptions {
-    /** 是否自动开始 */
     autoStart?: boolean;
-    /** 是否补偿真实时间（防止掉帧时少算秒） */
     compensate?: boolean;
-    /** 初始时间（可用于恢复上次状态） */
     initialTime?: number;
 }
 
 export class StopWatch extends GameComponent<GameState<any>, StopWatchOptions> {
-    private elapsedTime: number = 0;
-    private _isRunning: boolean = false;
-    private lastTime: number = 0;
-    private isActive: boolean = true;
+    private elapsedTime = 0;
+    private _isRunning = false;
+    private lastTime = 0;
+    private isActive = true;
 
     public readonly events = {
         tick: new StopWatchTickEventSignal(),
         onTime: new StopWatchOnTimeEventSignal(),
     } as const;
 
-    /** 获取当前已计时间（秒） */
     public get time(): Readonly<number> {
         return this.elapsedTime;
     }
 
-    /** 获取秒表是否正在运行 */
     public get isRunning(): Readonly<boolean> {
         return this._isRunning;
     }
 
-    /** 组件被附加到游戏对象时调用 */
     override onAttach(): void {
         this.isActive = true;
         this.elapsedTime = Math.max(0, this.options?.initialTime ?? 0);
@@ -68,43 +62,40 @@ export class StopWatch extends GameComponent<GameState<any>, StopWatchOptions> {
         this.state.eventManager.unsubscribeByEvent(this.events.tick);
     }
 
-    /** 重置秒表时间 */
-    public reset(time: number = 0): void {
+    public reset(time = 0): void {
         this.elapsedTime = Math.max(0, time);
         this.lastTime = Date.now();
         if (this._isRunning) {
-            this.events.tick.publish(this.elapsedTime);
+            const current = this.elapsedTime;
+            this.events.tick.publish(current);
         }
     }
 
-    /** 停止秒表 */
     public stop(): void {
         this._isRunning = false;
     }
 
-    /** 启动秒表 */
     public start(): void {
         if (!this._isRunning && this.isActive) {
             this._isRunning = true;
             this.lastTime = Date.now();
-            this.events.tick.publish(this.elapsedTime);
-            this.events.onTime.checkAndFireTimeEvents(this.elapsedTime);
+
+            const current = this.elapsedTime;
+            this.events.tick.publish(current);
+            this.events.onTime.checkAndFireTimeEvents(current);
         }
     }
 
-    /** 暂停或恢复 */
     public toggle(): void {
         this._isRunning ? this.stop() : this.start();
     }
 
-    /**
-     * 推进若干秒。补偿模式下逐秒发布，避免跨秒时漏掉 tick/onTime。
-     */
     private advance(steps: number): void {
         for (let i = 0; i < steps && this._isRunning; i++) {
-            this.elapsedTime += 1;
-            this.events.tick.publish(this.elapsedTime);
-            this.events.onTime.checkAndFireTimeEvents(this.elapsedTime);
+            const current = this.elapsedTime + 1;
+            this.elapsedTime = current;
+            this.events.tick.publish(current);
+            this.events.onTime.checkAndFireTimeEvents(current);
         }
     }
 }

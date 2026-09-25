@@ -1,4 +1,4 @@
-import { RawMessage, TitleDisplayOptions } from "@minecraft/server";
+import { Player, RawMessage, TitleDisplayOptions } from "@minecraft/server";
 import { GamePlayer, ValidGamePlayer } from "./gamePlayer";
 import { PlayerGroup } from "./playerGroup";
 import { ObservableGroupSignal } from "./groupMembershipSignal";
@@ -142,6 +142,20 @@ export class PlayerGroupSet<T extends GamePlayer = GamePlayer, TData = any> {
             }
         }
         return false;
+    }
+
+    /**
+     * 从集合中的所有组移除指定玩家。
+     * 返回实际发生删除的组数量，用于清理异常的重复队伍 membership。
+     */
+    removePlayer(player: T | Player, reason = "manual"): number {
+        let removed = 0;
+        for (const group of this.groups) {
+            if (!group.hasId(player.id)) continue;
+            group.delete(player, reason);
+            removed++;
+        }
+        return removed;
     }
 
     /** Remove groups from this collection; does not clear each group's members. */

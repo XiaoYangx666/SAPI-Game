@@ -7,36 +7,29 @@ import {
 import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
 
-export interface InteractionBlockerOptions {
-    /** 被限制的玩家来源。 */
-    players?: PlayerSource;
-    /** @deprecated 使用 players。 */
-    groupSet?: PlayerGroupSet;
-
-    /**
-     * 可选：始终允许交互的方块 ID 列表。
-     * allowIds 优先级最高，命中后不会再进行 blockIds / component 匹配。
-     */
+interface InteractionBlockerBase {
     allowIds?: string[];
-
-    /**
-     * 可选：指定要阻止交互的方块 ID 列表。
-     * 若不设置或为空，则表示不按 ID 限制。
-     */
     blockIds?: string[];
-
-    /**
-     * 可选：指定要阻止的方块组件类型（例如 BlockComponentTypes.Inventory）。
-     * 若不设置，则不按组件过滤。
-     */
     blockComponentType?: BlockComponentTypes;
-
-    /** 是否给玩家提示，默认 true。 */
     showMessage?: boolean;
-
-    /** 提示信息。 */
     message?: string;
 }
+
+type InteractionBlockerScope =
+    | {
+          /** 被限制的玩家来源。 */
+          players: PlayerSource;
+          /** @deprecated 使用 players。 */
+          groupSet?: PlayerGroupSet;
+      }
+    | {
+          players?: PlayerSource;
+          /** @deprecated 使用 players。 */
+          groupSet: PlayerGroupSet;
+      };
+
+export type InteractionBlockerOptions =
+    InteractionBlockerBase & InteractionBlockerScope;
 
 /** 通用方块交互阻止组件。 */
 export class BlockInteractionBlocker extends GameComponent<
@@ -56,6 +49,10 @@ export class BlockInteractionBlocker extends GameComponent<
             message,
         } = this.options;
         const source = players ?? groupSet;
+        if (!source) {
+            throw new Error("BlockInteractionBlocker requires players or groupSet");
+        }
+
         const allowIdSet =
             allowIds && allowIds.length > 0 ? new Set(allowIds) : undefined;
         const blockIdSet =

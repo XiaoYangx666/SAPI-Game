@@ -776,3 +776,84 @@ test("GameComponent onAttach 失败时执行完整 onDetach 回滚", () => {
     env.reset();
 });
 
+test("Timer 运行中 set(0) 会立即到期且事件使用秒值快照", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("timer-set-a", "A");
+    const game = env.startGame(CombatGame, { players: [player] });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        Timer,
+        { initialTime: 2, autoStart: true },
+        "timer-set"
+    );
+    const timer = state.getComponent(Timer, "timer-set");
+    const ticks = [];
+    let zero = 0;
+
+    timer.events.tick.subscribe(({ remainingTime }) => ticks.push(remainingTime));
+    timer.events.onTime.subscribe(() => zero++, { time: 0 });
+
+    timer.set(0);
+
+    expect(timer.time).toBe(0);
+    expect(timer.isRunning).toBe(false);
+    expect(ticks).toEqual([0]);
+    expect(zero).toBe(1);
+
+    env.reset();
+});
+
+test("Sidebar scoreboard 同一运行时拒绝重复 objective 所有者", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("score-owner-a", "A");
+    const game = env.startGame(CombatGame, { players: [player] });
+    const state = game.getState(CombatState);
+
+    state.addComponent(
+        InfoScoreboard,
+        {
+            scoreBoardName: "shared_score",
+            displayName: "Shared",
+            showOnAttach: true,
+        },
+        "owner-a"
+    );
+    const first = virtualMinecraft.scoreboard.getObjective("shared_score");
+    expect(first).toBeDefined();
+
+    expect(() =>
+        state.addComponent(
+            InfoScoreboard,
+            {
+                scoreBoardName: "shared_score",
+                displayName: "Other",
+                showOnAttach: false,
+            },
+            "owner-b"
+        )
+    ).toThrow();
+
+    expect(virtualMinecraft.scoreboard.getObjective("shared_score")).toBe(first);
+
+    state.deleteComponent(InfoScoreboard, "owner-a");
+
+    // 原 owner 释放后，同 ID 可以被新的组件重新接管。
+    state.addComponent(
+        InfoScoreboard,
+        {
+            scoreBoardName: "shared_score",
+            displayName: "Other",
+            showOnAttach: false,
+        },
+        "owner-c"
+    );
+    expect(
+        virtualMinecraft.scoreboard.getObjective("shared_score")
+    ).toBeDefined();
+
+    env.reset();
+});
+

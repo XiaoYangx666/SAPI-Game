@@ -7,30 +7,28 @@ import {
 import { GameState } from "../../gameState/gameState";
 import { GameComponent } from "../gameComponent";
 
-export interface EntityInteractionBlockerOptions {
-    /** 被限制的玩家来源。 */
-    players?: PlayerSource;
-    /** @deprecated 使用 players。 */
-    groupSet?: PlayerGroupSet;
-
-    /**
-     * 可选：要阻止交互的实体 ID 列表。
-     * 若不设置或为空，则阻止与所有实体交互。
-     */
+interface EntityInteractionBlockerBase {
     entityIds?: string[];
-
-    /**
-     * 可选：要阻止的实体组件类型。
-     * 若设置，则仅阻止拥有任意一个指定组件的实体。
-     */
     entityComponentTypes?: EntityComponentTypes[];
-
-    /** 是否给玩家提示，默认 true。 */
     showMessage?: boolean;
-
-    /** 提示信息。 */
     message?: string;
 }
+
+type EntityInteractionBlockerScope =
+    | {
+          /** 被限制的玩家来源。 */
+          players: PlayerSource;
+          /** @deprecated 使用 players。 */
+          groupSet?: PlayerGroupSet;
+      }
+    | {
+          players?: PlayerSource;
+          /** @deprecated 使用 players。 */
+          groupSet: PlayerGroupSet;
+      };
+
+export type EntityInteractionBlockerOptions =
+    EntityInteractionBlockerBase & EntityInteractionBlockerScope;
 
 /** 通用实体交互阻止组件。 */
 export class EntityInteractionBlocker extends GameComponent<
@@ -49,6 +47,10 @@ export class EntityInteractionBlocker extends GameComponent<
             message,
         } = this.options;
         const source = players ?? groupSet;
+        if (!source) {
+            throw new Error("EntityInteractionBlocker requires players or groupSet");
+        }
+
         const entityIdSet =
             entityIds && entityIds.length > 0 ? new Set(entityIds) : undefined;
 
