@@ -1,63 +1,9 @@
-[**SAPI-Game**](../README.md)
+[**BEGame**](../README.md)
 
 ***
 
-[SAPI-Game](../globals.md) / infoScoreboardOptions
+# Type: infoScoreboardOptions
 
-# Interface: infoScoreboardOptions
+> **Deprecated:** 使用 [SidebarScoreboardOptions](SidebarScoreboardOptions.md)。
 
-## Properties
-
-### displayName
-
-> **displayName**: `string`
-
-计分板显示名字
-
-***
-
-### footer()?
-
-> `optional` **footer**: () => `string`[]
-
-底部
-
-#### Returns
-
-`string`[]
-
-***
-
-### header()?
-
-> `optional` **header**: () => `string`[]
-
-头部
-
-#### Returns
-
-`string`[]
-
-***
-
-### paddingLeft?
-
-> `optional` **paddingLeft**: `number`
-
-内容的左侧边距
-
-***
-
-### scoreBoardName
-
-> **scoreBoardName**: `string`
-
-计分板名
-
-***
-
-### showOnAttach
-
-> **showOnAttach**: `boolean`
-
-是否立即显示计分板
+这是 `SidebarScoreboardOptions` 的兼容 type alias。

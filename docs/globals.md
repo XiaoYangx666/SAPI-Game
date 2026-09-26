@@ -1,8 +1,8 @@
-[**SAPI-Game**](README.md)
+[**BEGame**](README.md)
 
 ***
 
-# SAPI-Game
+# BEGame
 
 ## Namespaces
 
@@ -36,10 +36,12 @@
 - [GameState](classes/GameState.md)
 - [GameStructure](classes/GameStructure.md)
 - [globalPlayerManager](classes/globalPlayerManager.md)
-- [InfoScoreboard](classes/InfoScoreboard.md)
+- [SidebarScoreboard](classes/SidebarScoreboard.md)
+- [InfoScoreboard](classes/InfoScoreboard.md) *(deprecated alias)*
 - [IntervalEventSignal](classes/IntervalEventSignal.md)
 - [ItemUseEventSignal](classes/ItemUseEventSignal.md)
-- [LazyLoader](classes/LazyLoader.md)
+- [ChunkScope](classes/ChunkScope.md)
+- [LazyLoader](classes/LazyLoader.md) *(deprecated alias)*
 - [PlaneRegion](classes/PlaneRegion.md)
 - [PlayerGroup](classes/PlayerGroup.md)
 - [PlayerGroupBuilder](classes/PlayerGroupBuilder.md)
@@ -47,7 +49,8 @@
 - [PlayerItemInSlotEventSignal](classes/PlayerItemInSlotEventSignal.md)
 - [PlayerOnBlockEventSignal](classes/PlayerOnBlockEventSignal.md)
 - [PlayerRegionEventSignal](classes/PlayerRegionEventSignal.md)
-- [PlayerRegionMonitor](classes/PlayerRegionMonitor.md)
+- [RegionBoundary](classes/RegionBoundary.md)
+- [PlayerRegionMonitor](classes/PlayerRegionMonitor.md) *(deprecated adapter)*
 - [RegionProtector](classes/RegionProtector.md)
 - [RegionTeamChooser](classes/RegionTeamChooser.md)
 - [RegionTeamCleaner](classes/RegionTeamCleaner.md)
@@ -57,7 +60,9 @@
 - [SignClickEventSignal](classes/SignClickEventSignal.md)
 - [SphereRegion](classes/SphereRegion.md)
 - [StopWatch](classes/StopWatch.md)
-- [TeamScoreBoard](classes/TeamScoreBoard.md)
+- [PlayerLifecycle](classes/PlayerLifecycle.md)
+- [SpawnController](classes/SpawnController.md)
+- [TeamScoreBoard](classes/TeamScoreBoard.md) *(deprecated adapter)*
 - [Timer](classes/Timer.md)
 - [TTLPlayer](classes/TTLPlayer.md)
 
@@ -67,25 +72,34 @@
 - [CustomEventSignal](interfaces/CustomEventSignal.md)
 - [EntityInteractionBlockerOptions](interfaces/EntityInteractionBlockerOptions.md)
 - [globalPlayerManagerInternal](interfaces/globalPlayerManagerInternal.md)
-- [infoScoreboardOptions](interfaces/infoScoreboardOptions.md)
+- [SidebarScoreboardOptions](interfaces/SidebarScoreboardOptions.md)
+- [infoScoreboardOptions](interfaces/infoScoreboardOptions.md) *(deprecated alias)*
 - [InteractionBlockerOptions](interfaces/InteractionBlockerOptions.md)
 - [itemData](interfaces/itemData.md)
 - [itemEventOptions](interfaces/itemEventOptions.md)
-- [LazyLoadOptions](interfaces/LazyLoadOptions.md)
+- [ChunkScopeOptions](interfaces/ChunkScopeOptions.md)
+- [LazyLoadOptions](interfaces/LazyLoadOptions.md) *(deprecated alias)*
 - [PlayerItemInSlotEvent](interfaces/PlayerItemInSlotEvent.md)
 - [PlayerItemInSlotOption](interfaces/PlayerItemInSlotOption.md)
 - [PlayerOnBlockEvent](interfaces/PlayerOnBlockEvent.md)
 - [PlayerOnBlockEventOption](interfaces/PlayerOnBlockEventOption.md)
 - [PlayerRegionEvent](interfaces/PlayerRegionEvent.md)
-- [PlayerRegionMonitorOptions](interfaces/PlayerRegionMonitorOptions.md)
+- [RegionBoundaryOptions](interfaces/RegionBoundaryOptions.md)
+- [PlayerRegionMonitorOptions](interfaces/PlayerRegionMonitorOptions.md) *(deprecated adapter options)*
+- [PlayerLifecycleOptions](interfaces/PlayerLifecycleOptions.md)
+- [SpawnControllerOptions](interfaces/SpawnControllerOptions.md)
+- [SpawnBinding](interfaces/SpawnBinding.md)
+- [SpawnSafeAreaOptions](interfaces/SpawnSafeAreaOptions.md)
 - [RegionProtectionOptions](interfaces/RegionProtectionOptions.md)
 - [RegionTeamChooserData](interfaces/RegionTeamChooserData.md)
 - [RegionTeamCleanUpOptions](interfaces/RegionTeamCleanUpOptions.md)
 - [SignClickEventOptions](interfaces/SignClickEventOptions.md)
 - [StopWatchOptions](interfaces/StopWatchOptions.md)
 - [Subscription](interfaces/Subscription.md)
-- [TeamScoreBoardOptions](interfaces/TeamScoreBoardOptions.md)
-- [TeamScoreBoardTeamData](interfaces/TeamScoreBoardTeamData.md)
+- [TeamScoreboardOptions](interfaces/TeamScoreboardOptions.md)
+- [TeamScoreboardTeamData](interfaces/TeamScoreboardTeamData.md)
+- [TeamScoreBoardOptions](interfaces/TeamScoreBoardOptions.md) *(deprecated alias)*
+- [TeamScoreBoardTeamData](interfaces/TeamScoreBoardTeamData.md) *(deprecated alias)*
 - [TimerOptions](interfaces/TimerOptions.md)
 - [VanillaEventSignal](interfaces/VanillaEventSignal.md)
 
@@ -103,5 +117,9 @@
 
 ## Functions
 
+- [regionBoundary](functions/regionBoundary.md)
+- [playerLifecycle](functions/playerLifecycle.md)
+- [teamScoreboard](functions/teamScoreboard.md)
 - [createGameModule](functions/createGameModule.md)
-- [initSAPIGame](functions/initSAPIGame.md)
+- [initBEGame](functions/initBEGame.md)
+- [initSAPIGame](functions/initSAPIGame.md) *(deprecated alias)*

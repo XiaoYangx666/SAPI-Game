@@ -1,55 +1,14 @@
-[**SAPI-Game**](../README.md)
+[**BEGame**](../README.md)
 
 ***
 
-[SAPI-Game](../globals.md) / PlayerRegionMonitorOptions
+# Type: PlayerRegionMonitorOptions<P>
 
-# Interface: PlayerRegionMonitorOptions\<P\>
+> **Deprecated:** 新代码使用 [RegionBoundaryOptions](RegionBoundaryOptions.md)。
 
-## Type Parameters
+兼容适配器仍支持以下二选一来源：
 
-### P
+- `players: PlayerSource<P>`
+- `groups: PlayerSource<P>`（旧字段）
 
-`P` *extends* [`GamePlayer`](../classes/GamePlayer.md)
-
-## Properties
-
-### groups
-
-> **groups**: [`PlayerGroupSet`](../classes/PlayerGroupSet.md)\<`P`\>
-
-玩家组集合
-
-***
-
-### interval
-
-> **interval**: [`Duration`](../SAPI-Game/namespaces/Utils/classes/Duration.md)
-
-检测间隔
-
-***
-
-### onLeave()
-
-> **onLeave**: (`player`) => `void`
-
-区域外的玩家执行
-
-#### Parameters
-
-##### player
-
-`P`
-
-#### Returns
-
-`void`
-
-***
-
-### region
-
-> **region**: [`GameRegion`](../classes/GameRegion.md)
-
-区域
+并保留 `region`、`interval?`、`onLeave(player)`。

@@ -1,8 +1,8 @@
-**SAPI-Game**
+**BEGame**
 
 ***
 
-# SAPI-Game
+# BEGame
 
 > 使用纯 scriptApi 制作小游戏
 
@@ -22,10 +22,10 @@
 
 ## 简介
 
-SAPI-Game 是一款由小阳 x666 研发的，专为 MCBE 小游戏设计的 SAPI 框架。  
+BEGame 是一款由小阳 x666 研发的，专为 MCBE 小游戏设计的 SAPI 框架。  
 传统小游戏开发通常依赖命令方块，但命令功能有限，许多复杂逻辑需要使用 SAPI 补充。
 
-SAPI-Game 提供了完整解决方案，将 **多层级游戏架构、组件化开发、事件与异步管理** 融为一体，使开发者可以专注于游戏逻辑本身，同时充分利用 npm 生态 的工具库。通过 SAPI-Game，你可以轻松构建易维护、可复用、多游戏并行的 MCBE 小游戏项目。
+BEGame 提供了完整解决方案，将 **多层级游戏架构、组件化开发、事件与异步管理** 融为一体，使开发者可以专注于游戏逻辑本身，同时充分利用 npm 生态 的工具库。通过 BEGame，你可以轻松构建易维护、可复用、多游戏并行的 MCBE 小游戏项目。
 
 ## 安装与使用
 
@@ -43,19 +43,20 @@ npm i -g sapi-kit
 sapi-kit init
 ```
 
-3.安装 SAPI-Game
+3.安装 BEGame
 
 ```shell
-npm i @sapi-game
+npm i @begame/core
 ```
 
-4.在入口文件中配置 SAPI-Game
+4.在入口文件中配置 BEGame
 
 示例(仅供参考，具体配置请按类型来)
 
 ```typescript
-import { initSAPIGame } from "@sapi-game/main";
-initSAPIGame({
+import { initBEGameServer } from "@begame/core/server";
+
+initBEGameServer({
     logLevel: logLevel.debug, //日志级别
     debugMode: true, //debugMode开关
     onEnd: onEnd, //执行/game end时触发
@@ -81,9 +82,9 @@ initSAPIGame({
 -   #### 实践验证
     框架已在 10+ 小游戏中验证，稳定可靠。
 -   #### 命令方块特性支持
-    | 命令方块特性     | SAPI-Game 对应      |
+    | 命令方块特性     | BEGame 对应      |
     | ---------------- | ------------------- |
-    | 区块加载才执行   | LazyLoader 组件     |
+    | 区块加载才执行   | ChunkScope 组件     |
     | 红石断开就不执行 | ScriptRunner        |
     | 命令方块延迟     | ScriptRunner.wait() |
 
@@ -190,7 +191,7 @@ graph LR
     %% 右侧：全局系统
     subgraph Global["全局支持层"]
         GameEvent["GameEvents(预定义游戏事件)"]
-        GlobalPM["GlobalPlayerManager(全局玩家管理)"]
+        GlobalPM["Participation(全局参与关系)"]
     end
 
     %% 连接关系
@@ -212,9 +213,9 @@ graph LR
 预定义通用事件（如 IntervalEventSignal、ButtonPushEventSignal 等），
 可在 State 或 Component 中通过 eventManager 订阅。
 
-### GlobalPlayerManager
+### Participation
 
-全局玩家管理，负责玩家的分配和回收，游戏获取玩家时会从此尝试分配，游戏结束时会释放玩家。
+全局参与关系是玩家能否加入具体游戏实例的单一真源。每个游戏通过自己的 `GameParticipation` 查询和释放 membership；默认策略可阻止玩家同时进入多个互斥游戏。
 
 ## 文档与教程
 
