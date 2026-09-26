@@ -68,6 +68,8 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
         this.traceSession?.participation.builtin(BuiltinTraceEventType.ParticipationAcquire, {
             player: this.traceSession.player(p.id, p.name),
         });
+
+        const wasParticipant = this.participation.has(p.id);
         const decision: ParticipationDecision = this.participation.join(p.id);
         if (!decision.allowed) {
             this.traceSession?.participation.builtin(
@@ -85,9 +87,16 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
 
         const player = this.ensurePlayer(p);
         this.traceOnlinePlayer(p);
-        this.traceSession?.participation.builtin(BuiltinTraceEventType.ParticipationJoined, {
-            player: this.traceSession.player(p.id, p.name),
-        });
+
+        // Joined 描述真实 membership 迁移；重复 join() 只保留 Acquire 尝试。
+        if (!wasParticipant && this.participation.has(p.id)) {
+            this.traceSession?.participation.builtin(
+                BuiltinTraceEventType.ParticipationJoined,
+                {
+                    player: this.traceSession.player(p.id, p.name),
+                }
+            );
+        }
         return { allowed: true, player };
     }
 
@@ -141,10 +150,25 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
                 this.traceOnlinePlayer(player);
                 return wrapper;
             });
+            const tracedJoined = new Set<string>();
             for (const player of players) {
+                if (
+                    tracedJoined.has(player.id) ||
+                    previousMemberships.has(player.id) ||
+                    !this.participation.has(player.id)
+                ) {
+                    continue;
+                }
+                tracedJoined.add(player.id);
                 this.traceSession?.participation.builtin(
                     BuiltinTraceEventType.ParticipationJoined,
-                    { player: this.traceSession.player(player.id, player.name), batch: true }
+                    {
+                        player: this.traceSession.player(
+                            player.id,
+                            player.name
+                        ),
+                        batch: true,
+                    }
                 );
             }
             return { allowed: true, players: wrappers };

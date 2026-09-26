@@ -550,3 +550,47 @@ test("traceError never throws on hostile thrown values", () => {
     expect(serialized.errors[0]).toMatchObject({ message: "readable" });
     expect(typeof serialized.errors[1].message).toBe("string");
 });
+
+test("ParticipationJoined 只记录真实新增 membership", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const player = env.connectPlayer("trace-repeat", "Trace Repeat");
+
+    class RepeatJoinGame extends GameEngine {
+        static gameType = "trace-repeat-join";
+        constructor(owner, key, config) {
+            super(TracePlayer, owner, key, config);
+            this.player = config.player;
+        }
+        buildContext() {
+            return new TraceContext();
+        }
+        onStart() {
+            expect(this.playerManager.join(this.player).allowed).toBe(true);
+            expect(this.playerManager.join(this.player).allowed).toBe(true);
+            expect(
+                this.playerManager.joinAll([this.player, this.player]).allowed
+            ).toBe(true);
+            this.resetState(TraceState);
+        }
+        onStop() {}
+    }
+
+    env.startGame(RepeatJoinGame, { player });
+    env.stopGame(RepeatJoinGame);
+
+    const events = env.gameTrace.decode().events;
+    const acquire = events.filter(
+        (event) => event.type === "participation.acquire"
+    );
+    const joined = events.filter(
+        (event) => event.type === "participation.joined"
+    );
+
+    // 两次 join + joinAll 中两项，Acquire 记录调用尝试。
+    expect(acquire).toHaveLength(4);
+    // membership 实际只从 absent -> present 迁移一次。
+    expect(joined).toHaveLength(1);
+    expect(joined[0].payload.player).toBe("trace-repeat");
+});
+
