@@ -189,9 +189,18 @@ export class PlayerTextPrimitive<
     ) {
         const visibleTo = this.options?.visibleTo ?? "all";
         if (typeof visibleTo === "function") {
-            primitive.visibleTo = world
+            const viewers = world
                 .getAllPlayers()
                 .filter((viewer) => visibleTo(viewer, target, group));
+
+            // Script API 规定 visibleTo=[] 表示“所有玩家可见”，因此动态
+            // 过滤结果为空时必须直接移除 primitive，不能写入空数组。
+            if (viewers.length === 0) {
+                this.removePrimitive(target.id, primitive);
+                return;
+            }
+
+            primitive.visibleTo = viewers;
             return;
         }
 
