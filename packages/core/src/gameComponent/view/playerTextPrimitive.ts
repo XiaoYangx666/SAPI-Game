@@ -18,8 +18,23 @@ import { Game } from "../../main";
 import { Duration } from "../../utils/duration";
 import { GameComponent } from "../gameComponent";
 
-/** textPrimitive 的可见范围。 */
+/** textPrimitive 的基础可见范围。 */
 export type PlayerTextVisibility = "all" | "self" | "others";
+
+/**
+ * 按观察者动态决定某个玩家文本是否可见。
+ *
+ * viewer 是正在观察文本的原生玩家；target 是文本所属的 GamePlayer；
+ * 当 players 来源带组语义时，group 为 target 所属组。
+ */
+export type PlayerTextVisibilityResolver<
+    P extends GamePlayer = GamePlayer,
+    TData = any
+> = (
+    viewer: Player,
+    target: P,
+    group?: PlayerGroup<P, TData>
+) => boolean;
 
 export interface PlayerTextPrimitiveOptions<
     P extends GamePlayer = GamePlayer,
@@ -44,8 +59,13 @@ export interface PlayerTextPrimitiveOptions<
     backgroundColor?: RGBA;
     /** 最大渲染距离，不设置则跟随客户端渲染距离。 */
     maximumRenderDistance?: number;
-    /** 可见范围，默认 all。 */
-    visibleTo?: PlayerTextVisibility;
+    /**
+     * 可见范围，默认 all。
+     *
+     * 除了 all / self / others，也可以传函数按观察者动态过滤，
+     * 例如实现“仅队友可见”。
+     */
+    visibleTo?: PlayerTextVisibility | PlayerTextVisibilityResolver<P, TData>;
     /** 刷新间隔，默认 10 tick。 */
     refreshInterval?: Duration;
 }
@@ -117,7 +137,7 @@ export class PlayerTextPrimitive<
             if (!primitive) continue;
             try {
                 primitive.setText(options.text(p, group));
-                this.applyVisibility(primitive, player);
+                this.applyVisibility(primitive, player, p, group);
             } catch {
                 // 玩家可能刚好在这一 tick 失效，下一轮会重新同步。
             }
@@ -161,8 +181,21 @@ export class PlayerTextPrimitive<
         return primitive;
     }
 
-    private applyVisibility(primitive: TextPrimitive, player: Player) {
-        switch (this.options?.visibleTo ?? "all") {
+    private applyVisibility(
+        primitive: TextPrimitive,
+        player: Player,
+        target: P,
+        group?: PlayerGroup<P, TData>
+    ) {
+        const visibleTo = this.options?.visibleTo ?? "all";
+        if (typeof visibleTo === "function") {
+            primitive.visibleTo = world
+                .getAllPlayers()
+                .filter((viewer) => visibleTo(viewer, target, group));
+            return;
+        }
+
+        switch (visibleTo) {
             case "self":
                 primitive.visibleTo = [player];
                 break;
