@@ -136,3 +136,50 @@ test("GameParticipation hasAny 不需要构造成员数组", () => {
     expect(participation.hasAny).toBe(false);
 });
 
+test("双向 participation 索引在 join/leave/release 中保持一致", () => {
+    const manager = new ParticipationManager(new SharedParticipationPolicy());
+
+    manager.join("alice", "game-a");
+    manager.join("bob", "game-a");
+    manager.join("alice", "game-b");
+
+    expect(manager.getPlayers("game-a")).toEqual(["alice", "bob"]);
+    expect(manager.getPlayers("game-b")).toEqual(["alice"]);
+    expect(manager.getPlayerCount("game-a")).toBe(2);
+    expect(manager.hasPlayers("game-b")).toBe(true);
+
+    manager.leave("alice", "game-a");
+    expect(manager.getPlayers("game-a")).toEqual(["bob"]);
+    expect(manager.getGames("alice")).toEqual(["game-b"]);
+
+    manager.leaveAll("alice");
+    expect(manager.getPlayers("game-b")).toEqual([]);
+    expect(manager.hasPlayers("game-b")).toBe(false);
+
+    manager.releaseGame("game-a");
+    expect(manager.getPlayers("game-a")).toEqual([]);
+    expect(manager.playerCount).toBe(0);
+    expect(manager.membershipCount).toBe(0);
+});
+
+test("releaseGame 在通知观察者前完成双向索引提交", () => {
+    const manager = new ParticipationManager(new SharedParticipationPolicy());
+    const game = new GameParticipation(manager, "atomic-game");
+    game.joinAll(["alice", "bob"]);
+
+    const snapshots = [];
+    const sub = game.changed.subscribe(() => {
+        snapshots.push({
+            size: game.size,
+            players: [...game.getAll()],
+        });
+    });
+
+    game.clear();
+    expect(snapshots).toEqual([
+        { size: 0, players: [] },
+        { size: 0, players: [] },
+    ]);
+    sub.unsubscribe();
+});
+

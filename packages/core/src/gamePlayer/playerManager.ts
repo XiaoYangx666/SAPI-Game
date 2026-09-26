@@ -215,13 +215,19 @@ export class GamePlayerManager<T extends GamePlayer = GamePlayer> {
     }
 
     get activeSize() {
-        return Array.from(this.players.values()).filter((p) => p.isActive)
-            .length;
+        let count = 0;
+        for (const player of this.players.values()) {
+            if (player.isActive) count++;
+        }
+        return count;
     }
 
     get validSize() {
-        return Array.from(this.players.values()).filter((p) => p.isValid)
-            .length;
+        let count = 0;
+        for (const player of this.players.values()) {
+            if (player.isValid) count++;
+        }
+        return count;
     }
 
     dispose() {

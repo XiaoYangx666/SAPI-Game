@@ -55,7 +55,9 @@ export class GameParticipation {
     }
 
     get size(): number {
-        return this.getAll().length;
+        return this.tracked
+            ? this.manager.getPlayerCount(this.gameKey)
+            : 0;
     }
 
     /** 是否至少存在一个 membership；用于空房策略等短路查询。 */
