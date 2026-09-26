@@ -35,7 +35,11 @@ export type RegionTeamCleanUpOptions<
     TData = any
 > = RegionTeamCleanUpBase & RegionTeamCleanUpScope<P, TData>;
 
-/** 玩家离开指定区域时将其从所有匹配队伍移除。 */
+/**
+ * 玩家离开指定区域时将其从所有匹配队伍移除。
+ * @deprecated 选队大厅请使用 RegionTeamChooser.membershipRegion；
+ * 其他边界清理请使用 RegionBoundary。
+ */
 export class RegionTeamCleaner<
     P extends GamePlayer = GamePlayer,
     TData = any

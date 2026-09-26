@@ -4,6 +4,7 @@ import {
     EntityInteractionBlocker,
     FriendlyFireProtector,
     Game,
+    ChunkScope,
     GameComponent,
     LazyLoader,
     GameContext,
@@ -11,19 +12,25 @@ import {
     GamePlayer,
     GameState,
     InfoScoreboard,
+    SidebarScoreboard,
     PlayerGroup,
     PlayerGroupSet,
+    PlayerLifecycle,
     PlayerTextPrimitive,
     PlayerRegionMonitor,
+    RegionBoundary,
     PvpController,
     RegionProtector,
     RegionTeamChooser,
     RespawnComponent,
+    SpawnController,
     SpawnPointProtector,
     SphereRegion,
     StopWatch,
     TeamScoreBoard,
     Timer,
+    playerLifecycle,
+    teamScoreboard,
     playerInfoText,
     playerNameText,
 } from "../packages/core/dist/main.js";
@@ -253,6 +260,56 @@ test("RegionTeamChooser 的 Leave 不会创建 participation", () => {
     env.reset();
 });
 
+test("RegionTeamChooser membershipRegion 离开大厅会清理所有受管队伍", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("chooser-member-a", "A");
+
+    const game = env.startGame(CombatGame, { players: [a] });
+    const state = game.getState(CombatState);
+    const selectorRegion = new SphereRegion(
+        "minecraft:overworld",
+        { x: 0, y: 0, z: 0 },
+        2
+    );
+    const lobbyRegion = new SphereRegion(
+        "minecraft:overworld",
+        { x: 0, y: 0, z: 0 },
+        10
+    );
+    const teamA = new PlayerGroup(GamePlayer);
+    const teamB = new PlayerGroup(GamePlayer);
+
+    state.addComponent(
+        RegionTeamChooser,
+        {
+            membershipRegion: lobbyRegion,
+            config: [
+                { region: selectorRegion, team: teamA },
+                { region: selectorRegion, team: teamB },
+            ],
+        },
+        "membership"
+    );
+    const chooser = state.getComponent(RegionTeamChooser, "membership");
+    const player = game.playerManager.getById(a.id);
+    teamA.add(player);
+    teamB.add(player);
+
+    chooser.handleMembershipRegionEvent({
+        player: a,
+        type: "leave",
+        region: lobbyRegion,
+    });
+
+    expect(teamA.hasId(a.id)).toBe(false);
+    expect(teamB.hasId(a.id)).toBe(false);
+    // 离开大厅只清理选队关系，不隐式释放 participation。
+    expect(game.playerManager.hasParticipant(a.id)).toBe(true);
+
+    env.reset();
+});
+
 test("Timer / StopWatch 补偿模式逐秒补发并正确到 0", async () => {
     const env = new BEGameTestEngine();
     env.reset();
@@ -327,7 +384,11 @@ class LazyChildComponent extends GameComponent {
     }
 }
 
-test("LazyLoader 拥有并完整清理子组件", async () => {
+test("LazyLoader 是 ChunkScope 的兼容别名", () => {
+    expect(LazyLoader).toBe(ChunkScope);
+});
+
+test("ChunkScope 拥有并完整清理子组件", async () => {
     const env = new BEGameTestEngine();
     env.reset();
     const player = env.connectPlayer("lazy-a", "A");
@@ -337,7 +398,7 @@ test("LazyLoader 拥有并完整清理子组件", async () => {
     LazyChildComponent.detached = 0;
 
     state.addComponent(
-        LazyLoader,
+        ChunkScope,
         {
             dimensionId: "minecraft:overworld",
             pos: { x: 0, y: 0, z: 0 },
@@ -352,7 +413,7 @@ test("LazyLoader 拥有并完整清理子组件", async () => {
     );
 
     await env.advanceTicks(1);
-    const loader = state.getComponent(LazyLoader, "loader");
+    const loader = state.getComponent(ChunkScope, "loader");
     expect(loader.isActive).toBe(true);
     expect(LazyChildComponent.attached).toBe(2);
 
@@ -367,7 +428,7 @@ test("LazyLoader 拥有并完整清理子组件", async () => {
     env.reset();
 });
 
-test("LazyLoader 的 onLoad 失败会回滚子组件并保持可重试", async () => {
+test("ChunkScope 的 onLoad 失败会回滚子组件并保持可重试", async () => {
     const env = new BEGameTestEngine();
     env.reset();
     const player = env.connectPlayer("lazy-fail-a", "A");
@@ -377,7 +438,7 @@ test("LazyLoader 的 onLoad 失败会回滚子组件并保持可重试", async (
     LazyChildComponent.detached = 0;
 
     state.addComponent(
-        LazyLoader,
+        ChunkScope,
         {
             dimensionId: "minecraft:overworld",
             pos: { x: 0, y: 0, z: 0 },
@@ -391,7 +452,7 @@ test("LazyLoader 的 onLoad 失败会回滚子组件并保持可重试", async (
     );
 
     await env.advanceTicks(1);
-    const loader = state.getComponent(LazyLoader, "loader-fail");
+    const loader = state.getComponent(ChunkScope, "loader-fail");
     expect(loader.isActive).toBe(false);
     expect(LazyChildComponent.attached).toBe(1);
     expect(LazyChildComponent.detached).toBe(1);
@@ -405,7 +466,7 @@ test("LazyLoader 的 onLoad 失败会回滚子组件并保持可重试", async (
     env.reset();
 });
 
-test("PlayerRegionMonitor 每次离开只触发一次并识别维度", async () => {
+test("RegionBoundary 每次跨边界只触发一次并识别维度", async () => {
     const env = new BEGameTestEngine();
     env.reset();
     const native = env.connectPlayer("monitor-a", "A");
@@ -415,7 +476,7 @@ test("PlayerRegionMonitor 每次离开只触发一次并识别维度", async () 
     const leaves = [];
 
     state.addComponent(
-        PlayerRegionMonitor,
+        RegionBoundary,
         {
             region: new SphereRegion(
                 "minecraft:overworld",
@@ -442,6 +503,29 @@ test("PlayerRegionMonitor 每次离开只触发一次并识别维度", async () 
     await env.advanceTicks(1);
     expect(leaves).toEqual(["monitor-a", "monitor-a"]);
     expect(player).toBeDefined();
+
+    // 旧 groups 写法仍由兼容适配器映射到同一 RegionBoundary 实现。
+    const legacyLeaves = [];
+    state.addComponent(
+        PlayerRegionMonitor,
+        {
+            region: new SphereRegion(
+                "minecraft:overworld",
+                { x: 0, y: 0, z: 0 },
+                5
+            ),
+            groups: game.context.groupSet,
+            interval: { ticks: 1 },
+            onLeave(p) {
+                legacyLeaves.push(p.id);
+            },
+        },
+        "legacy-monitor"
+    );
+    native.dimension = virtualMinecraft.getDimension("minecraft:overworld");
+    native.location = { x: 10, y: 0, z: 0 };
+    await env.advanceTicks(1);
+    expect(legacyLeaves).toEqual(["monitor-a"]);
 
     env.reset();
 });
@@ -598,6 +682,105 @@ test("RespawnComponent 自动广播不再强制要求 buildNameFunc", () => {
     env.reset();
 });
 
+test("PlayerLifecycle 保留 GamePlayer、group 与原生事件", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("life-a", "A");
+    const b = env.connectPlayer("life-b", "B");
+    const game = env.startGame(CombatGame, { players: [a, b] });
+    const state = game.getState(CombatState);
+
+    const deaths = [];
+    const spawns = [];
+    state.addComponent(
+        PlayerLifecycle,
+        playerLifecycle({
+            players: game.context.groupSet,
+            onDeath(context) {
+                deaths.push(context);
+            },
+            onSpawn(context) {
+                spawns.push(context);
+            },
+        }),
+        "lifecycle"
+    );
+
+    const deathEvent = {
+        deadEntity: a,
+        damageSource: { damagingEntity: b },
+    };
+    env.emitWorldAfterEvent("entityDie", deathEvent);
+
+    const spawnEvent = { player: a, initialSpawn: false };
+    env.emitWorldAfterEvent("playerSpawn", spawnEvent);
+
+    expect(deaths).toHaveLength(1);
+    expect(deaths[0].player.id).toBe("life-a");
+    expect(deaths[0].group).toBe(game.context.teamA);
+    expect(deaths[0].event).toBe(deathEvent);
+
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0].player.id).toBe("life-a");
+    expect(spawns[0].group).toBe(game.context.teamA);
+    expect(spawns[0].event).toBe(spawnEvent);
+
+    env.reset();
+});
+
+test("SpawnController 支持多组绑定、动态位置和批量传送", () => {
+    const env = new BEGameTestEngine();
+    env.reset();
+    const a = env.connectPlayer("spawn-controller-a", "A");
+    const ally = env.connectPlayer("spawn-controller-ally", "Ally");
+    const b = env.connectPlayer("spawn-controller-b", "B");
+    const game = env.startGame(CombatGame, { players: [a, ally, b] });
+    const state = game.getState(CombatState);
+    const overworld = virtualMinecraft.getDimension("minecraft:overworld");
+
+    let teamBSpawn = { x: 20, y: 10, z: 0 };
+    state.addComponent(
+        SpawnController,
+        {
+            dimension: overworld,
+            bindings: [
+                {
+                    players: game.context.teamA,
+                    position: { x: 0, y: 10, z: 0 },
+                },
+                {
+                    players: game.context.teamB,
+                    position: () => teamBSpawn,
+                },
+            ],
+            autoSetSpawnPoint: false,
+            safeArea: {
+                resetRadius: { x: 0, y: 1, z: 0 },
+                maintainRadius: false,
+            },
+        },
+        "multi-spawn"
+    );
+
+    const controller = state.getComponent(SpawnController, "multi-spawn");
+    controller.teleportAll();
+    expect(a.location).toEqual({ x: 0, y: 10, z: 0 });
+    expect(ally.location).toEqual({ x: 0, y: 10, z: 0 });
+    expect(b.location).toEqual(teamBSpawn);
+
+    teamBSpawn = { x: 30, y: 12, z: 5 };
+    controller.teleportAll();
+    expect(b.location).toEqual(teamBSpawn);
+
+    // 任意受控玩家都不能与任意受控出生点脚下方块交互。
+    const floor = overworld.getBlock({ x: 0, y: 9, z: 0 });
+    const event = { player: b, block: floor, cancel: false };
+    env.emitWorldBeforeEvent("playerInteractWithBlock", event);
+    expect(event.cancel).toBe(true);
+
+    env.reset();
+});
+
 test("SpawnPointProtector 只保护目标队伍与目标维度", () => {
     const env = new BEGameTestEngine();
     env.reset();
@@ -652,7 +835,8 @@ test("SpawnPointProtector 只保护目标队伍与目标维度", () => {
     env.reset();
 });
 
-test("InfoScoreboard 增量更新时保持同一个 objective", () => {
+test("SidebarScoreboard 增量更新时保持同一个 objective", () => {
+    expect(InfoScoreboard).toBe(SidebarScoreboard);
     const env = new BEGameTestEngine();
     env.reset();
     const player = env.connectPlayer("score-a", "A");
@@ -706,31 +890,32 @@ test("TeamScoreBoard 首次 tick 即可刷新且不重建 objective", async () =
     const state = game.getState(CombatState);
 
     state.addComponent(
-        TeamScoreBoard,
-        {
+        SidebarScoreboard,
+        teamScoreboard({
             scoreboardName: "test_team",
             displayName: "Teams",
             teams: [
                 { team: game.context.teamA, prefix: "§c" },
                 { team: game.context.teamB, prefix: "§9" },
             ],
-        },
+        }),
         "team-score"
     );
-    const board = state.getComponent(TeamScoreBoard, "team-score");
+    const board = state.getComponent(SidebarScoreboard, "team-score");
 
-    board.refreshScoreBoard();
+    board.refresh();
     const first = virtualMinecraft.scoreboard.getObjective("test_team");
     expect(first).toBeDefined();
     expect(first.getParticipants()).toHaveLength(3);
 
     // 同 tick 第二次调用不会重复做刷新，也不会创建新 objective。
-    board.refreshScoreBoard();
+    board.refresh();
     expect(virtualMinecraft.scoreboard.getObjective("test_team")).toBe(first);
 
     await env.advanceTicks(1);
     game.context.teamA.delete(game.context.teamA.getById("team-score-b"));
-    board.refreshScoreBoard();
+    // TeamScoreBoard 监听 team.changed，业务层无需手动 refresh。
+    await env.advanceTicks(1);
     expect(virtualMinecraft.scoreboard.getObjective("test_team")).toBe(first);
     expect(first.getParticipants()).toHaveLength(2);
 

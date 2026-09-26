@@ -23,8 +23,13 @@ export interface RegionTeamChooserData<P extends GamePlayer> {
 
 interface RegionTeamChooserConfig<P extends GamePlayer> {
     config: RegionTeamChooserData<P>[];
-    /**当玩家离开区域时是否从队伍中删除(默认否) */
+    /**当玩家离开单个选队区域时是否从该队删除(默认否) */
     removeOnLeave?: boolean;
+    /**
+     * 可选的整个选队/等待大厅范围。
+     * 玩家离开该范围时会从本 Chooser 管理的所有队伍删除。
+     */
+    membershipRegion?: GameRegion;
     /**是否允许旁观者进队(默认否) */
     allowSpectator?: boolean;
 }
@@ -43,6 +48,14 @@ export class RegionTeamChooser<
                 data.region
             );
         });
+
+        if (this.options.membershipRegion) {
+            this.subscribe(
+                Game.events.region,
+                (event) => this.handleMembershipRegionEvent(event),
+                this.options.membershipRegion
+            );
+        }
     }
 
     private handleRegionEvent(
@@ -76,6 +89,16 @@ export class RegionTeamChooser<
         }
 
         this.handlePlayerEnter(joined.player, data);
+    }
+
+    private handleMembershipRegionEvent(event: PlayerRegionEvent) {
+        if (event.type !== RegionEventType.Leave) return;
+        const seen = new Set<PlayerGroup<P>>();
+        for (const data of this.options?.config ?? []) {
+            if (seen.has(data.team)) continue;
+            seen.add(data.team);
+            data.team.delete(event.player, "membership-region-leave");
+        }
     }
 
     private handlePlayerEnter(

@@ -1,40 +1,30 @@
-import { Entity, Player, world } from "@minecraft/server";
+import { Entity, Player } from "@minecraft/server";
 import { GamePlayer } from "../../gamePlayer/gamePlayer";
 import { PlayerGroupSet } from "../../gamePlayer/groupSet";
 import { PlayerGroup } from "../../gamePlayer/playerGroup";
 import { GameState } from "../../gameState/gameState";
 import { EntityTypeIds } from "../../utils/vanila-data";
-import { GameComponent } from "../gameComponent";
+import {
+    PlayerLifecycle,
+    playerLifecycle,
+} from "./playerLifecycle";
 
 export interface RespawnComponentOptions<
     TPlayer extends GamePlayer,
     TData = unknown
 > {
     groupSet: PlayerGroupSet<TPlayer, TData>;
-
-    /** 玩家死亡时触发自定义逻辑。 */
     onDie?: (
         player: TPlayer,
         group: PlayerGroup<TPlayer, TData>,
         source?: Entity
     ) => void;
-
-    /** 玩家重生时触发。 */
     onSpawn?: (player: TPlayer, group: PlayerGroup<TPlayer, TData>) => void;
-
-    /** 是否自动广播死亡消息，默认 false。 */
     autoBroadcast?: boolean;
-
-    /**
-     * 构建玩家显示名，用于广播消息。
-     * 不提供时直接使用 GamePlayer.name。
-     */
     buildNameFunc?: (
         player: TPlayer,
         group: PlayerGroup<TPlayer, TData>
     ) => string;
-
-    /** 自定义死亡消息构建。 */
     buildMsg?: (
         playerName: string,
         killerName: string | undefined,
@@ -42,68 +32,80 @@ export interface RespawnComponentOptions<
     ) => string;
 }
 
+/**
+ * @deprecated 使用 PlayerLifecycle + playerLifecycle(options)。
+ * 旧的自动死亡播报仅作为兼容适配层保留。
+ */
 export class RespawnComponent<
     TPlayer extends GamePlayer,
     TData = unknown
-> extends GameComponent<GameState, RespawnComponentOptions<TPlayer, TData>> {
-    override onAttach(): void {
-        if (!this.options) return;
+> extends PlayerLifecycle {
+    constructor(
+        state: GameState,
+        options?: RespawnComponentOptions<TPlayer, TData>,
+        tag?: string
+    ) {
+        super(
+            state,
+            options
+                ? playerLifecycle({
+                      players: options.groupSet,
+                      onDeath: ({ player, group, event }) => {
+                          if (!group) return;
 
-        const {
-            onDie,
-            autoBroadcast,
-            buildNameFunc,
-            groupSet,
-            onSpawn,
-            buildMsg,
-        } = this.options;
+                          options.onDie?.(
+                              player,
+                              group,
+                              event.damageSource.damagingEntity
+                          );
+                          if (!options.autoBroadcast) return;
 
-        this.subscribe(world.afterEvents.entityDie, (event) => {
-            const deadEntity = event.deadEntity;
-            if (deadEntity.typeId !== EntityTypeIds.Player) return;
+                          const playerName =
+                              options.buildNameFunc?.(player, group) ??
+                              player.name;
+                          const killerName = getKillerName(
+                              event.damageSource.damagingEntity,
+                              options.groupSet,
+                              options.buildNameFunc
+                          );
+                          const message = options.buildMsg
+                              ? options.buildMsg(
+                                    playerName,
+                                    killerName,
+                                    player
+                                )
+                              : killerName
+                                ? `${playerName} §r 被 ${killerName} §r 杀死了`
+                                : `${playerName} §r 死了`;
 
-            const result = groupSet.findById(deadEntity.id);
-            if (!result) return;
+                          options.groupSet.sendMessage(message);
+                      },
+                      onSpawn: options.onSpawn
+                          ? ({ player, group }) => {
+                                if (group) options.onSpawn?.(player, group);
+                            }
+                          : undefined,
+                  })
+                : undefined,
+            tag
+        );
+    }
+}
 
-            const { player, group } = result;
-            onDie?.(player, group, event.damageSource.damagingEntity);
+function getKillerName<
+    P extends GamePlayer,
+    TData
+>(
+    source: Entity | undefined,
+    groupSet: PlayerGroupSet<P, TData>,
+    buildName?: (player: P, group: PlayerGroup<P, TData>) => string
+): string | undefined {
+    if (!source || source.typeId !== EntityTypeIds.Player) return undefined;
 
-            if (!autoBroadcast) return;
-
-            const playerName =
-                buildNameFunc?.(player, group) ?? player.name;
-            const killerName = this.getKillerName(
-                event.damageSource.damagingEntity
-            );
-            const message = buildMsg
-                ? buildMsg(playerName, killerName, player)
-                : killerName
-                  ? `${playerName} §r 被 ${killerName} §r 杀死了`
-                  : `${playerName} §r 死了`;
-
-            groupSet.sendMessage(message);
-        });
-
-        if (onSpawn) {
-            this.subscribe(world.afterEvents.playerSpawn, (event) => {
-                const result = groupSet.findById(event.player.id);
-                if (result) onSpawn(result.player, result.group);
-            });
-        }
+    const result = groupSet.findById(source.id);
+    if (result) {
+        return buildName?.(result.player, result.group) ?? result.player.name;
     }
 
-    private getKillerName(source?: Entity): string | undefined {
-        if (!source || source.typeId !== EntityTypeIds.Player) return undefined;
-
-        const result = this.options!.groupSet.findById(source.id);
-        if (result) {
-            return (
-                this.options!.buildNameFunc?.(result.player, result.group) ??
-                result.player.name
-            );
-        }
-
-        // 杀手不属于当前游戏时，仍可使用原生玩家名。
-        return (source as Player).name;
-    }
+    return (source as Player).name;
 }

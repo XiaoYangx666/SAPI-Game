@@ -1,92 +1,99 @@
-import { system } from "@minecraft/server";
 import { GamePlayer, PlayerGroup } from "@sapi-game/gamePlayer";
 import { GameState } from "@sapi-game/gameState";
-import { GameComponent } from "../gameComponent";
-import { SidebarScoreboardView } from "./sidebarScoreboard";
+import {
+    SidebarScoreboard,
+    SidebarScoreboardOptions,
+} from "./infoScoreboard";
 
-export interface TeamScoreBoardTeamData<T extends GamePlayer = GamePlayer> {
-    /** 队伍对象。 */
+export interface TeamScoreboardTeamData<T extends GamePlayer = GamePlayer> {
     team: PlayerGroup<T>;
-    /** 前缀。 */
     prefix?: string;
-    /** 自定义方法，会覆盖前缀。 */
     buildName?: (player: T) => string;
-    /** 同组排序方法。 */
     teamSort?: (p1: T, p2: T) => number;
-    /** 组内过滤。 */
     teamFilter?: (p: T) => boolean;
-    /** 展示失效玩家，默认否。 */
     showInvalid?: boolean;
 }
 
-export interface TeamScoreBoardOptions<P extends GamePlayer> {
-    /** 计分板名。 */
+export interface TeamScoreboardOptions<P extends GamePlayer> {
     scoreboardName: string;
-    /** 计分板显示名。 */
     displayName: string;
-    /** 传入队伍数组。 */
-    teams: TeamScoreBoardTeamData<P>[];
+    teams: TeamScoreboardTeamData<P>[];
+    showOnAttach?: boolean;
 }
 
-export class TeamScoreBoard<P extends GamePlayer> extends GameComponent<
-    GameState<P>,
-    TeamScoreBoardOptions<P>
-> {
-    private view?: SidebarScoreboardView;
-    private lastRefresh = -1;
+/**
+ * 队伍侧边栏 preset。
+ *
+ * 只是把 PlayerGroup[] 转成 SidebarScoreboard 的 lines/refreshOn，
+ * 不再拥有独立 Component 生命周期。
+ */
+export function teamScoreboard<P extends GamePlayer>(
+    options: TeamScoreboardOptions<P>
+): SidebarScoreboardOptions {
+    const teams = [...new Set(options.teams.map((item) => item.team))];
 
-    override onAttach(): void {
-        if (!this.options) return;
-        this.view = new SidebarScoreboardView(
-            this.options.scoreboardName,
-            this.options.displayName
-        );
-        this.view.clear();
+    return {
+        scoreboardName: options.scoreboardName,
+        displayName: options.displayName,
+        showOnAttach: options.showOnAttach,
+        refreshOn: teams.map((team) => team.changed),
+        // 保留旧 TeamScoreBoard 的可见排序：score 随 index 增长。
+        score: (index) => index,
+        lines: () => {
+            const scores: string[] = [];
+
+            for (const team of options.teams) {
+                let players = team.team.getAll();
+
+                if (team.teamFilter) {
+                    players = players.filter(team.teamFilter);
+                }
+                if (team.teamSort) {
+                    players.sort(team.teamSort);
+                }
+
+                for (const player of players) {
+                    if (!(team.showInvalid ?? false) && !player.isValid) {
+                        continue;
+                    }
+                    scores.push(
+                        team.buildName
+                            ? team.buildName(player)
+                            : (team.prefix ?? "") + player.name
+                    );
+                }
+            }
+
+            return scores;
+        },
+    };
+}
+
+/**
+ * @deprecated 使用 SidebarScoreboard + teamScoreboard(options)。
+ * 这里只保留薄兼容壳，不再维护第二套 scoreboard 实现。
+ */
+export class TeamScoreBoard<
+    P extends GamePlayer
+> extends SidebarScoreboard {
+    constructor(
+        state: GameState<P>,
+        options?: TeamScoreboardOptions<P>,
+        tag?: string
+    ) {
+        super(state, options ? teamScoreboard(options) : undefined, tag);
     }
 
-    override onDetach(): void {
-        this.view?.dispose();
-        this.view = undefined;
-    }
-
-    /** 显示。 */
-    show() {
-        this.view?.show();
-    }
-
-    /** 隐藏但保留当前内容。 */
-    hide() {
-        this.view?.hide();
-    }
-
-    /** 刷新选队计分板；同一 tick 内重复调用只执行一次。 */
     refreshScoreBoard() {
-        if (!this.options || !this.view) return;
-        if (this.lastRefresh === system.currentTick) return;
-
-        const scores: string[] = [];
-        for (const team of this.options.teams) {
-            let players = team.team.getAll();
-
-            if (team.teamFilter) {
-                players = players.filter(team.teamFilter);
-            }
-            if (team.teamSort) {
-                players.sort(team.teamSort);
-            }
-
-            for (const player of players) {
-                if (!(team.showInvalid ?? false) && !player.isValid) continue;
-                scores.push(
-                    team.buildName
-                        ? team.buildName(player)
-                        : (team.prefix ?? "") + player.name
-                );
-            }
-        }
-
-        // 保留旧 TeamScoreBoard 的分数顺序：第一个条目为 0，后续递增。
-        this.view.updateLines(scores, (index) => index);
-        this.lastRefresh = system.currentTick;
+        this.refresh();
     }
 }
+
+
+/** @deprecated 使用 TeamScoreboardTeamData。 */
+export type TeamScoreBoardTeamData<T extends GamePlayer = GamePlayer> =
+    TeamScoreboardTeamData<T>;
+
+/** @deprecated 使用 TeamScoreboardOptions。 */
+export type TeamScoreBoardOptions<P extends GamePlayer> =
+    TeamScoreboardOptions<P>;

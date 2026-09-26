@@ -82,6 +82,35 @@ export function resolvePlayerEntries<P extends GamePlayer, TData = any>(
     return Array.from(value, (player) => ({ player }));
 }
 
+/**
+ * 按 ID 查找玩家并保留可用的组上下文。
+ * Group / GroupSet 走索引；普通 Iterable 只遍历到命中项。
+ */
+export function findPlayerSourceEntry<
+    P extends GamePlayer,
+    TData = any
+>(
+    source: PlayerSource<P, TData> | undefined,
+    playerId: string
+): PlayerSourceEntry<P, TData> | undefined {
+    const value = resolvePlayerCollection(source);
+    if (value === undefined) return undefined;
+
+    if (value instanceof PlayerGroupSet) {
+        return value.findById(playerId);
+    }
+
+    if (value instanceof PlayerGroup) {
+        const player = value.getById(playerId);
+        return player ? { player, group: value } : undefined;
+    }
+
+    for (const player of value) {
+        if (player.id === playerId) return { player };
+    }
+    return undefined;
+}
+
 /** 判断玩家 ID 是否存在于来源中；常见 Group/GroupSet 路径不会创建临时数组。 */
 export function playerSourceHas<P extends GamePlayer, TData = any>(
     source: PlayerSource<P, TData> | undefined,
